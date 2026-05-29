@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Shield, Bell, Search, Video, Calendar, Clock, Play, Pause, Volume2,
   Download, AlertTriangle, Flame, Check, Tv, LogOut, Settings,
-  HelpCircle, Camera, Plus, RotateCcw, Trash2, Maximize2
+  HelpCircle, Camera, Plus, Trash2
 } from 'lucide-react';
 import hospitalHallwayCctv from '../../imports/hospital_hallway_cctv.png';
 
@@ -89,7 +89,6 @@ function eventButtonStyle(severity: 'critical' | 'warning' | 'info') {
 export function NurseDashboard({ username, userType, onLogout }: NurseDashboardProps) {
   const [activeMenu, setActiveMenu] = useState<MenuId>('home');
   const [alerts, setAlerts] = useState<IncidentAlert[]>(INITIAL_ALERTS);
-  const [ticker, setTicker] = useState(0);
 
   // History filters
   const [searchDate, setSearchDate] = useState<'today' | 'week' | 'month'>('month');
@@ -110,27 +109,7 @@ export function NurseDashboard({ username, userType, onLogout }: NurseDashboardP
   const [newCamId, setNewCamId] = useState('');
   const [newCamLocation, setNewCamLocation] = useState('');
 
-  useEffect(() => {
-    const timer = setInterval(() => setTicker(t => t + 1), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   const activeTenMinAlerts = alerts.filter(a => Date.now() - a.timestamp <= 10 * 60 * 1000);
-
-  const handleTriggerMockAlert = () => {
-    const types = [
-      { type: 'FALL', label: 'FALL (낙상) 감지', camera: '복도 A', severity: 'critical' as const },
-      { type: 'FAINT', label: 'FAINT (실신) 감지', camera: '방 2', severity: 'warning' as const },
-      { type: 'CROWD', label: 'CROWD (혼잡) 감지', camera: '대기실 2', severity: 'info' as const },
-    ];
-    const pick = types[Math.floor(Math.random() * types.length)];
-    const now = new Date();
-    setAlerts(prev => [{
-      id: `evt-${Date.now()}`, time: now.toTimeString().split(' ')[0],
-      timestamp: Date.now(), camera: pick.camera, type: pick.type,
-      label: pick.label, severity: pick.severity, status: 'new',
-    }, ...prev]);
-  };
 
   const handleResolveAlert = (id: string) =>
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: 'resolved' as const } : a));
@@ -203,7 +182,7 @@ export function NurseDashboard({ username, userType, onLogout }: NurseDashboardP
       <div className="flex-1 flex overflow-hidden">
 
         {/* ===== LEFT SIDEBAR ===== */}
-        <aside className="w-56 bg-[#071329] border-r border-slate-800/50 flex flex-col justify-between flex-shrink-0">
+        <aside className="w-56 bg-[#071329] border-r border-slate-800/50 flex flex-col flex-shrink-0">
           <div className="p-4 space-y-1">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-3">메뉴 탐색</h3>
             <nav className="space-y-0.5">
@@ -233,22 +212,6 @@ export function NurseDashboard({ username, userType, onLogout }: NurseDashboardP
             </nav>
           </div>
 
-          {/* Simulation panel */}
-          <div className="p-4">
-            <div className="bg-[#0f192b] border border-slate-800 rounded-xl p-3.5 space-y-3">
-              <div>
-                <h4 className="text-xs font-bold text-white">시뮬레이션 패널</h4>
-                <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">모의 알람 생성기입니다.</p>
-              </div>
-              <button
-                onClick={handleTriggerMockAlert}
-                className="w-full py-2 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/20 text-blue-400 font-bold rounded-lg text-[10px] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" style={{ animation: 'spin 4s linear infinite' }} />
-                모의 위험 알람 발생
-              </button>
-            </div>
-          </div>
         </aside>
 
         {/* ===== MAIN CONTENT ===== */}
