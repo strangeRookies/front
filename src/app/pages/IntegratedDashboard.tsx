@@ -3,13 +3,17 @@ import {
   Shield, Bell, ChevronDown, Folder, ChevronRight,
   Play, Pause, Volume2, Maximize2, Check,
   LayoutDashboard, Video, LogOut, Settings,
-  HelpCircle, Calendar, Activity, HardDrive, Beaker
+  HelpCircle, Calendar, Activity, HardDrive, Beaker,
+  MessageSquare, Send, ChevronLeft
 } from 'lucide-react';
 import { CCTVFloorPlan } from '../components/CCTVFloorPlan';
 import hospitalHallwayCctv from '../../imports/hospital_hallway_cctv.png';
+import type { Inquiry } from '../types/inquiry';
 
 interface IntegratedDashboardProps {
   onLogout: () => void;
+  inquiries: Inquiry[];
+  onAddReply: (inquiryId: string, replyContent: string) => void;
 }
 
 interface CCTVCamera {
@@ -76,16 +80,22 @@ const SPACES = [
   { id: 'community-center', label: '중구 주민센터', floors: [] },
 ];
 
-type MenuId = 'home' | 'monitoring' | 'alerts' | 'history' | 'settings' | 'qna' | 'test';
+type MenuId = 'home' | 'alerts' | 'history' | 'qna' | 'test';
+type InquiryCategory = Inquiry['category'];
 
 const MENU_ITEMS: { id: MenuId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: 'home',       label: '대시보드 홈',    icon: LayoutDashboard },
-  { id: 'monitoring', label: '실시간 모니터링', icon: Video           },
-  { id: 'alerts',     label: '이벤트 알림',    icon: Bell            },
-  { id: 'history',    label: '이벤트 기록',    icon: Calendar        },
-  { id: 'settings',   label: '설정',          icon: Settings        },
-  { id: 'qna',        label: '문의',          icon: HelpCircle      },
+  { id: 'home',    label: '대시보드 홈', icon: LayoutDashboard },
+  { id: 'alerts',  label: '이벤트 알림', icon: Bell            },
+  { id: 'history', label: '이벤트 기록', icon: Calendar        },
+  { id: 'qna',     label: '문의',       icon: HelpCircle      },
 ];
+
+const CATEGORY_STYLES: Record<InquiryCategory, string> = {
+  '카메라 및 영상': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  '알림 및 경보':   'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  '모바일':         'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  '기타':           'bg-slate-500/10 text-slate-400 border-slate-500/20',
+};
 
 function eventButtonStyle(severity: 'critical' | 'warning' | 'info') {
   if (severity === 'critical') return 'bg-[#ef4444] hover:bg-red-400';
@@ -103,7 +113,7 @@ const TEST_MODE_FEEDS = [
   { id: 'CCTV-07', name: '대기실 2', alert: false },
 ];
 
-export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
+export function IntegratedDashboard({ onLogout, inquiries, onAddReply }: IntegratedDashboardProps) {
   const [activeMenu, setActiveMenu] = useState<MenuId>('home');
   const [selectedFloor, setSelectedFloor] = useState<'1F' | '2F' | '3F'>('1F');
   const [expandedSpace, setExpandedSpace] = useState<string>('seoul-hospital');
@@ -112,6 +122,14 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   const [events, setEvents] = useState<IncidentEvent[]>(INITIAL_EVENTS);
   const [isPlaying, setIsPlaying] = useState(true);
   const [volume, setVolume] = useState(70);
+
+  // Admin QnA state
+  const [selectedAdminQnaId, setSelectedAdminQnaId] = useState<string | null>(null);
+  const [adminReply, setAdminReply] = useState('');
+
+  const selectedAdminQna = inquiries.find(inq => inq.id === selectedAdminQnaId) ?? null;
+  const unansweredCount = inquiries.filter(i => !i.reply).length;
+  const answeredCount = inquiries.filter(i => i.reply).length;
 
   useEffect(() => {
     if (selectedFloor === '1F') { setCameras(FLOOR_1_CAMERAS); setSelectedCamera(FLOOR_1_CAMERAS[1]); }
@@ -124,6 +142,11 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   const handleResolveEvent = (id: string) =>
     setEvents(prev => prev.map(e => e.id === id ? { ...e, status: 'resolved' as const } : e));
 
+  const handleSubmitReply = () => {
+    if (!adminReply.trim() || !selectedAdminQnaId) return;
+    onAddReply(selectedAdminQnaId, adminReply.trim());
+    setAdminReply('');
+  };
 
   return (
     <div className="min-h-screen bg-[#020817] text-slate-100 flex flex-col font-sans">
@@ -213,18 +236,29 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
             <div className="space-y-2">
               <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">메뉴 탐색</h3>
               <nav className="space-y-0.5">
-                {MENU_ITEMS.map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => setActiveMenu(id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      activeMenu === id ? 'bg-[#0758D6] text-white shadow-lg' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {label}
-                  </button>
-                ))}
+                {MENU_ITEMS.map(({ id, label, icon: Icon }) => {
+                  const badge = id === 'qna' ? unansweredCount : undefined;
+                  const isActive = activeMenu === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setActiveMenu(id)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isActive ? 'bg-[#0758D6] text-white shadow-lg' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-4 h-4" />
+                        {label}
+                      </div>
+                      {badge !== undefined && badge > 0 && (
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white text-[#0758D6]' : 'bg-amber-500 text-white'}`}>
+                          {badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </nav>
             </div>
 
@@ -258,11 +292,9 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
           {/* HOME view */}
           {activeMenu === 'home' && (
             <div className="flex-1 p-4 gap-4 overflow-y-auto flex flex-col">
-              {/* Floor plan */}
               <div className="h-[400px] min-h-[400px]">
                 <CCTVFloorPlan cameras={cameras} onCameraClick={handleCameraClick} selectedCameraId={selectedCamera?.id || null} />
               </div>
-              {/* CCTV player */}
               <div className="bg-[#071329] border border-slate-800 rounded-xl overflow-hidden flex flex-col">
                 <div className="flex items-center justify-between px-4 py-3 bg-[#061224] border-b border-slate-800">
                   <div className="flex items-center gap-2">
@@ -340,42 +372,183 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
             </div>
           )}
 
-          {/* MONITORING view */}
-          {activeMenu === 'monitoring' && (
-            <div className="flex-1 p-6 overflow-y-auto space-y-4">
-              <h2 className="text-sm font-bold text-white">전체 구역 고정형 관제 뷰</h2>
-              <div className="h-[400px] border border-slate-800 rounded-2xl bg-black overflow-hidden relative">
-                <img src={hospitalHallwayCctv} alt="monitoring" className="w-full h-full object-cover brightness-75" />
-                <div className="absolute top-4 left-4 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                  <span className="text-xs font-bold text-white">복도 A — 실시간 분석 채널</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ALERTS / HISTORY / SETTINGS / QNA placeholder */}
-          {(activeMenu === 'alerts' || activeMenu === 'history' || activeMenu === 'settings' || activeMenu === 'qna') && (
+          {/* ALERTS / HISTORY placeholder */}
+          {(activeMenu === 'alerts' || activeMenu === 'history') && (
             <div className="flex-1 flex items-center justify-center text-slate-500">
               <div className="text-center">
                 {activeMenu === 'alerts' && <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />}
                 {activeMenu === 'history' && <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />}
-                {activeMenu === 'settings' && <Settings className="w-12 h-12 mx-auto mb-3 opacity-30" />}
-                {activeMenu === 'qna' && <HelpCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />}
                 <p className="text-sm font-semibold">
-                  {activeMenu === 'alerts'   ? '이벤트 알림 페이지 준비 중' :
-                   activeMenu === 'history'  ? '이벤트 기록 페이지 준비 중' :
-                   activeMenu === 'settings' ? '설정 페이지 준비 중' :
-                                              '문의 게시판 준비 중'}
+                  {activeMenu === 'alerts' ? '이벤트 알림 페이지 준비 중' : '이벤트 기록 페이지 준비 중'}
                 </p>
               </div>
             </div>
           )}
+
+          {/* ===== QNA ADMIN VIEW ===== */}
+          {activeMenu === 'qna' && (
+            <div className="flex-1 flex overflow-hidden">
+
+              {/* Left: inquiry list */}
+              <div className="w-96 bg-[#020817] border-r border-slate-800/50 flex flex-col flex-shrink-0 overflow-hidden">
+                {/* Stats header */}
+                <div className="p-4 border-b border-slate-800/60">
+                  <h2 className="text-sm font-extrabold text-white flex items-center gap-2 mb-3">
+                    <MessageSquare className="w-4 h-4 text-blue-400" />
+                    문의 관리
+                  </h2>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-[#071329] border border-slate-800 rounded-xl p-2.5 text-center">
+                      <p className="text-base font-extrabold text-white">{inquiries.length}</p>
+                      <p className="text-[9px] text-slate-500 font-bold mt-0.5">전체</p>
+                    </div>
+                    <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-2.5 text-center">
+                      <p className="text-base font-extrabold text-amber-400">{unansweredCount}</p>
+                      <p className="text-[9px] text-amber-600 font-bold mt-0.5">미답변</p>
+                    </div>
+                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-2.5 text-center">
+                      <p className="text-base font-extrabold text-emerald-400">{answeredCount}</p>
+                      <p className="text-[9px] text-emerald-600 font-bold mt-0.5">답변완료</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* List */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {inquiries.length === 0 ? (
+                    <div className="py-14 text-center">
+                      <MessageSquare className="w-8 h-8 text-slate-700 mx-auto mb-2" />
+                      <p className="text-xs text-slate-500 font-semibold">접수된 문의가 없습니다.</p>
+                    </div>
+                  ) : inquiries.map(inq => (
+                    <button
+                      key={inq.id}
+                      onClick={() => { setSelectedAdminQnaId(inq.id); setAdminReply(''); }}
+                      className={`w-full text-left bg-[#071329] border rounded-xl p-3 transition-all cursor-pointer ${
+                        selectedAdminQnaId === inq.id
+                          ? 'border-blue-500/50 bg-blue-600/5'
+                          : 'border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${CATEGORY_STYLES[inq.category]}`}>
+                            {inq.category}
+                          </span>
+                          <span className="text-[9px] text-slate-500 font-medium">
+                            {inq.userType === 'individual' ? '개인' : '기업'}
+                          </span>
+                        </div>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                          inq.reply
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        }`}>
+                          {inq.reply ? <><Check className="w-2.5 h-2.5" />답변완료</> : '미답변'}
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold text-white truncate">{inq.title}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-[10px] text-slate-400 font-semibold">{inq.username}</span>
+                        <span className="text-[10px] text-slate-600">{inq.createdAt}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: Detail + Reply */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {selectedAdminQna ? (
+                  <div className="max-w-2xl space-y-6">
+                    <button
+                      onClick={() => setSelectedAdminQnaId(null)}
+                      className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      목록으로
+                    </button>
+
+                    {/* Inquiry content */}
+                    <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
+                      <div className="px-5 py-4 bg-[#061224] border-b border-slate-800">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${CATEGORY_STYLES[selectedAdminQna.category]}`}>
+                            {selectedAdminQna.category}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {selectedAdminQna.userType === 'individual' ? '개인 사용자' : '기업 사용자'} · {selectedAdminQna.username}
+                          </span>
+                        </div>
+                        <h3 className="text-sm font-extrabold text-white">{selectedAdminQna.title}</h3>
+                        <p className="text-[10px] text-slate-500 mt-1.5">작성일: {selectedAdminQna.createdAt}</p>
+                      </div>
+                      <div className="p-5">
+                        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{selectedAdminQna.content}</p>
+                      </div>
+                    </div>
+
+                    {/* Reply section */}
+                    <div>
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="h-px flex-1 bg-slate-800" />
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          {selectedAdminQna.reply ? '등록된 답변' : '답변 작성'}
+                        </span>
+                        <span className="h-px flex-1 bg-slate-800" />
+                      </div>
+
+                      {selectedAdminQna.reply ? (
+                        <div className="bg-[#0f192b] border border-emerald-500/20 rounded-2xl p-5">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-6 h-6 rounded-full bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center">
+                              <Shield className="w-3 h-3 text-emerald-400" />
+                            </div>
+                            <span className="text-xs font-bold text-emerald-400">관리자 답변</span>
+                            <span className="text-[10px] text-slate-500">{selectedAdminQna.reply.repliedAt}</span>
+                          </div>
+                          <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{selectedAdminQna.reply.content}</p>
+                        </div>
+                      ) : (
+                        <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-4">
+                          <textarea
+                            value={adminReply}
+                            onChange={e => setAdminReply(e.target.value)}
+                            placeholder="사용자에게 전달할 답변을 작성해 주세요..."
+                            rows={5}
+                            className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none resize-none transition-colors"
+                          />
+                          <button
+                            onClick={handleSubmitReply}
+                            disabled={!adminReply.trim()}
+                            className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            답변 등록
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-500">
+                    <div className="text-center">
+                      <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                      <p className="text-sm font-semibold">문의를 선택하여 답변을 작성해 주세요.</p>
+                      {unansweredCount > 0 && (
+                        <p className="text-xs text-amber-500 mt-2 font-semibold">미답변 문의 {unansweredCount}건이 대기 중입니다.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
         </main>
 
         {/* ===== RIGHT PANEL ===== */}
         <aside className="w-72 bg-[#020817] border-l border-slate-800/50 flex flex-col flex-shrink-0">
-          {/* Events */}
           <div className="flex-1 bg-[#071329] m-3 mb-0 rounded-xl flex flex-col overflow-hidden">
             <div className="p-4 border-b border-slate-800/50">
               <h3 className="text-base font-bold text-white">실시간 AI 위험 탐지</h3>
@@ -409,7 +582,6 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
             </div>
           </div>
 
-          {/* Test mode button */}
           <button
             onClick={() => setActiveMenu(activeMenu === 'test' ? 'home' : 'test')}
             className={`mx-3 my-3 py-4 font-extrabold rounded-xl text-sm flex items-center justify-center gap-2 transition-all cursor-pointer border ${
@@ -424,7 +596,6 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
         </aside>
 
       </div>
-
     </div>
   );
 }

@@ -369,8 +369,8 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
 
                 <div className="space-y-3 pt-3">
                   <label className="text-xs font-semibold text-slate-400">간편 본인 인증</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {['PASS 인증', '카카오 인증', '네이버 인증', 'SMS 인증'].map((method) => (
+                  <div className="grid grid-cols-2 gap-2">
+                    {['Google 이메일 인증', 'SMS 인증'].map((method) => (
                       <button
                         key={method}
                         type="button"
