@@ -50,7 +50,7 @@ export function useLiveCameras(refreshMs = 5000) {
         }
       } catch {
         if (!cancelled) {
-          setCameras(current => current.map(camera => ({ ...camera, connectionStatus: 'offline' })));
+          console.warn(`Failed to fetch camera statuses from ${STREAM_BASE_URL}/cameras. Retaining configured statuses.`);
         }
       }
     }

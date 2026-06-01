@@ -35,19 +35,18 @@ export const LIVE_CAMERAS: LiveCamera[] = [
   {
     id: 'camera-3',
     name: 'CCTV-03',
-    location: '1F Room 2',
+    location: 'Remote Webcam 1',
     streamUrl: streamUrl('camera-3'),
-    connectionStatus: 'connecting',
+    connectionStatus: 'online',
     eventStatus: 'normal',
   },
   {
     id: 'camera-4',
     name: 'CCTV-04',
-    location: 'Entrance',
+    location: 'Remote Webcam 2',
     streamUrl: streamUrl('camera-4'),
-    connectionStatus: 'offline',
-    eventStatus: 'warning',
-    eventLabel: 'SIGNAL LOST',
+    connectionStatus: 'online',
+    eventStatus: 'normal',
   },
 ];
 
