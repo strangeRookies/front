@@ -84,12 +84,11 @@ const SPACES = [
   { id: 'community-center', label: '중구 주민센터', floors: [] },
 ];
 
-type MenuId = 'home' | 'monitoring' | 'alerts' | 'history' | 'qna' | 'settings' | 'cctvReg' | 'test';
+type MenuId = 'home' | 'alerts' | 'history' | 'qna' | 'settings' | 'cctvReg' | 'test';
 type InquiryCategory = Inquiry['category'];
 
 const MENU_ITEMS: { id: MenuId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'home',       label: '대시보드 홈',   icon: LayoutDashboard },
-  { id: 'monitoring', label: '실시간 모니터링', icon: Video           },
   { id: 'alerts',     label: '이벤트 알림',   icon: Bell            },
   { id: 'history',    label: '이벤트 기록',   icon: Calendar        },
   { id: 'qna',        label: '문의',         icon: HelpCircle      },
@@ -385,20 +384,6 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply }: Integra
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {/* MONITORING view */}
-          {activeMenu === 'monitoring' && (
-            <div className="flex-1 p-6 overflow-y-auto space-y-4">
-              <h2 className="text-sm font-bold text-white">전체 구역 고정형 관제 뷰</h2>
-              <div className="h-[400px] border border-slate-800 rounded-2xl bg-black overflow-hidden relative">
-                <LiveCameraGrid cameras={liveCameras} className="h-full p-3" />
-                <div className="absolute top-4 left-4 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                  <span className="text-xs font-bold text-white">복도 A — 실시간 분석 채널</span>
-                </div>
               </div>
             </div>
           )}
