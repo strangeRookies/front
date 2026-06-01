@@ -61,6 +61,7 @@ const MOCK_LOGIN_HISTORY = [
 
 const ALL_MENU_ITEMS = [
   { id: 'home',    label: '대시보드 홈', icon: Tv,          individualOnly: false },
+  { id: 'monitoring', label: '실시간 관제', icon: Video,     individualOnly: false },
   { id: 'alerts',  label: '이벤트 알림', icon: Bell,        individualOnly: false },
   { id: 'history', label: '이벤트 기록', icon: Calendar,    individualOnly: false },
   { id: 'cameras', label: '카메라 등록', icon: Camera,      individualOnly: true  },
