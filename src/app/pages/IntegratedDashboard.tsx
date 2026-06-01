@@ -4,11 +4,13 @@ import {
   Play, Pause, Volume2, Maximize2, Check,
   LayoutDashboard, Video, LogOut, Settings,
   HelpCircle, Calendar, Activity, HardDrive, Beaker,
-  MessageSquare, Send, ChevronLeft
+  MessageSquare, Send, ChevronLeft, Camera
 } from 'lucide-react';
 import { CCTVFloorPlan } from '../components/CCTVFloorPlan';
 import { LiveCameraGrid } from '../components/LiveCameraGrid';
 import { useLiveCameras } from '../hooks/useLiveCameras';
+import { CCTVStatsCards } from '../components/CCTVStatsCards';
+import { CCTVRegistration } from '../components/CCTVRegistration';
 import hospitalHallwayCctv from '../../imports/hospital_hallway_cctv.png';
 import type { Inquiry } from '../types/inquiry';
 
@@ -82,14 +84,17 @@ const SPACES = [
   { id: 'community-center', label: '중구 주민센터', floors: [] },
 ];
 
-type MenuId = 'home' | 'alerts' | 'history' | 'qna' | 'test';
+type MenuId = 'home' | 'monitoring' | 'alerts' | 'history' | 'qna' | 'settings' | 'cctvReg' | 'test';
 type InquiryCategory = Inquiry['category'];
 
 const MENU_ITEMS: { id: MenuId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: 'home',    label: '대시보드 홈', icon: LayoutDashboard },
-  { id: 'alerts',  label: '이벤트 알림', icon: Bell            },
-  { id: 'history', label: '이벤트 기록', icon: Calendar        },
-  { id: 'qna',     label: '문의',       icon: HelpCircle      },
+  { id: 'home',       label: '대시보드 홈',   icon: LayoutDashboard },
+  { id: 'monitoring', label: '실시간 모니터링', icon: Video           },
+  { id: 'alerts',     label: '이벤트 알림',   icon: Bell            },
+  { id: 'history',    label: '이벤트 기록',   icon: Calendar        },
+  { id: 'qna',        label: '문의',         icon: HelpCircle      },
+  { id: 'settings',   label: '설정',         icon: Settings        },
+  { id: 'cctvReg',    label: 'CCTV 등록',     icon: Camera          },
 ];
 
 const CATEGORY_STYLES: Record<InquiryCategory, string> = {
@@ -295,6 +300,11 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply }: Integra
           {/* HOME view */}
           {activeMenu === 'home' && (
             <div className="flex-1 p-4 gap-4 overflow-y-auto flex flex-col">
+              <CCTVStatsCards
+                activeFeedsCount={liveCameras.filter(c => c.connectionStatus === 'online').length}
+                totalFeedsCount={liveCameras.length}
+                alertsCount={events.filter(e => e.status === 'new').length}
+              />
               <div className="h-[400px] min-h-[400px]">
                 <CCTVFloorPlan cameras={cameras} onCameraClick={handleCameraClick} selectedCameraId={selectedCamera?.id || null} />
               </div>
@@ -404,6 +414,15 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply }: Integra
                 </p>
               </div>
             </div>
+          )}
+
+          {/* ===== CCTV REGISTRATION VIEW ===== */}
+          {activeMenu === 'cctvReg' && (
+            <CCTVRegistration 
+              onRegisterComplete={(count) => {
+                console.log(`Registered ${count} corporate cameras successfully.`);
+              }}
+            />
           )}
 
           {/* ===== QNA ADMIN VIEW ===== */}

@@ -8,6 +8,7 @@ import {
 import { LiveCameraGrid } from '../components/LiveCameraGrid';
 import { LIVE_CAMERAS } from '../data/cameras';
 import { useLiveCameras } from '../hooks/useLiveCameras';
+import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import hospitalHallwayCctv from '../../imports/hospital_hallway_cctv.png';
 import type { Inquiry } from '../types/inquiry';
 
@@ -311,6 +312,11 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                   </h2>
                   <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">전 노드 연결 정상</span>
                 </div>
+                <CCTVStatsCards
+                  activeFeedsCount={liveCameras.filter(c => c.connectionStatus === 'online').length}
+                  totalFeedsCount={liveCameras.length}
+                  alertsCount={activeTenMinAlerts.length}
+                />
                 <LiveCameraGrid
                   cameras={liveCameras}
                   onCameraClick={camera => {
