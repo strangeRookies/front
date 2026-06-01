@@ -14,9 +14,10 @@ import {
 interface LoginPageProps {
   onLogin: (role: 'individual' | 'corporate' | 'admin', username: string) => void;
   onNavigateToSignUp: (type: 'personal' | 'corporate') => void;
+  onNavigateToForgotPassword: () => void;
 }
 
-export function LoginPage({ onLogin, onNavigateToSignUp }: LoginPageProps) {
+export function LoginPage({ onLogin, onNavigateToSignUp, onNavigateToForgotPassword }: LoginPageProps) {
   const [loginType, setLoginType] = useState<'individual' | 'corporate' | 'admin'>('individual');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -250,7 +251,7 @@ export function LoginPage({ onLogin, onNavigateToSignUp }: LoginPageProps) {
                 </label>
                 <button
                   type="button"
-                  onClick={() => alert('비밀번호 찾기 페이지 준비 중입니다.')}
+                  onClick={onNavigateToForgotPassword}
                   className="text-slate-400 hover:text-blue-400 hover:underline transition-colors font-medium"
                 >
                   비밀번호 찾기

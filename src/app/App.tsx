@@ -3,11 +3,12 @@ import { Toaster, toast } from 'sonner';
 import { LoginPage } from './pages/LoginPage';
 import { PersonalSignUp } from './pages/PersonalSignUp';
 import { CorporateSignUp } from './pages/CorporateSignUp';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { NurseDashboard } from './pages/NurseDashboard';
 import { IntegratedDashboard } from './pages/IntegratedDashboard';
 import type { Inquiry } from './types/inquiry';
 
-type ViewType = 'login' | 'personalSignUp' | 'corporateSignUp' | 'userDashboard' | 'adminDashboard';
+type ViewType = 'login' | 'personalSignUp' | 'corporateSignUp' | 'forgotPassword' | 'userDashboard' | 'adminDashboard';
 type UserType = 'individual' | 'corporate';
 
 const INITIAL_INQUIRIES: Inquiry[] = [
@@ -102,6 +103,15 @@ export default function App() {
     setCurrentView('login');
   };
 
+  const handleNavigateToForgotPassword = () => {
+    setCurrentView('forgotPassword');
+  };
+
+  const handlePasswordResetComplete = () => {
+    setCurrentView('login');
+    toast.success('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.');
+  };
+
   return (
     <div className="min-h-screen bg-[#070e1b] text-slate-100 font-sans selection:bg-blue-500/35 selection:text-white">
       {/* Toast Notification Container */}
@@ -112,6 +122,7 @@ export default function App() {
         <LoginPage 
           onLogin={handleLogin}
           onNavigateToSignUp={handleNavigateToSignUp}
+          onNavigateToForgotPassword={handleNavigateToForgotPassword}
         />
       )}
 
@@ -126,6 +137,13 @@ export default function App() {
         <CorporateSignUp 
           onBackToLogin={handleBackToLogin}
           onSignUpComplete={handleSignUpComplete}
+        />
+      )}
+
+      {currentView === 'forgotPassword' && (
+        <ForgotPasswordPage
+          onBackToLogin={handleBackToLogin}
+          onResetComplete={handlePasswordResetComplete}
         />
       )}
 
