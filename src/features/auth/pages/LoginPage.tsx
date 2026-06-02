@@ -142,9 +142,7 @@ export function LoginPage({ onLogin, onNavigateToSignUp, onNavigateToForgotPassw
               <div className="relative aspect-video rounded overflow-hidden bg-slate-950 flex items-center justify-center border border-slate-800">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 absolute top-1 left-1 animate-ping" />
                 <span className="text-[7px] text-blue-400 font-bold absolute top-0.5 left-3">AI</span>
-                <div className="w-full h-full flex flex-col items-center justify-center opacity-40">
-                  <span className="text-[9px] text-slate-400 font-mono">분석 중</span>
-                </div>
+                <div className="w-full h-full flex items-center justify-center opacity-40" />
               </div>
             </div>
 
