@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Shield, Bell, Search, Video, Calendar, Clock, Play, Pause, Volume2,
   Download, AlertTriangle, Flame, Check, Tv, LogOut,
@@ -11,18 +11,8 @@ import { useLiveCameras } from '../hooks/useLiveCameras';
 import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import hospitalHallwayCctv from '../../imports/hospital_hallway_cctv.png';
 import type { Inquiry } from '../types/inquiry';
-import { AiAlertCard } from '../../components/dashboard/AiAlertCard';
-import type { AiEvent } from '../../hooks/useAiEvents';
-import { useAiEvents } from '../../hooks/useAiEvents';
-import { useRepeatingAlarm } from '../../hooks/useRepeatingAlarm';
-import {
-  aiEventKey,
-  findCameraForAiEvent,
-  focusCameraFirst,
-  isAiAlertEnabledRoute,
-  isDangerAiEvent,
-  markAiDangerCameras,
-} from '../utils/aiAlerts';
+import { AiDangerPanel } from '../../components/dashboard/AiDangerPanel';
+import { useAiAlertActions } from '../../hooks/useAiAlertActions';
 
 interface NurseDashboardProps {
   username: string;
@@ -128,15 +118,19 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
     </button>
   );
 }
-
 export function NurseDashboard({ username, userType, onLogout, inquiries, onAddInquiry }: NurseDashboardProps) {
   const liveCameras = useLiveCameras();
-  const aiAlertsEnabled = isAiAlertEnabledRoute(userType === 'corporate' ? 'company' : 'personal');
-  const aiEvents = useAiEvents({ enabled: aiAlertsEnabled });
   const [activeMenu, setActiveMenu] = useState<MenuId>('home');
   const [alerts, setAlerts] = useState<IncidentAlert[]>(INITIAL_ALERTS);
-  const [acknowledgedAiEventIds, setAcknowledgedAiEventIds] = useState<Set<string>>(() => new Set());
-  const [focusedCameraId, setFocusedCameraId] = useState<string | null>(null);
+  const focusHome = useCallback(() => setActiveMenu('home'), []);
+  const {
+    acknowledgedAiEventIds,
+    dangerAiEvents,
+    focusedLiveCameras,
+    focusAiEventCamera,
+    handleConfirmAiEvent,
+    setFocusedCameraId,
+  } = useAiAlertActions({ userType, username, liveCameras, focusHome });
 
   // History filters
   const [searchDate, setSearchDate]       = useState<'today' | 'week' | 'month'>('month');
@@ -185,41 +179,9 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
   const [qnaCategory, setQnaCategory]       = useState<InquiryCategory>('기타');
 
   const activeTenMinAlerts = alerts.filter(a => Date.now() - a.timestamp <= 10 * 60 * 1000);
-  const dangerAiEvents = useMemo(() => aiEvents.filter(isDangerAiEvent), [aiEvents]);
-  const unacknowledgedAiEvents = useMemo(
-    () => dangerAiEvents.filter(event => !acknowledgedAiEventIds.has(aiEventKey(event))),
-    [acknowledgedAiEventIds, dangerAiEvents],
-  );
-  const aiMarkedCameras = useMemo(
-    () => markAiDangerCameras(liveCameras, unacknowledgedAiEvents),
-    [liveCameras, unacknowledgedAiEvents],
-  );
-  const focusedLiveCameras = useMemo(
-    () => focusCameraFirst(aiMarkedCameras, focusedCameraId),
-    [aiMarkedCameras, focusedCameraId],
-  );
   const myInquiries  = inquiries.filter(inq => inq.username === username);
   const selectedQna  = myInquiries.find(inq => inq.id === selectedQnaId) ?? null;
   const pwStrength   = getPasswordStrength(newPw);
-
-  useRepeatingAlarm({ enabled: aiAlertsEnabled && unacknowledgedAiEvents.length > 0, intervalMs: 2000 });
-
-  const focusAiEventCamera = useCallback((event: AiEvent) => {
-    const camera = findCameraForAiEvent(liveCameras, event);
-    if (camera) {
-      setFocusedCameraId(camera.id);
-    }
-    setActiveMenu('home');
-  }, [liveCameras]);
-
-  const handleConfirmAiEvent = useCallback((event: AiEvent) => {
-    focusAiEventCamera(event);
-    setAcknowledgedAiEventIds(prev => {
-      const next = new Set(prev);
-      next.add(aiEventKey(event));
-      return next;
-    });
-  }, [focusAiEventCamera]);
 
   const handleResolveAlert = (id: string) =>
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: 'resolved' as const } : a));
@@ -404,37 +366,28 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                     <h3 className="text-base font-bold text-white">실시간 AI 위험 탐지</h3>
                   </div>
                   <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {dangerAiEvents.map(event => (
-                      <AiAlertCard
-                        key={aiEventKey(event)}
-                        event={event}
-                        acknowledged={acknowledgedAiEventIds.has(aiEventKey(event))}
-                        onFocus={focusAiEventCamera}
-                        onConfirm={handleConfirmAiEvent}
-                      />
-                    ))}
-                    {dangerAiEvents.length === 0 && (
-                      <div className="py-8 text-center text-slate-500">
-                        <Shield className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-xs font-semibold">AI 위험 알림 없음</p>
-                      </div>
-                    )}
-                    {dangerAiEvents.length === 0 && alerts.slice(0, 5).map(evt => (
-                      <div key={evt.id} className={`bg-[#0f172a] rounded-xl p-3 flex items-center gap-3 ${evt.status === 'resolved' ? 'opacity-50' : ''}`}>
-                        <div className="w-12 h-12 bg-[#374151] rounded-lg flex-shrink-0 overflow-hidden">
-                          <div className="flex h-full w-full items-center justify-center bg-slate-900 text-[9px] font-bold text-slate-500">LIVE</div>
+                    <AiDangerPanel
+                      events={dangerAiEvents}
+                      acknowledgedEventIds={acknowledgedAiEventIds}
+                      onFocus={focusAiEventCamera}
+                      onConfirm={handleConfirmAiEvent}
+                      fallback={alerts.slice(0, 5).map(evt => (
+                        <div key={evt.id} className={`bg-[#0f172a] rounded-xl p-3 flex items-center gap-3 ${evt.status === 'resolved' ? 'opacity-50' : ''}`}>
+                          <div className="w-12 h-12 bg-[#374151] rounded-lg flex-shrink-0 overflow-hidden">
+                            <div className="flex h-full w-full items-center justify-center bg-slate-900 text-[9px] font-bold text-slate-500">LIVE</div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white font-bold text-sm leading-tight cursor-pointer hover:underline truncate" onClick={() => setSelectedIncident(evt)}>{evt.type} 감지</p>
+                            <p className="text-[#cbd5e1] text-xs mt-0.5">{evt.time}</p>
+                          </div>
+                          {evt.status === 'new' ? (
+                            <button onClick={() => handleResolveAlert(evt.id)} className={`${eventButtonStyle(evt.severity)} text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 cursor-pointer`}>확인</button>
+                          ) : (
+                            <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white font-bold text-sm leading-tight cursor-pointer hover:underline truncate" onClick={() => setSelectedIncident(evt)}>{evt.type} 감지</p>
-                          <p className="text-[#cbd5e1] text-xs mt-0.5">{evt.time}</p>
-                        </div>
-                        {evt.status === 'new' ? (
-                          <button onClick={() => handleResolveAlert(evt.id)} className={`${eventButtonStyle(evt.severity)} text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 cursor-pointer`}>확인</button>
-                        ) : (
-                          <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                        )}
-                      </div>
-                    ))}
+                      ))}
+                    />
                   </div>
                 </div>
                 <button onClick={handleTriggerEmergency} className="mx-3 my-3 py-4 bg-[#dc2626] hover:bg-red-500 text-white font-extrabold rounded-xl text-sm flex items-center justify-center gap-2 transition-all cursor-pointer">
