@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { acknowledgeAndRequestRecording } from '../app/api/aiIncidentRequests';
-import type { LiveCamera } from '../app/data/cameras';
+import type { LiveCamera } from '../features/dashboard/data/cameras';
 import {
   aiEventKey,
   findCameraForAiEvent,
@@ -9,7 +9,7 @@ import {
   isAiAlertEnabledRoute,
   isDangerAiEvent,
   markAiDangerCameras,
-} from '../app/utils/aiAlerts';
+} from '../shared/utils/aiAlerts';
 import type { AiEvent } from './useAiEvents';
 import { useAiEvents } from './useAiEvents';
 import { useRepeatingAlarm } from './useRepeatingAlarm';

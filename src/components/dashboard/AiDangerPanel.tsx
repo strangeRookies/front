@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Shield } from 'lucide-react';
-import { aiEventKey } from '../../app/utils/aiAlerts';
+import { aiEventKey } from '../../shared/utils/aiAlerts';
 import type { AiEvent } from '../../hooks/useAiEvents';
 import { AiAlertCard } from './AiAlertCard';
 
