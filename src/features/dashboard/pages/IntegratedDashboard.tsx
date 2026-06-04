@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+﻿import React, { useState, useCallback, useEffect } from 'react';
 import {
   Shield, Bell, ChevronDown, Folder, ChevronRight,
   Play, Pause, Volume2, Maximize2, Check,
@@ -536,14 +536,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                   <div className="absolute top-2 left-2 bg-slate-900/90 border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-300 font-mono">
                     CH-0{selectedCamera ? selectedCamera.id.replace('CCTV-', '') : '2'}
                   </div>
-                  {selectedCamera && (
-                    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 640 360">
-                      <rect x="180" y="80" width="280" height="200" fill="none" stroke={selectedCamera.status === 'alert' ? '#ef4444' : '#10b981'} strokeWidth="1.5" strokeDasharray="3 3" />
-                      <text x="320" y="70" textAnchor="middle" fill={selectedCamera.status === 'alert' ? '#ef4444' : '#10b981'} fontSize="9" fontWeight="bold">
-                        {selectedCamera.status === 'alert' ? '위해 상황 감지 구역' : '안심 모니터링 구역'}
-                      </text>
-                    </svg>
-                  )}
+
                   <div className="absolute bottom-0 left-0 right-0 h-10 bg-slate-950/70 backdrop-blur px-4 flex items-center justify-between text-slate-400">
                     <div className="flex items-center gap-3">
                       <button onClick={() => setIsPlaying(!isPlaying)} className="hover:text-white transition-colors cursor-pointer">
@@ -738,153 +731,19 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                         <div className="absolute top-2 left-2 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" /><span className="text-[9px] text-rose-400 font-bold">LIVE</span></div>
                         <button onClick={() => setTCameras(prev=>prev.filter(c=>c.id!==cam.id))} className="absolute top-2 right-2 p-1 bg-slate-900/80 hover:bg-red-600 text-slate-400 hover:text-white rounded opacity-0 group-hover:opacity-100 cursor-pointer"><Trash2 className="w-3 h-3" /></button>
                       </div>
-                      <div className="p-3 space-y-1.5">
+                      <div className="p-3 space-y-1">
                         <p className="text-white font-bold text-sm">{cam.name}</p>
                         <p className="text-slate-400 text-xs">{cam.id} · {cam.location}</p>
-                        {cam.password && (
-                          <div className="flex items-center gap-1.5 pt-0.5">
-                            <KeyRound className="w-3 h-3 text-slate-500 flex-shrink-0" />
-                            <span className="text-[11px] font-mono text-slate-400">{tShowCamPwId===cam.id?cam.password:'●'.repeat(Math.min(cam.password.length,8))}</span>
-                            <button onClick={() => setTShowCamPwId(tShowCamPwId===cam.id?null:cam.id)} className="ml-auto text-slate-500 hover:text-slate-300 cursor-pointer">
-                              {tShowCamPwId===cam.id?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}
-                            </button>
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
-                  {Array(Math.max(0,6-tCameras.length)).fill(null).map((_,i) => (
+                  {Array(Math.max(0, 6 - tCameras.length)).fill(null).map((_, i) => (
                     <div key={i} className="bg-[#111827] border border-dashed border-slate-700 rounded-xl aspect-video flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-slate-500" onClick={() => setTShowAddCamera(true)}>
                       <div className="w-14 h-14 rounded-full bg-[#d9d9d9]/10 flex items-center justify-center"><Plus className="w-7 h-7 text-slate-400" /></div>
                       <span className="text-slate-500 text-xs font-medium">카메라 추가</span>
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* TEST MYPAGE */}
-          {isTestMode && testSubMenu === 'mypage' && (
-            <div className="flex-1 flex overflow-hidden">
-              <div className="w-52 bg-[#020817] border-r border-slate-800/50 flex flex-col flex-shrink-0 p-4">
-                <div className="flex items-center gap-2 mb-5 px-2">
-                  <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-sm font-extrabold text-blue-400">
-                    {(tProfileName||'A').charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-white leading-tight">{tProfileName}</p>
-                    <p className="text-[10px] text-slate-500">관리자 (테스트 모드)</p>
-                  </div>
-                </div>
-                <nav className="space-y-0.5">
-                  {([
-                    {id:'profile',label:'프로필 정보',icon:User},
-                    {id:'password',label:'비밀번호 변경',icon:Lock},
-                    {id:'notifications',label:'알림 설정',icon:Bell},
-                    {id:'account',label:'계정 관리',icon:Shield},
-                  ] as {id:MypageTab;label:string;icon:any}[]).map(({id,label,icon:Icon}) => (
-                    <button key={id} onClick={() => setTMypageTab(id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${tMypageTab===id?'bg-[#0758D6] text-white':'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'}`}>
-                      <Icon className="w-3.5 h-3.5" />{label}
-                    </button>
-                  ))}
-                </nav>
-              </div>
-              <div className="flex-1 overflow-y-auto p-8">
-                {tMypageTab === 'profile' && (
-                  <div className="max-w-xl space-y-6">
-                    <div><h2 className="text-base font-extrabold text-white">프로필 정보</h2><p className="text-xs text-slate-400 mt-1">이름, 연락처 등 기본 정보를 수정합니다.</p></div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-full bg-blue-600/20 border-2 border-blue-500/30 flex items-center justify-center text-2xl font-extrabold text-blue-400">{(tProfileName||'A').charAt(0).toUpperCase()}</div>
-                      <div><p className="text-sm font-bold text-white">{tProfileName}</p><p className="text-xs text-slate-400 mt-0.5">관리자</p></div>
-                    </div>
-                    <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-4">
-                      <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><User className="w-3 h-3"/>이름</label><input value={tProfileName} onChange={e=>setTProfileName(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none"/></div>
-                      <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><Mail className="w-3 h-3"/>이메일</label><input value={tProfileEmail} onChange={e=>setTProfileEmail(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none"/></div>
-                      <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><Phone className="w-3 h-3"/>전화번호</label><input value={tProfilePhone} onChange={e=>setTProfilePhone(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none"/></div>
-                    </div>
-                    <button onClick={() => alert('프로필 정보가 저장되었습니다.')} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">저장하기</button>
-                  </div>
-                )}
-                {tMypageTab === 'password' && (
-                  <div className="max-w-xl space-y-6">
-                    <div><h2 className="text-base font-extrabold text-white">비밀번호 변경</h2><p className="text-xs text-slate-400 mt-1">보안을 위해 정기적으로 비밀번호를 변경해 주세요.</p></div>
-                    <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-4">
-                      {[{label:'현재 비밀번호',v:tCurrentPw,sv:setTCurrentPw,show:tShowCurrentPw,ss:setTShowCurrentPw,ph:'현재 비밀번호 입력'},
-                        {label:'새 비밀번호',v:tNewPw,sv:setTNewPw,show:tShowNewPw,ss:setTShowNewPw,ph:'8자 이상, 영문/숫자/특수문자 혼합'},
-                        {label:'새 비밀번호 확인',v:tConfirmPw,sv:setTConfirmPw,show:tShowConfirmPw,ss:setTShowConfirmPw,ph:'새 비밀번호 재입력'},
-                      ].map(f => (
-                        <div key={f.label} className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-slate-400">{f.label}</label>
-                          <div className="relative">
-                            <input type={f.show?'text':'password'} value={f.v} onChange={e=>f.sv(e.target.value)} placeholder={f.ph} className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none"/>
-                            <button onClick={() => f.ss(p=>!p)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">{f.show?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}</button>
-                          </div>
-                          {f.label==='새 비밀번호' && tNewPw && (
-                            <div className="space-y-1">
-                              <div className="flex gap-1">{[1,2,3].map(n=><div key={n} className={`h-1 flex-1 rounded-full ${tPwStrength.level>=n?tPwStrength.color:'bg-slate-800'}`}/>)}</div>
-                              <p className={`text-[10px] font-semibold ${tPwStrength.level===1?'text-red-400':tPwStrength.level===2?'text-amber-400':'text-emerald-400'}`}>비밀번호 강도: {tPwStrength.label}</p>
-                            </div>
-                          )}
-                          {f.label==='새 비밀번호 확인' && tConfirmPw && tNewPw!==tConfirmPw && <p className="text-[10px] text-red-400 font-semibold">비밀번호가 일치하지 않습니다.</p>}
-                          {f.label==='새 비밀번호 확인' && tConfirmPw && tNewPw===tConfirmPw && <p className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1"><Check className="w-3 h-3"/> 비밀번호가 일치합니다.</p>}
-                        </div>
-                      ))}
-                    </div>
-                    <button onClick={() => { if(!tCurrentPw){alert('현재 비밀번호를 입력해 주세요.');return;} if(tNewPw.length<8){alert('새 비밀번호는 8자 이상이어야 합니다.');return;} if(tNewPw!==tConfirmPw){alert('새 비밀번호가 일치하지 않습니다.');return;} alert('비밀번호가 변경되었습니다.'); setTCurrentPw('');setTNewPw('');setTConfirmPw(''); }} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">비밀번호 변경</button>
-                  </div>
-                )}
-                {tMypageTab === 'notifications' && (
-                  <div className="max-w-xl space-y-6">
-                    <div><h2 className="text-base font-extrabold text-white">알림 설정</h2><p className="text-xs text-slate-400 mt-1">이벤트 경보 및 알림 수신 방식을 설정합니다.</p></div>
-                    <div className="bg-[#071329] border border-slate-800 rounded-2xl divide-y divide-slate-800/80">
-                      {[
-                        {label:'이벤트 경보 알림',desc:'낙상·실신 등 위험 이벤트 감지 시 즉시 알림',icon:Bell,value:tNotifEvent,onChange:setTNotifEvent},
-                        {label:'이메일 알림',desc:'등록된 이메일로 이벤트 요약 발송',icon:Mail,value:tNotifEmail,onChange:setTNotifEmail},
-                        {label:'SMS 알림',desc:'등록된 전화번호로 긴급 경보 문자 발송',icon:Smartphone,value:tNotifSms,onChange:setTNotifSms},
-                      ].map(({label,desc,icon:Icon,value,onChange}) => (
-                        <div key={label} className="flex items-center justify-between p-4">
-                          <div className="flex items-start gap-3"><Icon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0"/><div><p className="text-xs font-bold text-white">{label}</p><p className="text-[10px] text-slate-500 mt-0.5">{desc}</p></div></div>
-                          <TestToggle value={value} onChange={onChange}/>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-3">
-                      <p className="text-xs font-bold text-white">알림 민감도</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {([{id:'all',label:'전체',desc:'info 이상'},{id:'warning',label:'중요 이상',desc:'warning 이상'},{id:'critical',label:'긴급만',desc:'critical'}] as {id:typeof tAlertLevel;label:string;desc:string}[]).map(opt => (
-                          <button key={opt.id} onClick={() => setTAlertLevel(opt.id)} className={`py-3 rounded-xl border text-xs font-bold cursor-pointer ${tAlertLevel===opt.id?'bg-blue-600/15 border-blue-500/40 text-blue-300':'bg-[#020817] border-slate-800 text-slate-400 hover:border-slate-600'}`}>
-                            <p>{opt.label}</p><p className="text-[9px] font-normal mt-0.5 opacity-60">{opt.desc}</p>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <button onClick={() => alert('알림 설정이 저장되었습니다.')} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">저장하기</button>
-                  </div>
-                )}
-                {tMypageTab === 'account' && (
-                  <div className="max-w-xl space-y-6">
-                    <div><h2 className="text-base font-extrabold text-white">계정 관리</h2><p className="text-xs text-slate-400 mt-1">로그인 기록 확인 및 계정 설정을 관리합니다.</p></div>
-                    <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
-                      <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2"><LogIn className="w-3.5 h-3.5 text-slate-400"/><h3 className="text-xs font-bold text-white">최근 로그인 기록</h3></div>
-                      <div className="divide-y divide-slate-800/60">
-                        {TEST_MOCK_LOGIN_HISTORY.map((log,i) => (
-                          <div key={i} className="px-5 py-3 flex items-center justify-between">
-                            <div><p className="text-xs font-semibold text-slate-300">{log.device}</p><div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5"><span className="font-mono">{log.date}</span><span>·</span><span className="font-mono">{log.ip}</span></div></div>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${log.status==='성공'?'bg-emerald-500/10 text-emerald-400 border-emerald-500/20':'bg-red-500/10 text-red-400 border-red-500/20'}`}>{log.status}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
-                      <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2"><Smartphone className="w-3.5 h-3.5 text-slate-400"/><h3 className="text-xs font-bold text-white">현재 연결된 기기</h3></div>
-                      <div className="px-5 py-4 flex items-center justify-between">
-                        <div><p className="text-xs font-semibold text-slate-300">Chrome / Windows 11</p><p className="text-[10px] text-slate-500 mt-0.5">현재 세션 · 192.168.1.×××</p></div>
-                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/>현재 기기</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -1244,15 +1103,25 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
         <aside className="w-72 bg-[#020817] border-l border-slate-800/50 flex flex-col flex-shrink-0">
           <div className="flex-1 bg-[#071329] m-3 mb-0 rounded-xl flex flex-col overflow-hidden">
             <div className="p-4 border-b border-slate-800/50">
-              <h3 className="text-base font-bold text-white">실시간 AI 위험 탐지</h3>
-              <p className="text-[10px] text-slate-400 mt-0.5">전 구역 안전 경보 리스트</p>
+               <div className="flex items-center justify-between">
+                 <div>
+                   <h3 className="text-base font-bold text-white">실시간 AI 위험 탐지</h3>
+                   <p className="text-[10px] text-slate-400 mt-0.5">전 구역 안전 경보 리스트</p>
+                 </div>
+                 <div className="flex items-center gap-1 text-[9px] text-rose-500 font-extrabold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" /> AI 감시중
+                 </div>
+               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {events.map(evt => (
-                <div
-                  key={evt.id}
-                  className={`bg-[#0f172a] rounded-xl p-3 flex items-center gap-3 transition-opacity ${evt.status === 'resolved' ? 'opacity-50' : ''}`}
-                >
+              {events.filter(e => e.status === 'new').length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-slate-500 opacity-50">
+                  <Shield className="w-8 h-8 mb-2" />
+                  <p className="text-xs font-semibold">특이사항 없음</p>
+                </div>
+              )}
+              {events.filter(e => e.status === 'new').map(evt => (
+                <div key={evt.id} className="bg-[#0f172a] rounded-xl p-3 flex items-center gap-3">
                   <div className="w-12 h-12 bg-[#374151] rounded-lg flex-shrink-0 overflow-hidden">
                     <div className="flex h-full w-full items-center justify-center bg-slate-900 text-[9px] font-bold text-slate-500">LIVE</div>
                   </div>
@@ -1260,16 +1129,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                     <p className="text-white font-bold text-sm leading-tight truncate">{evt.type} 감지</p>
                     <p className="text-[#cbd5e1] text-xs mt-0.5">{evt.time}</p>
                   </div>
-                  {evt.status === 'new' ? (
-                    <button
-                      onClick={() => handleResolveEvent(evt.id)}
-                      className={`${eventButtonStyle(evt.severity)} text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 cursor-pointer transition-colors`}
-                    >
-                      확인
-                    </button>
-                  ) : (
-                    <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  )}
+                  <button onClick={() => handleResolveEvent(evt.id)} className={`${eventButtonStyle(evt.severity)} text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 cursor-pointer`}>확인</button>
                 </div>
               ))}
             </div>

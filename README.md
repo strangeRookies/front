@@ -8,4 +8,11 @@
   Run `npm i` to install the dependencies.
 
   Run `npm run dev` to start the development server.
-  
+
+  ## AI alert routing
+
+  Active AI danger alerts are routed only to the personal/user and company/business monitoring dashboard. The admin dashboard does not subscribe to the AI SSE event stream and does not play alarm sounds.
+
+  When a danger event is unacknowledged, the monitoring dashboard repeats an alarm every 2 seconds. Clicking an alert card or Confirm focuses the related camera, and Confirm marks that event as acknowledged so the alarm stops once all current danger alerts are confirmed.
+
+  Confirm also sends `POST /api/incidents/{eventId}/acknowledge-and-record` to the backend with `preFrames=150`, `postFrames=150`, and `totalFrames=300`. The backend records the request as `RECORDING_REQUESTED`; actual AI clip capture is still a later service contract.

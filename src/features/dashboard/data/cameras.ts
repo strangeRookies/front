@@ -11,8 +11,30 @@ export interface LiveCamera {
   eventLabel?: string;
 }
 
-export const STREAM_BASE_URL = ((import.meta as any).env?.VITE_STREAM_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
-export const streamUrl = (cameraId: string) => `${STREAM_BASE_URL}/stream/${cameraId}`;
+const env = import.meta.env;
+
+export const STREAM_BASE_URL = (env.VITE_STREAM_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+const CAMERA_STREAM_URLS: Record<string, string | undefined> = {
+  'camera-1': env.VITE_CAMERA_1_STREAM_URL,
+  'camera-2': env.VITE_CAMERA_2_STREAM_URL,
+  'camera-3': env.VITE_CAMERA_3_STREAM_URL,
+  'camera-4': env.VITE_CAMERA_4_STREAM_URL,
+};
+
+export const configuredStreamUrl = (cameraId: string) => {
+  const directUrl = CAMERA_STREAM_URLS[cameraId];
+  if (directUrl && directUrl.trim().length > 0) {
+    return directUrl.trim();
+  }
+  return undefined;
+};
+
+export const streamUrl = (cameraId: string) => {
+  const directUrl = configuredStreamUrl(cameraId);
+  if (directUrl) return directUrl;
+  return `${STREAM_BASE_URL}/stream/${cameraId}`;
+};
 
 export const LIVE_CAMERAS: LiveCamera[] = [
   {

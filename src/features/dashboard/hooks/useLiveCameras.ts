@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LIVE_CAMERAS, STREAM_BASE_URL, streamUrl, type CameraConnectionStatus, type LiveCamera } from '../data/cameras';
+import { LIVE_CAMERAS, STREAM_BASE_URL, configuredStreamUrl, streamUrl, type CameraConnectionStatus, type LiveCamera } from '../data/cameras';
 
 interface CameraStatusResponse {
   cameras?: Array<{
@@ -22,13 +22,14 @@ function mergeCameraStatus(current: LiveCamera[], payload: CameraStatusResponse)
   return current.map(camera => {
     const status = byId.get(camera.id);
     if (!status) return camera;
+    const directStreamUrl = configuredStreamUrl(status.id);
     return {
       ...camera,
       name: status.name || camera.name,
       location: status.location || camera.location,
-      streamUrl: status.streamUrl?.startsWith('http')
+      streamUrl: directStreamUrl || (status.streamUrl?.startsWith('http')
         ? status.streamUrl
-        : streamUrl(status.id),
+        : streamUrl(status.id)),
       connectionStatus: toConnectionStatus(status.connected),
     };
   });

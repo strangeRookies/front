@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Shield, Bell, Search, Video, Calendar, Clock, Play, Pause, Volume2,
   Download, AlertTriangle, Flame, Check, Tv, LogOut,
@@ -12,6 +12,8 @@ import { useLiveCameras } from '../hooks/useLiveCameras';
 import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry } from '../../../shared/types/inquiry';
+import { AiDangerPanel } from '../../../components/dashboard/AiDangerPanel';
+import { useAiAlertActions } from '../../../hooks/useAiAlertActions';
 
 interface NurseDashboardProps {
   username: string;
@@ -117,11 +119,19 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
     </button>
   );
 }
-
 export function NurseDashboard({ username, userType, onLogout, inquiries, onAddInquiry }: NurseDashboardProps) {
   const liveCameras = useLiveCameras();
   const [activeMenu, setActiveMenu] = useState<MenuId>('home');
   const [alerts, setAlerts] = useState<IncidentAlert[]>(INITIAL_ALERTS);
+  const focusHome = useCallback(() => setActiveMenu('home'), []);
+  const {
+    acknowledgedAiEventIds,
+    dangerAiEvents,
+    focusedLiveCameras,
+    focusAiEventCamera,
+    handleConfirmAiEvent,
+    setFocusedCameraId,
+  } = useAiAlertActions({ userType, username, liveCameras, focusHome });
 
   // History filters
   const [searchDate, setSearchDate]       = useState<'today' | 'week' | 'month'>('month');
@@ -319,8 +329,9 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                   alertsCount={activeTenMinAlerts.length}
                 />
                 <LiveCameraGrid
-                  cameras={liveCameras}
+                  cameras={focusedLiveCameras}
                   onCameraClick={camera => {
+                    setFocusedCameraId(camera.id);
                     const event = alerts.find(alert => alert.camera === camera.location || alert.camera === camera.name);
                     if (event) setSelectedIncident(event);
                   }}
@@ -356,22 +367,28 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                     <h3 className="text-base font-bold text-white">실시간 AI 위험 탐지</h3>
                   </div>
                   <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {alerts.slice(0, 5).map(evt => (
-                      <div key={evt.id} className={`bg-[#0f172a] rounded-xl p-3 flex items-center gap-3 ${evt.status === 'resolved' ? 'opacity-50' : ''}`}>
-                        <div className="w-12 h-12 bg-[#374151] rounded-lg flex-shrink-0 overflow-hidden">
-                          <div className="flex h-full w-full items-center justify-center bg-slate-900 text-[9px] font-bold text-slate-500">LIVE</div>
+                    <AiDangerPanel
+                      events={dangerAiEvents}
+                      acknowledgedEventIds={acknowledgedAiEventIds}
+                      onFocus={focusAiEventCamera}
+                      onConfirm={handleConfirmAiEvent}
+                      fallback={alerts.slice(0, 5).map(evt => (
+                        <div key={evt.id} className={`bg-[#0f172a] rounded-xl p-3 flex items-center gap-3 ${evt.status === 'resolved' ? 'opacity-50' : ''}`}>
+                          <div className="w-12 h-12 bg-[#374151] rounded-lg flex-shrink-0 overflow-hidden">
+                            <div className="flex h-full w-full items-center justify-center bg-slate-900 text-[9px] font-bold text-slate-500">LIVE</div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white font-bold text-sm leading-tight cursor-pointer hover:underline truncate" onClick={() => setSelectedIncident(evt)}>{evt.type} 감지</p>
+                            <p className="text-[#cbd5e1] text-xs mt-0.5">{evt.time}</p>
+                          </div>
+                          {evt.status === 'new' ? (
+                            <button onClick={() => handleResolveAlert(evt.id)} className={`${eventButtonStyle(evt.severity)} text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 cursor-pointer`}>확인</button>
+                          ) : (
+                            <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white font-bold text-sm leading-tight cursor-pointer hover:underline truncate" onClick={() => setSelectedIncident(evt)}>{evt.type} 감지</p>
-                          <p className="text-[#cbd5e1] text-xs mt-0.5">{evt.time}</p>
-                        </div>
-                        {evt.status === 'new' ? (
-                          <button onClick={() => handleResolveAlert(evt.id)} className={`${eventButtonStyle(evt.severity)} text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 cursor-pointer`}>확인</button>
-                        ) : (
-                          <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                        )}
-                      </div>
-                    ))}
+                      ))}
+                    />
                   </div>
                 </div>
                 <button onClick={handleTriggerEmergency} className="mx-3 my-3 py-4 bg-[#dc2626] hover:bg-red-500 text-white font-extrabold rounded-xl text-sm flex items-center justify-center gap-2 transition-all cursor-pointer">
