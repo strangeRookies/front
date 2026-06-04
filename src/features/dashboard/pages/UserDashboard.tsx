@@ -3,7 +3,8 @@ import {
   Shield, Bell, Search, Video, Calendar, Clock, Play, Pause, Volume2,
   Download, AlertTriangle, Flame, Check, Tv, LogOut,
   HelpCircle, Camera, Plus, Trash2, MessageSquare, Send, ChevronLeft,
-  User, Lock, Eye, EyeOff, Phone, Mail, LogIn, KeyRound, Smartphone
+  User, Lock, Eye, EyeOff, Phone, Mail, LogIn, KeyRound, Smartphone,
+  Users, Building2, Pencil, X, ChevronDown
 } from 'lucide-react';
 import { LiveCameraGrid } from '../components/LiveCameraGrid';
 import { LIVE_CAMERAS } from '../data/cameras';
@@ -60,13 +61,12 @@ const MOCK_LOGIN_HISTORY = [
 ];
 
 const ALL_MENU_ITEMS = [
-  { id: 'home',    label: '대시보드 홈', icon: Tv,          individualOnly: false },
-  { id: 'monitoring', label: '실시간 관제', icon: Video,     individualOnly: false },
-  { id: 'alerts',  label: '이벤트 알림', icon: Bell,        individualOnly: false },
-  { id: 'history', label: '이벤트 기록', icon: Calendar,    individualOnly: false },
-  { id: 'cameras', label: '카메라 등록', icon: Camera,      individualOnly: true  },
-  { id: 'mypage',  label: '마이페이지',  icon: User,        individualOnly: false },
-  { id: 'qna',     label: '문의',       icon: HelpCircle,  individualOnly: false },
+  { id: 'home',    label: '대시보드 홈', icon: Tv,         individualOnly: false },
+  { id: 'alerts',  label: '이벤트 알림', icon: Bell,       individualOnly: false },
+  { id: 'history', label: '이벤트 기록', icon: Calendar,   individualOnly: false },
+  { id: 'cameras', label: '카메라 등록', icon: Camera,     individualOnly: true  },
+  { id: 'mypage',  label: '마이페이지',  icon: User,       individualOnly: false },
+  { id: 'qna',     label: '문의',       icon: HelpCircle, individualOnly: false },
 ] as const;
 
 type MenuId = typeof ALL_MENU_ITEMS[number]['id'];
@@ -378,25 +378,6 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                   <Flame className="w-4 h-4 fill-white/20" />
                   비상 출동
                 </button>
-              </div>
-            </div>
-          )}
-
-          {/* ===== MONITORING VIEW ===== */}
-          {activeMenu === 'monitoring' && (
-            <div className="flex-1 p-6 space-y-4 overflow-y-auto">
-              <h2 className="text-sm font-bold text-white">실시간 고정형 관제 뷰</h2>
-              <p className="text-xs text-slate-400">병실 내 카메라의 프레임 조절 및 구역별 오버레이 세부 설정이 가능합니다.</p>
-              <div className="h-[400px] border border-slate-800 rounded-2xl bg-black overflow-hidden relative flex items-center justify-center">
-                <LiveCameraGrid cameras={liveCameras} className="absolute inset-0 p-4" />
-                <div className="absolute top-4 left-4 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                  <span className="text-xs font-bold text-white">복도 A — 실시간 분석 채널 2</span>
-                </div>
-                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 800 400">
-                  <polygon points="100,200 300,180 350,300 120,320" fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="5 5" />
-                  <text x="180" y="240" fill="#3b82f6" fontSize="10" fontWeight="bold">낙상 예방 집중구역</text>
-                </svg>
               </div>
             </div>
           )}

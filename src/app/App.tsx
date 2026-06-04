@@ -4,7 +4,7 @@ import { LoginPage } from '../features/auth/pages/LoginPage';
 import { ForgotPasswordPage } from '../features/auth/pages/ForgotPasswordPage';
 import { PersonalSignUp } from '../features/signup/pages/PersonalSignUp';
 import { CorporateSignUp } from '../features/signup/pages/CorporateSignUp';
-import { NurseDashboard } from '../features/dashboard/pages/NurseDashboard';
+import { NurseDashboard } from '../features/dashboard/pages/UserDashboard';
 import { IntegratedDashboard } from '../features/dashboard/pages/IntegratedDashboard';
 import type { Inquiry } from '../shared/types/inquiry';
 
