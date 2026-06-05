@@ -34,16 +34,12 @@ export function CCTVFloorPlan({ cameras, onCameraClick, selectedCameraId }: CCTV
     <div className="relative w-full h-full bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
       {/* 도면 헤더 및 범례 */}
       <div className="flex items-center justify-between px-4 py-3 bg-slate-800/40 border-b border-slate-800">
-        <h3 className="text-sm font-semibold text-gray-200">2단계: 선택된 구역 도면 (Floor Plan View)</h3>
+        <h3 className="text-sm font-semibold text-gray-200">선택된 구역 도면 (Floor Plan View)</h3>
         
         <div className="flex items-center gap-3 text-xs">
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             정상
-          </span>
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-            주의
           </span>
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />

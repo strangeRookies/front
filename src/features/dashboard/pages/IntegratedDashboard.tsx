@@ -3,7 +3,7 @@ import {
   Shield, Bell, ChevronDown, Folder, ChevronRight,
   Play, Pause, Volume2, Maximize2, Check,
   LayoutDashboard, LogOut,
-  HelpCircle, Calendar, Activity, HardDrive, Beaker,
+  HelpCircle, Calendar, Beaker,
   MessageSquare, Send, ChevronLeft, Camera,
   Users, Building2, User, Pencil, X, Search,
   Video, Clock, AlertTriangle, Flame, Download, Tv,
@@ -352,10 +352,19 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-[#102035] border border-slate-700/50 text-[11px] font-medium text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            실시간 위협 모니터링 연동 중
-          </div>
+          {isTestMode ? (
+            <button
+              onClick={() => { setActiveMenu('home'); setTestSubMenu('home'); }}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-600/10 border border-rose-500/40 text-[11px] font-bold text-rose-400 hover:bg-rose-600/20 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" /> 테스트 종료
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-[#102035] border border-slate-700/50 text-[11px] font-medium text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              실시간 위협 모니터링 연동 중
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-200">관</div>
             <span className="text-xs font-semibold text-slate-300">최고 관리자</span>
@@ -481,26 +490,6 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
 
           </div>
 
-          {/* 장비 상태 */}
-          <div className="p-4">
-            <div className="bg-[#0f192b] border border-slate-800/60 rounded-xl p-3.5 space-y-3">
-              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">장비 상태</h4>
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-semibold">연결된 카메라</span>
-                  <span className="text-emerald-400 font-bold font-mono">128 / 128</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-semibold flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-slate-600" />AI 분석 엔진</span>
-                  <span className="text-emerald-400 font-bold">정상</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-semibold flex items-center gap-1.5"><HardDrive className="w-3.5 h-3.5 text-slate-600" />스토리지</span>
-                  <span className="text-emerald-400 font-bold font-mono">92.4% 여유</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </aside>
 
         {/* ===== CENTER ===== */}
@@ -509,11 +498,6 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
           {/* HOME view */}
           {activeMenu === 'home' && (
             <div className="flex-1 p-4 gap-4 overflow-y-auto flex flex-col">
-              <CCTVStatsCards
-                activeFeedsCount={liveCameras.filter(c => c.connectionStatus === 'online').length}
-                totalFeedsCount={liveCameras.length}
-                alertsCount={events.filter(e => e.status === 'new').length}
-              />
               <div className="h-[400px] min-h-[400px]">
                 <CCTVFloorPlan cameras={cameras} onCameraClick={handleCameraClick} selectedCameraId={selectedCamera?.id || null} />
               </div>
@@ -568,7 +552,6 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                   </h2>
                   <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">전 노드 연결 정상</span>
                 </div>
-                <CCTVStatsCards activeFeedsCount={liveCameras.filter(c=>c.connectionStatus==='online').length} totalFeedsCount={liveCameras.length} alertsCount={tActiveTenMin.length} />
                 <LiveCameraGrid cameras={liveCameras} onCameraClick={camera => {
                   const event = tAlerts.find(a => a.camera === camera.location || a.camera === camera.name);
                   if (event) setTSelectedIncident(event);
@@ -804,6 +787,258 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* TEST MYPAGE */}
+          {isTestMode && testSubMenu === 'mypage' && (
+            <div className="flex-1 flex overflow-hidden">
+              {/* Left tab navigation */}
+              <div className="w-52 bg-[#020817] border-r border-slate-800/50 flex flex-col flex-shrink-0 p-4">
+                <div className="flex items-center gap-2 mb-5 px-2">
+                  <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-sm font-extrabold text-blue-400">
+                    {tProfileName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-white leading-tight">{tProfileName}</p>
+                    <p className="text-[10px] text-slate-500">최고 관리자</p>
+                  </div>
+                </div>
+                <nav className="space-y-0.5">
+                  {([
+                    { id: 'profile',       label: '프로필 정보',   icon: User        },
+                    { id: 'password',      label: '비밀번호 변경', icon: Lock        },
+                    { id: 'notifications', label: '알림 설정',     icon: Bell        },
+                    { id: 'account',       label: '계정 관리',     icon: Shield      },
+                  ] as { id: MypageTab; label: string; icon: any }[]).map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => setTMypageTab(id)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        tMypageTab === id ? 'bg-[#0758D6] text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {label}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
+              {/* Right content */}
+              <div className="flex-1 overflow-y-auto p-8">
+
+                {/* 프로필 정보 */}
+                {tMypageTab === 'profile' && (
+                  <div className="max-w-xl space-y-6">
+                    <div>
+                      <h2 className="text-base font-extrabold text-white">프로필 정보</h2>
+                      <p className="text-xs text-slate-400 mt-1">이름, 연락처 등 기본 정보를 수정합니다.</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-full bg-blue-600/20 border-2 border-blue-500/30 flex items-center justify-center text-2xl font-extrabold text-blue-400">
+                        {tProfileName.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">{tProfileName}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">최고 관리자</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">가입일: 2026-03-15</p>
+                      </div>
+                    </div>
+                    <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><User className="w-3 h-3" />이름</label>
+                        <input value={tProfileName} onChange={e => setTProfileName(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><Mail className="w-3 h-3" />이메일</label>
+                        <input value={tProfileEmail} onChange={e => setTProfileEmail(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><Phone className="w-3 h-3" />전화번호</label>
+                        <input value={tProfilePhone} onChange={e => setTProfilePhone(e.target.value)} placeholder="010-0000-0000" className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none" />
+                      </div>
+                      <div className="pt-1 grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400">계정 유형</label>
+                          <div className="px-3 py-2.5 bg-slate-900/50 border border-slate-800 rounded-xl text-xs text-slate-400">최고 관리자 (테스트)</div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400">아이디</label>
+                          <div className="px-3 py-2.5 bg-slate-900/50 border border-slate-800 rounded-xl text-xs text-slate-400">admin-test</div>
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={() => alert('프로필 정보가 저장되었습니다.')} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">
+                      저장하기
+                    </button>
+                  </div>
+                )}
+
+                {/* 비밀번호 변경 */}
+                {tMypageTab === 'password' && (
+                  <div className="max-w-xl space-y-6">
+                    <div>
+                      <h2 className="text-base font-extrabold text-white">비밀번호 변경</h2>
+                      <p className="text-xs text-slate-400 mt-1">보안을 위해 정기적으로 비밀번호를 변경해 주세요.</p>
+                    </div>
+                    <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400">현재 비밀번호</label>
+                        <div className="relative">
+                          <input type={tShowCurrentPw ? 'text' : 'password'} value={tCurrentPw} onChange={e => setTCurrentPw(e.target.value)} placeholder="현재 비밀번호 입력" className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none" />
+                          <button onClick={() => setTShowCurrentPw(p => !p)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
+                            {tShowCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400">새 비밀번호</label>
+                        <div className="relative">
+                          <input type={tShowNewPw ? 'text' : 'password'} value={tNewPw} onChange={e => setTNewPw(e.target.value)} placeholder="8자 이상, 영문/숫자/특수문자 혼합" className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none" />
+                          <button onClick={() => setTShowNewPw(p => !p)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
+                            {tShowNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        {tNewPw && (
+                          <div className="space-y-1">
+                            <div className="flex gap-1">
+                              {[1, 2, 3].map(n => (
+                                <div key={n} className={`h-1 flex-1 rounded-full transition-colors ${tPwStrength.level >= n ? tPwStrength.color : 'bg-slate-800'}`} />
+                              ))}
+                            </div>
+                            <p className={`text-[10px] font-semibold ${tPwStrength.level === 1 ? 'text-red-400' : tPwStrength.level === 2 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                              비밀번호 강도: {tPwStrength.label}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400">새 비밀번호 확인</label>
+                        <div className="relative">
+                          <input type={tShowConfirmPw ? 'text' : 'password'} value={tConfirmPw} onChange={e => setTConfirmPw(e.target.value)} placeholder="새 비밀번호 재입력" className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none" />
+                          <button onClick={() => setTShowConfirmPw(p => !p)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
+                            {tShowConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        {tConfirmPw && tNewPw !== tConfirmPw && <p className="text-[10px] text-red-400 font-semibold">비밀번호가 일치하지 않습니다.</p>}
+                        {tConfirmPw && tNewPw === tConfirmPw && <p className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1"><Check className="w-3 h-3" /> 비밀번호가 일치합니다.</p>}
+                      </div>
+                    </div>
+                    <div className="bg-blue-500/5 border border-blue-500/15 rounded-xl p-3.5">
+                      <p className="text-[10px] text-slate-400 leading-relaxed">
+                        · 비밀번호는 8자 이상, 영문·숫자·특수문자를 포함해야 합니다.<br />
+                        · 변경 후 모든 기기에서 재로그인이 필요합니다.
+                      </p>
+                    </div>
+                    <button onClick={() => { if (!tCurrentPw) { alert('현재 비밀번호를 입력해주세요.'); return; } if (tNewPw !== tConfirmPw) { alert('새 비밀번호가 일치하지 않습니다.'); return; } alert('비밀번호가 변경되었습니다.'); setTCurrentPw(''); setTNewPw(''); setTConfirmPw(''); }} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">
+                      비밀번호 변경
+                    </button>
+                  </div>
+                )}
+
+                {/* 알림 설정 */}
+                {tMypageTab === 'notifications' && (
+                  <div className="max-w-xl space-y-6">
+                    <div>
+                      <h2 className="text-base font-extrabold text-white">알림 설정</h2>
+                      <p className="text-xs text-slate-400 mt-1">이벤트 경보 및 알림 수신 방식을 설정합니다.</p>
+                    </div>
+                    <div className="bg-[#071329] border border-slate-800 rounded-2xl divide-y divide-slate-800/80">
+                      {[
+                        { label: '이벤트 경보 알림', desc: '낙상·실신 등 위험 이벤트 감지 시 즉시 알림', icon: Bell,       value: tNotifEvent, onChange: setTNotifEvent },
+                        { label: '이메일 알림',      desc: '등록된 이메일로 이벤트 요약 발송',           icon: Mail,       value: tNotifEmail, onChange: setTNotifEmail },
+                        { label: 'SMS 알림',         desc: '등록된 전화번호로 긴급 경보 문자 발송',     icon: Smartphone, value: tNotifSms,   onChange: setTNotifSms  },
+                      ].map(({ label, desc, icon: Icon, value, onChange }) => (
+                        <div key={label} className="flex items-center justify-between p-4">
+                          <div className="flex items-start gap-3">
+                            <Icon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-xs font-bold text-white">{label}</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">{desc}</p>
+                            </div>
+                          </div>
+                          <TestToggle value={value} onChange={onChange} />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-3">
+                      <p className="text-xs font-bold text-white">알림 민감도</p>
+                      <p className="text-[10px] text-slate-400">수신할 최소 경보 수준을 선택합니다.</p>
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {([
+                          { id: 'all',      label: '전체',      desc: 'info 이상'    },
+                          { id: 'warning',  label: '중요 이상', desc: 'warning 이상' },
+                          { id: 'critical', label: '긴급만',    desc: 'critical'     },
+                        ] as { id: typeof tAlertLevel; label: string; desc: string }[]).map(opt => (
+                          <button key={opt.id} onClick={() => setTAlertLevel(opt.id)} className={`py-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${tAlertLevel === opt.id ? 'bg-blue-600/15 border-blue-500/40 text-blue-300' : 'bg-[#020817] border-slate-800 text-slate-400 hover:border-slate-600'}`}>
+                            <p>{opt.label}</p>
+                            <p className="text-[9px] font-normal mt-0.5 opacity-60">{opt.desc}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button onClick={() => alert('알림 설정이 저장되었습니다.')} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">
+                      저장하기
+                    </button>
+                  </div>
+                )}
+
+                {/* 계정 관리 */}
+                {tMypageTab === 'account' && (
+                  <div className="max-w-xl space-y-6">
+                    <div>
+                      <h2 className="text-base font-extrabold text-white">계정 관리</h2>
+                      <p className="text-xs text-slate-400 mt-1">로그인 기록 확인 및 계정 설정을 관리합니다.</p>
+                    </div>
+                    <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
+                      <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
+                        <LogIn className="w-3.5 h-3.5 text-slate-400" />
+                        <h3 className="text-xs font-bold text-white">최근 로그인 기록</h3>
+                      </div>
+                      <div className="divide-y divide-slate-800/60">
+                        {TEST_MOCK_LOGIN_HISTORY.map((log, i) => (
+                          <div key={i} className="px-5 py-3 flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-semibold text-slate-300">{log.device}</p>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                                <span className="font-mono">{log.date}</span>
+                                <span>·</span>
+                                <span className="font-mono">{log.ip}</span>
+                              </div>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${log.status === '성공' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>{log.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
+                      <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
+                        <Smartphone className="w-3.5 h-3.5 text-slate-400" />
+                        <h3 className="text-xs font-bold text-white">현재 연결된 기기</h3>
+                      </div>
+                      <div className="px-5 py-4 flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-300">Chrome / Windows 11</p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">현재 세션 · 192.168.1.×××</p>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          현재 기기
+                        </span>
+                      </div>
+                    </div>
+                    <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-5 space-y-3">
+                      <h3 className="text-xs font-bold text-red-400">위험 구역</h3>
+                      <p className="text-[10px] text-slate-400">계정을 탈퇴하면 모든 데이터가 영구 삭제되며 복구할 수 없습니다.</p>
+                      <button onClick={() => { if (window.confirm('정말로 계정을 탈퇴하시겠습니까?\n모든 데이터가 영구 삭제됩니다.')) alert('계정 탈퇴 요청이 접수되었습니다. 처리까지 최대 7일이 소요될 수 있습니다.'); }} className="px-4 py-2 bg-transparent border border-red-500/40 text-red-400 hover:bg-red-500/10 text-xs font-bold rounded-lg cursor-pointer transition-colors">
+                        회원 탈퇴
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </div>
             </div>
           )}
@@ -1100,7 +1335,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
         </main>
 
         {/* ===== RIGHT PANEL ===== */}
-        <aside className="w-72 bg-[#020817] border-l border-slate-800/50 flex flex-col flex-shrink-0">
+        {!isTestMode && <aside className="w-72 bg-[#020817] border-l border-slate-800/50 flex flex-col flex-shrink-0">
           <div className="flex-1 bg-[#071329] m-3 mb-0 rounded-xl flex flex-col overflow-hidden">
             <div className="p-4 border-b border-slate-800/50">
                <div className="flex items-center justify-between">
@@ -1146,7 +1381,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
             <Beaker className="w-4 h-4" />
             {isTestMode ? '테스트 종료' : '테스트 모드'}
           </button>
-        </aside>
+        </aside>}
 
       </div>
 
@@ -1240,6 +1475,17 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ===== FLOATING STATS PANEL ===== */}
+      {!isTestMode && (
+        <div className="fixed bottom-4 left-4 z-50 w-56">
+          <CCTVStatsCards
+            activeFeedsCount={liveCameras.filter(c => c.connectionStatus === 'online').length}
+            totalFeedsCount={liveCameras.length}
+            alertsCount={events.filter(e => e.status === 'new').length}
+          />
         </div>
       )}
     </div>
