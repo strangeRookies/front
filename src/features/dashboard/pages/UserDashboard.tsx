@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import {
-  Shield, Bell, Search, Video, Calendar, Clock, Play, Pause, Volume2,
+  Shield, ShieldAlert, Bell, Search, Video, Calendar, Clock, Play, Pause, Volume2,
   Download, AlertTriangle, Flame, Check, Tv, LogOut,
   HelpCircle, Camera, Plus, Trash2, MessageSquare, Send, ChevronLeft,
   User, Lock, Eye, EyeOff, Phone, Mail, LogIn, KeyRound, Smartphone,
@@ -9,7 +9,6 @@ import {
 import { LiveCameraGrid } from '../components/LiveCameraGrid';
 import { LIVE_CAMERAS } from '../data/cameras';
 import { useLiveCameras } from '../hooks/useLiveCameras';
-import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry } from '../../../shared/types/inquiry';
 import { AiDangerPanel } from '../../../components/dashboard/AiDangerPanel';
@@ -279,7 +278,7 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
 
         {/* LEFT SIDEBAR */}
         <aside className="w-56 bg-[#071329] border-r border-slate-800/50 flex flex-col flex-shrink-0">
-          <div className="p-4 space-y-1">
+          <div className="p-4 space-y-1 flex-1">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-3">메뉴 탐색</h3>
             <nav className="space-y-0.5">
               {ALL_MENU_ITEMS.filter(item => !item.individualOnly || userType === 'individual').map(({ id, label, icon: Icon }) => {
@@ -306,6 +305,42 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                 );
               })}
             </nav>
+
+            <div className="mt-8 pt-6 border-t border-slate-800/50 space-y-4 px-2">
+              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1 mb-2">실시간 상태</h3>
+              
+              {/* CCTV 작동 상태 - 기업용만 노출 */}
+              {userType === 'corporate' && (
+                <div className="bg-[#0f172a] rounded-xl p-3 border border-slate-800/50">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">CCTV 작동 상태</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  </div>
+                  <div className="flex items-end gap-1.5">
+                    <Camera className="w-4 h-4 text-blue-400 mb-0.5" />
+                    <span className="text-sm font-extrabold text-white">
+                      {liveCameras.filter(c => c.connectionStatus === 'online').length}/{liveCameras.length}
+                    </span>
+                    <span className="text-[9px] text-slate-500 font-bold mb-0.5">채널</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 금일 이상 거동 감지 - 공통 노출 */}
+              <div className="bg-[#0f172a] rounded-xl p-3 border border-slate-800/50">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase">금일 이상 거동 감지</span>
+                  {activeTenMinAlerts.length > 0 && (
+                    <span className="text-[8px] font-bold bg-rose-500 text-white px-1 rounded-sm animate-bounce">NEW</span>
+                  )}
+                </div>
+                <div className="flex items-end gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-rose-500 mb-0.5" />
+                  <span className="text-sm font-extrabold text-white">{activeTenMinAlerts.length}건</span>
+                  <span className="text-[9px] text-slate-500 font-bold mb-0.5">미해결</span>
+                </div>
+              </div>
+            </div>
           </div>
         </aside>
 
@@ -323,11 +358,7 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                   </h2>
                   <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">전 노드 연결 정상</span>
                 </div>
-                <CCTVStatsCards
-                  activeFeedsCount={liveCameras.filter(c => c.connectionStatus === 'online').length}
-                  totalFeedsCount={liveCameras.length}
-                  alertsCount={activeTenMinAlerts.length}
-                />
+                
                 <LiveCameraGrid
                   cameras={focusedLiveCameras}
                   onCameraClick={camera => {
