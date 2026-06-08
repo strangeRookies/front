@@ -12,6 +12,13 @@ import {
   Trash2,
   AlertCircle
 } from 'lucide-react';
+import {
+  checkEmailAvailability,
+  confirmSmsVerification,
+  normalizePhoneNumber,
+  requestSmsVerification,
+  signupIndividual,
+} from '../../auth/api/authApi';
 
 interface PersonalSignUpProps {
   onBackToLogin: () => void;
@@ -51,6 +58,9 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
   const [verificationCode, setVerificationCode] = useState('');
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [isCodeSent, setIsCodeSent] = useState(false);
+  const [verificationId, setVerificationId] = useState('');
+  const [verificationToken, setVerificationToken] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [targetName, setTargetName] = useState('');
   const [relation, setRelation] = useState('');
@@ -108,21 +118,45 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
     }
   };
 
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     if (!phone) {
       alert('휴대폰 번호를 입력하세요.');
       return;
     }
-    setIsCodeSent(true);
-    alert('인증번호 "123456"이 발송되었습니다.');
+    try {
+      setIsSubmitting(true);
+      const response = await requestSmsVerification(normalizePhoneNumber(phone));
+      setVerificationId(response.verificationId);
+      setVerificationToken('');
+      setIsPhoneVerified(false);
+      setIsCodeSent(true);
+      alert('인증번호를 발송했습니다. 개발 환경 인증번호는 123456입니다.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '인증번호 발송에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleVerifyCode = () => {
-    if (verificationCode === '123456') {
+  const handleVerifyCode = async () => {
+    if (!verificationId) {
+      alert('인증번호를 먼저 발송해주세요.');
+      return;
+    }
+    if (!verificationCode.trim()) {
+      alert('인증번호를 입력해주세요.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const response = await confirmSmsVerification(verificationId, verificationCode.trim());
+      setVerificationToken(response.verificationToken);
       setIsPhoneVerified(true);
-      alert('본인 인증이 성공적으로 확인되었습니다.');
-    } else {
-      alert('인증번호가 일치하지 않습니다. "123456"을 입력해주세요.');
+      alert('본인 인증이 완료되었습니다.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '인증번호 확인에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -145,7 +179,11 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
     setEmergencyContacts(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
     if (step === 1) {
       if (!email || !password || !passwordConfirm || !name) {
         alert('필수 계정 정보를 모두 입력하세요.');
@@ -155,7 +193,19 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
         alert('비밀번호가 서로 일치하지 않습니다.');
         return;
       }
-      setStep(2);
+      try {
+        setIsSubmitting(true);
+        const isAvailable = await checkEmailAvailability(email.trim());
+        if (!isAvailable) {
+          alert('이미 사용 중인 이메일입니다.');
+          return;
+        }
+        setStep(2);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : '이메일 중복 확인에 실패했습니다.');
+      } finally {
+        setIsSubmitting(false);
+      }
     } else if (step === 2) {
       if (!isPhoneVerified) {
         alert('휴대폰 본인 인증을 진행해주세요.');
@@ -175,8 +225,47 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
         alert('필수 약관에 모두 동의하셔야 회원가입이 완료됩니다.');
         return;
       }
-      alert('개인용 회원가입이 성공적으로 완료되었습니다!');
-      onSignUpComplete();
+      if (!verificationToken) {
+        alert('휴대폰 본인 인증을 다시 진행해주세요.');
+        setStep(2);
+        return;
+      }
+      try {
+        setIsSubmitting(true);
+        await signupIndividual({
+          email: email.trim(),
+          password,
+          name: name.trim(),
+          phone: normalizePhoneNumber(phone),
+          verificationToken,
+          careTarget: {
+            name: targetName.trim(),
+            relation,
+            ageGroup,
+            postcode,
+            address,
+            addressDetail,
+            district: selectedDistrict,
+            jurisdiction,
+          },
+          emergencyContacts: emergencyContacts.map((contact) => ({
+            name: contact.name.trim(),
+            relation: contact.relation.trim(),
+            phone: normalizePhoneNumber(contact.phone),
+          })),
+          agreements: {
+            termsAgreed: agreeTerms,
+            privacyAgreed: agreePrivacy,
+            marketingAgreed: agreeMarketing,
+          },
+        });
+        alert('개인용 회원가입이 성공적으로 완료되었습니다!');
+        onSignUpComplete();
+      } catch (error) {
+        alert(error instanceof Error ? error.message : '회원가입 요청에 실패했습니다.');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -333,7 +422,8 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
                     <button
                       type="button"
                       onClick={handleSendCode}
-                      className="px-4 py-3 bg-blue-600/15 border border-blue-500/20 hover:bg-blue-600/30 text-blue-400 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                      disabled={isSubmitting}
+                      className="px-4 py-3 bg-blue-600/15 border border-blue-500/20 hover:bg-blue-600/30 disabled:bg-slate-800 disabled:text-slate-500 text-blue-400 font-bold rounded-xl text-xs transition-colors cursor-pointer disabled:cursor-not-allowed"
                     >
                       인증번호 발송
                     </button>
@@ -354,7 +444,8 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
                       <button
                         type="button"
                         onClick={handleVerifyCode}
-                        className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                        disabled={isSubmitting}
+                        className="px-5 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer disabled:cursor-not-allowed"
                       >
                         인증 확인
                       </button>
@@ -719,9 +810,10 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
             <button
               type="button"
               onClick={handleNextStep}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/10 transition-all flex items-center gap-1.5 cursor-pointer"
+              disabled={isSubmitting}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/10 transition-all flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
             >
-              {step === 5 ? '가입 완료' : '다음 단계'}
+              {isSubmitting ? '처리 중...' : step === 5 ? '가입 완료' : '다음 단계'}
             </button>
           </div>
 

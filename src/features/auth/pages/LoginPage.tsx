@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Shield, 
   Monitor, 
@@ -10,6 +10,12 @@ import {
   Building,
   Bell
 } from 'lucide-react';
+import {
+  AUTH_STORAGE_KEYS,
+  login,
+  roleToFrontendAccountType,
+  saveAuthSession,
+} from '../api/authApi';
 
 interface LoginPageProps {
   onLogin: (role: 'individual' | 'corporate' | 'admin', username: string) => void;
@@ -23,8 +29,17 @@ export function LoginPage({ onLogin, onNavigateToSignUp, onNavigateToForgotPassw
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberId, setRememberId] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem(AUTH_STORAGE_KEYS.rememberedEmail);
+    if (rememberedEmail) {
+      setUsername(rememberedEmail);
+      setRememberId(true);
+    }
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim()) {
       alert('아이디를 입력해주세요.');
@@ -34,8 +49,25 @@ export function LoginPage({ onLogin, onNavigateToSignUp, onNavigateToForgotPassw
       alert('비밀번호를 입력해주세요.');
       return;
     }
-    // Simulate login
-    onLogin(loginType, username);
+    try {
+      setIsSubmitting(true);
+      const loginResponse = await login(username.trim(), password, loginType);
+      saveAuthSession(loginResponse);
+
+      if (rememberId) {
+        localStorage.setItem(AUTH_STORAGE_KEYS.rememberedEmail, username.trim());
+      } else {
+        localStorage.removeItem(AUTH_STORAGE_KEYS.rememberedEmail);
+      }
+
+      const role = roleToFrontendAccountType(loginResponse.user.role, loginType);
+      const displayName = loginResponse.user.name || loginResponse.user.email || username.trim();
+      onLogin(role, displayName);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '로그인 요청에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -284,9 +316,10 @@ export function LoginPage({ onLogin, onNavigateToSignUp, onNavigateToForgotPassw
               {/* Login Button */}
               <button
                 type="submit"
-                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/10 hover:shadow-blue-500/20 active:scale-[0.98] transition-all cursor-pointer mt-2"
+                disabled={isSubmitting}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/10 hover:shadow-blue-500/20 active:scale-[0.98] transition-all cursor-pointer disabled:cursor-not-allowed mt-2"
               >
-                로그인
+                {isSubmitting ? '로그인 중...' : '로그인'}
               </button>
             </form>
 

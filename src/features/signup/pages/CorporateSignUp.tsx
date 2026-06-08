@@ -12,6 +12,15 @@ import {
   Layers,
   FileText
 } from 'lucide-react';
+import {
+  checkBusinessNumberAvailability,
+  checkEmailAvailability,
+  confirmSmsVerification,
+  normalizeBusinessNumber,
+  normalizePhoneNumber,
+  requestSmsVerification,
+  signupCorporate,
+} from '../../auth/api/authApi';
 
 interface CorporateSignUpProps {
   onBackToLogin: () => void;
@@ -29,6 +38,9 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
   const [verificationCode, setVerificationCode] = useState('');
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [isCodeSent, setIsCodeSent] = useState(false);
+  const [verificationId, setVerificationId] = useState('');
+  const [verificationToken, setVerificationToken] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [companyName, setCompanyName] = useState('');
   const [businessNumber, setBusinessNumber] = useState('');
@@ -83,25 +95,53 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
     }
   };
 
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     if (!managerPhone) {
       alert('휴대폰 번호를 입력하세요.');
       return;
     }
-    setIsCodeSent(true);
-    alert('인증번호 "999999"가 발송되었습니다.');
-  };
-
-  const handleVerifyCode = () => {
-    if (verificationCode === '999999') {
-      setIsPhoneVerified(true);
-      alert('휴대폰 본인 인증이 성공적으로 완료되었습니다.');
-    } else {
-      alert('인증번호가 일치하지 않습니다. "999999"를 입력해주세요.');
+    try {
+      setIsSubmitting(true);
+      const response = await requestSmsVerification(normalizePhoneNumber(managerPhone));
+      setVerificationId(response.verificationId);
+      setVerificationToken('');
+      setIsPhoneVerified(false);
+      setIsCodeSent(true);
+      alert('인증번호를 발송했습니다. 개발 환경 인증번호는 123456입니다.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '인증번호 발송에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleNextStep = () => {
+  const handleVerifyCode = async () => {
+    if (!verificationId) {
+      alert('인증번호를 먼저 발송해주세요.');
+      return;
+    }
+    if (!verificationCode.trim()) {
+      alert('인증번호를 입력해주세요.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const response = await confirmSmsVerification(verificationId, verificationCode.trim());
+      setVerificationToken(response.verificationToken);
+      setIsPhoneVerified(true);
+      alert('휴대폰 본인 인증이 완료되었습니다.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '인증번호 확인에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleNextStep = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
     if (step === 1) {
       if (!email || !password || !passwordConfirm || !managerPhone) {
         alert('계정 정보 및 휴대폰 번호를 모두 입력해주세요.');
@@ -115,13 +155,41 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         alert('인증번호 확인을 완료해주세요.');
         return;
       }
-      setStep(2);
+      if (!verificationToken) {
+        alert('휴대폰 본인 인증을 다시 진행해주세요.');
+        return;
+      }
+      try {
+        setIsSubmitting(true);
+        const isAvailable = await checkEmailAvailability(email.trim());
+        if (!isAvailable) {
+          alert('이미 사용 중인 이메일입니다.');
+          return;
+        }
+        setStep(2);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : '이메일 중복 확인에 실패했습니다.');
+      } finally {
+        setIsSubmitting(false);
+      }
     } else if (step === 2) {
       if (!companyName || !businessNumber || !industry || !companySize || !address) {
         alert('기업 필수 정보를 모두 입력해주세요.');
         return;
       }
-      setStep(3);
+      try {
+        setIsSubmitting(true);
+        const isAvailable = await checkBusinessNumberAvailability(normalizeBusinessNumber(businessNumber));
+        if (!isAvailable) {
+          alert('이미 등록된 사업자등록번호입니다.');
+          return;
+        }
+        setStep(3);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : '사업자등록번호 중복 확인에 실패했습니다.');
+      } finally {
+        setIsSubmitting(false);
+      }
     } else if (step === 3) {
       if (!managerName || !managerDept || !managerRank || !managerEmail) {
         alert('담당자 필수 정보를 모두 입력해주세요.');
@@ -141,8 +209,49 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       }
       setStep(6);
     } else if (step === 6) {
-      alert('기업용 안전 관제 가입 신청이 성공적으로 접수되었습니다!');
-      onSignUpComplete();
+      try {
+        setIsSubmitting(true);
+        await signupCorporate({
+          email: email.trim(),
+          password,
+          phone: normalizePhoneNumber(managerPhone),
+          verificationToken,
+          company: {
+            name: companyName.trim(),
+            businessNumber: normalizeBusinessNumber(businessNumber),
+            industry,
+            size: companySize,
+            postcode,
+            address,
+            addressDetail,
+            district: selectedDistrict,
+            jurisdiction,
+          },
+          manager: {
+            name: managerName.trim(),
+            department: managerDept.trim(),
+            rank: managerRank.trim(),
+            email: managerEmail.trim(),
+            contact: normalizePhoneNumber(managerContact || managerPhone),
+          },
+          installation: {
+            count: installationCount,
+            preferredDate: installationDate,
+            specialRequest,
+          },
+          agreements: {
+            termsAgreed: agreeTerms,
+            privacyAgreed: agreePrivacy,
+            marketingAgreed: agreeMarketing,
+          },
+        });
+        alert('기업용 안전 관제 가입 신청이 성공적으로 접수되었습니다!');
+        onSignUpComplete();
+      } catch (error) {
+        alert(error instanceof Error ? error.message : '회원가입 요청에 실패했습니다.');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -237,7 +346,8 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
                     <button
                       type="button"
                       onClick={handleSendCode}
-                      className="px-3 bg-emerald-600/15 border border-emerald-500/20 text-emerald-400 font-bold rounded-xl text-xs"
+                      disabled={isSubmitting}
+                      className="px-3 bg-emerald-600/15 border border-emerald-500/20 disabled:bg-slate-800 disabled:text-slate-500 text-emerald-400 font-bold rounded-xl text-xs disabled:cursor-not-allowed"
                     >
                       인증 발송
                     </button>
@@ -263,13 +373,14 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
                         type="text"
                         value={verificationCode}
                         onChange={(e) => setVerificationCode(e.target.value)}
-                        placeholder="인증번호 6자리 (999999)"
+                        placeholder="인증번호 6자리 (123456)"
                         className="flex-1 px-4 py-3 bg-[#070e1b] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono"
                       />
                       <button
                         type="button"
                         onClick={handleVerifyCode}
-                        className="px-4 bg-emerald-600 text-white font-bold rounded-xl text-xs"
+                        disabled={isSubmitting}
+                        className="px-4 bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold rounded-xl text-xs disabled:cursor-not-allowed"
                       >
                         인증 확인
                       </button>
@@ -641,9 +752,10 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
             <button
               type="button"
               onClick={handleNextStep}
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/10 transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/10 transition-all cursor-pointer disabled:cursor-not-allowed"
             >
-              {step === 5 ? '가입 완료' : step === 6 ? '로그인으로 이동' : '다음 단계'}
+              {isSubmitting ? '처리 중...' : step === 5 ? '가입 완료' : step === 6 ? '로그인으로 이동' : '다음 단계'}
             </button>
           </div>
 

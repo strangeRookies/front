@@ -7,6 +7,7 @@ import { CorporateSignUp } from '../features/signup/pages/CorporateSignUp';
 import { NurseDashboard } from '../features/dashboard/pages/UserDashboard';
 import { IntegratedDashboard } from '../features/dashboard/pages/IntegratedDashboard';
 import type { Inquiry } from '../shared/types/inquiry';
+import { clearAuthSession } from '../features/auth/api/authApi';
 
 type ViewType = 'login' | 'personalSignUp' | 'corporateSignUp' | 'forgotPassword' | 'userDashboard' | 'adminDashboard';
 type UserType = 'individual' | 'corporate';
@@ -82,6 +83,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    clearAuthSession();
     setCurrentView('login');
     toast.info('안전 관제 세션이 종료되었습니다. 로그아웃 완료.');
   };
