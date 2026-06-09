@@ -7,13 +7,13 @@ import {
   Users, Building2, Pencil, X, ChevronDown
 } from 'lucide-react';
 import { LiveCameraGrid } from '../components/LiveCameraGrid';
-import { LIVE_CAMERAS } from '../data/cameras';
 import { useLiveCameras } from '../hooks/useLiveCameras';
-import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry } from '../../../shared/types/inquiry';
 import { AiDangerPanel } from '../../../components/dashboard/AiDangerPanel';
 import { useAiAlertActions } from '../../../hooks/useAiAlertActions';
 import { aiEventFingerprint, findCameraForAiEvent, getEventTypeKorean, getSeverityTone } from '../../../shared/utils/aiAlerts';
+import { fetchUserProfile, updateUserProfile, UserProfile, updatePassword, withdrawAccount } from '../../../app/api/userDashboard';
+import { toast } from 'sonner';
 
 interface NurseDashboardProps {
   username: string;
@@ -49,12 +49,6 @@ const INITIAL_CAMERAS: RegisteredCamera[] = [
   { id: 'CCTV-03', name: '방 2',   location: '1층' },
 ];
 
-const MOCK_LOGIN_HISTORY = [
-  { date: '2026-05-29 09:42', device: 'Chrome / Windows 11', ip: '192.168.1.×××', status: '성공' },
-  { date: '2026-05-28 17:15', device: 'Chrome / Windows 11', ip: '192.168.1.×××', status: '성공' },
-  { date: '2026-05-27 08:30', device: 'Safari / macOS',      ip: '192.168.2.×××', status: '성공' },
-  { date: '2026-05-26 13:22', device: 'Chrome / Android',    ip: '10.0.0.×××',    status: '실패' },
-];
 
 const ALL_MENU_ITEMS = [
   { id: 'home',    label: '대시보드 홈', icon: Tv,         individualOnly: false },
@@ -202,19 +196,15 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
   // Mypage
   const [mypageTab, setMypageTab]         = useState<MypageTab>('profile');
   const [profileName, setProfileName]     = useState(username || '안전담당자');
-  const [profileEmail, setProfileEmail]   = useState(`${username || 'user'}@example.com`);
+  const [profileEmail, setProfileEmail]   = useState(username?.includes('@') ? username : `${username || 'user'}@example.com`);
   const [profilePhone, setProfilePhone]   = useState('010-1234-5678');
+  const [profileCreatedAt, setProfileCreatedAt] = useState('2026-01-01');
   const [currentPw, setCurrentPw]         = useState('');
   const [newPw, setNewPw]                 = useState('');
   const [confirmPw, setConfirmPw]         = useState('');
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw]         = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
-  const [notifEvent, setNotifEvent]       = useState(true);
-  const [notifEmail, setNotifEmail]       = useState(true);
-  const [notifSms, setNotifSms]           = useState(false);
-  const [notifKakao, setNotifKakao]       = useState(false);
-  const [alertLevel, setAlertLevel]       = useState<'all' | 'warning' | 'critical'>('warning');
 
   // QnA
   const [selectedQnaId, setSelectedQnaId]   = useState<string | null>(null);
@@ -222,6 +212,25 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
   const [qnaTitle, setQnaTitle]             = useState('');
   const [qnaContent, setQnaContent]         = useState('');
   const [qnaCategory, setQnaCategory]       = useState<InquiryCategory>('기타');
+
+  // Load profile from API
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profile = await fetchUserProfile();
+        if (profile.name) setProfileName(profile.name);
+        if (profile.email) setProfileEmail(profile.email);
+        if (profile.phoneNumber) setProfilePhone(profile.phoneNumber);
+        if (profile.createdAt) {
+          const dateOnly = profile.createdAt.split('T')[0];
+          setProfileCreatedAt(dateOnly);
+        }
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+      }
+    };
+    loadProfile();
+  }, []);
 
   const activeTenMinAlerts = alerts.filter(a => Date.now() - a.timestamp <= 10 * 60 * 1000);
   const myInquiries  = inquiries.filter(inq => inq.username === username);
@@ -263,13 +272,32 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
     setShowNewQnaModal(false);
   };
 
-  const handleSaveProfile = () => alert('프로필 정보가 저장되었습니다.');
-  const handleChangePassword = () => {
-    if (!currentPw) { alert('현재 비밀번호를 입력해 주세요.'); return; }
-    if (newPw.length < 8) { alert('새 비밀번호는 8자 이상이어야 합니다.'); return; }
-    if (newPw !== confirmPw) { alert('새 비밀번호가 일치하지 않습니다.'); return; }
-    alert('비밀번호가 변경되었습니다.');
-    setCurrentPw(''); setNewPw(''); setConfirmPw('');
+  const handleSaveProfile = async () => {
+    try {
+      await updateUserProfile({
+        name: profileName,
+        email: profileEmail,
+        phoneNumber: profilePhone.replace(/[^0-9]/g, '')
+      });
+      toast.success('프로필 정보가 성공적으로 저장되었습니다.');
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      toast.error('프로필 정보를 저장하는데 실패했습니다.');
+    }
+  };
+  const handleChangePassword = async () => {
+    if (!currentPw) { toast.error('현재 비밀번호를 입력해 주세요.'); return; }
+    if (newPw.length < 8) { toast.error('새 비밀번호는 8자 이상이어야 합니다.'); return; }
+    if (newPw !== confirmPw) { toast.error('새 비밀번호가 일치하지 않습니다.'); return; }
+    
+    try {
+      await updatePassword(currentPw, newPw);
+      toast.success('비밀번호가 성공적으로 변경되었습니다.');
+      setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    } catch (error) {
+      console.error('Failed to change password:', error);
+      toast.error('비밀번호 변경에 실패했습니다. 현재 비밀번호를 다시 확인해 주세요.');
+    }
   };
   const handleSaveNotifications = () => alert('알림 설정이 저장되었습니다.');
 
@@ -687,7 +715,6 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                   {([
                     { id: 'profile',       label: '프로필 정보',   icon: User        },
                     { id: 'password',      label: '비밀번호 변경', icon: Lock        },
-                    { id: 'notifications', label: '알림 설정',     icon: Bell        },
                     { id: 'account',       label: '계정 관리',     icon: Shield      },
                   ] as { id: MypageTab; label: string; icon: any }[]).map(({ id, label, icon: Icon }) => (
                     <button
@@ -723,7 +750,7 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                       <div>
                         <p className="text-sm font-bold text-white">{profileName || username}</p>
                         <p className="text-xs text-slate-400 mt-0.5">{userType === 'individual' ? '개인 사용자' : '기업 사용자'}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">가입일: 2026-03-15</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">가입일: {profileCreatedAt}</p>
                       </div>
                     </div>
 
@@ -747,7 +774,7 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-slate-400">아이디</label>
-                          <div className="px-3 py-2.5 bg-slate-900/50 border border-slate-800 rounded-xl text-xs text-slate-400">{username}</div>
+                          <div className="px-3 py-2.5 bg-slate-900/50 border border-slate-800 rounded-xl text-xs text-slate-400">{profileEmail}</div>
                         </div>
                       </div>
                     </div>
@@ -850,115 +877,13 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                   </div>
                 )}
 
-                {/* ── 알림 설정 ── */}
-                {mypageTab === 'notifications' && (
-                  <div className="max-w-xl space-y-6">
-                    <div>
-                      <h2 className="text-base font-extrabold text-white">알림 설정</h2>
-                      <p className="text-xs text-slate-400 mt-1">이벤트 경보 및 알림 수신 방식을 설정합니다.</p>
-                    </div>
-
-                    <div className="bg-[#071329] border border-slate-800 rounded-2xl divide-y divide-slate-800/80">
-                      {[
-                        { label: '이벤트 경보 알림', desc: '낙상·실신 등 위험 이벤트 감지 시 즉시 알림', icon: Bell, value: notifEvent, onChange: setNotifEvent },
-                        { label: '이메일 알림',      desc: '등록된 이메일로 이벤트 요약 발송',           icon: Mail, value: notifEmail, onChange: setNotifEmail },
-                        { label: 'SMS 알림',         desc: '등록된 전화번호로 긴급 경보 문자 발송',     icon: Smartphone, value: notifSms, onChange: setNotifSms },
-                      ].map(({ label, desc, icon: Icon, value, onChange }) => (
-                        <div key={label} className="flex items-center justify-between p-4">
-                          <div className="flex items-start gap-3">
-                            <Icon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-xs font-bold text-white">{label}</p>
-                              <p className="text-[10px] text-slate-500 mt-0.5">{desc}</p>
-                            </div>
-                          </div>
-                          <Toggle value={value} onChange={onChange} />
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-3">
-                      <p className="text-xs font-bold text-white">알림 민감도</p>
-                      <p className="text-[10px] text-slate-400">수신할 최소 경보 수준을 선택합니다.</p>
-                      <div className="grid grid-cols-3 gap-2 mt-2">
-                        {([
-                          { id: 'all',      label: '전체',       desc: 'info 이상' },
-                          { id: 'warning',  label: '중요 이상',  desc: 'warning 이상' },
-                          { id: 'critical', label: '긴급만',     desc: 'critical' },
-                        ] as { id: typeof alertLevel; label: string; desc: string }[]).map(opt => (
-                          <button
-                            key={opt.id}
-                            onClick={() => setAlertLevel(opt.id)}
-                            className={`py-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                              alertLevel === opt.id
-                                ? 'bg-blue-600/15 border-blue-500/40 text-blue-300'
-                                : 'bg-[#020817] border-slate-800 text-slate-400 hover:border-slate-600'
-                            }`}
-                          >
-                            <p>{opt.label}</p>
-                            <p className="text-[9px] font-normal mt-0.5 opacity-60">{opt.desc}</p>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button onClick={handleSaveNotifications} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">
-                      저장하기
-                    </button>
-                  </div>
-                )}
 
                 {/* ── 계정 관리 ── */}
                 {mypageTab === 'account' && (
                   <div className="max-w-xl space-y-6">
                     <div>
                       <h2 className="text-base font-extrabold text-white">계정 관리</h2>
-                      <p className="text-xs text-slate-400 mt-1">로그인 기록 확인 및 계정 설정을 관리합니다.</p>
-                    </div>
-
-                    {/* Login history */}
-                    <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
-                      <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
-                        <LogIn className="w-3.5 h-3.5 text-slate-400" />
-                        <h3 className="text-xs font-bold text-white">최근 로그인 기록</h3>
-                      </div>
-                      <div className="divide-y divide-slate-800/60">
-                        {MOCK_LOGIN_HISTORY.map((log, i) => (
-                          <div key={i} className="px-5 py-3 flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-semibold text-slate-300">{log.device}</p>
-                              <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
-                                <span className="font-mono">{log.date}</span>
-                                <span>·</span>
-                                <span className="font-mono">{log.ip}</span>
-                              </div>
-                            </div>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              log.status === '성공'
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                : 'bg-red-500/10 text-red-400 border-red-500/20'
-                            }`}>{log.status}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Connected devices */}
-                    <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
-                      <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
-                        <Smartphone className="w-3.5 h-3.5 text-slate-400" />
-                        <h3 className="text-xs font-bold text-white">현재 연결된 기기</h3>
-                      </div>
-                      <div className="px-5 py-4 flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-semibold text-slate-300">Chrome / Windows 11</p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">현재 세션 · 192.168.1.×××</p>
-                        </div>
-                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          현재 기기
-                        </span>
-                      </div>
+                      <p className="text-xs text-slate-400 mt-1">계정 설정을 관리합니다.</p>
                     </div>
 
                     {/* Danger zone */}
@@ -966,9 +891,17 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
                       <h3 className="text-xs font-bold text-red-400">위험 구역</h3>
                       <p className="text-[10px] text-slate-400">계정을 탈퇴하면 모든 데이터가 영구 삭제되며 복구할 수 없습니다.</p>
                       <button
-                        onClick={() => {
-                          if (window.confirm('정말로 계정을 탈퇴하시겠습니까?\n모든 데이터가 영구 삭제됩니다.'))
-                            alert('계정 탈퇴 요청이 접수되었습니다. 처리까지 최대 7일이 소요될 수 있습니다.');
+                        onClick={async () => {
+                          if (window.confirm('정말로 계정을 탈퇴하시겠습니까?\n모든 데이터가 영구 삭제됩니다.')) {
+                            try {
+                              await withdrawAccount();
+                              toast.success('회원 탈퇴가 완료되었습니다.');
+                              onLogout();
+                            } catch (error) {
+                              console.error('Failed to withdraw account:', error);
+                              toast.error('회원 탈퇴 처리에 실패했습니다.');
+                            }
+                          }
                         }}
                         className="px-4 py-2 bg-transparent border border-red-500/40 text-red-400 hover:bg-red-500/10 text-xs font-bold rounded-lg cursor-pointer transition-colors"
                       >

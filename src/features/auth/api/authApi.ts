@@ -1,4 +1,5 @@
 import { apiRequest } from '../../../shared/api/client';
+import { authStore } from '../../../shared/api/authStore';
 
 export type FrontendAccountType = 'individual' | 'corporate' | 'admin';
 export type BackendAccountType = 'INDIVIDUAL' | 'CORPORATE' | 'ADMIN';
@@ -136,12 +137,12 @@ export function normalizeBusinessNumber(value: string): string {
 }
 
 export function saveAuthSession(loginResponse: LoginResponse) {
-  localStorage.setItem(AUTH_STORAGE_KEYS.accessToken, loginResponse.accessToken);
-  localStorage.setItem(AUTH_STORAGE_KEYS.refreshToken, loginResponse.refreshToken);
-  localStorage.setItem(AUTH_STORAGE_KEYS.user, JSON.stringify(loginResponse.user));
+  authStore.setSession(loginResponse.accessToken, loginResponse.refreshToken, loginResponse.user);
 }
 
 export function clearAuthSession() {
+  authStore.clearSession();
+  // 브라우저에 남아있을 수 있는 기존 토큰 정보들을 강제로 삭제하여 청소합니다.
   localStorage.removeItem(AUTH_STORAGE_KEYS.accessToken);
   localStorage.removeItem(AUTH_STORAGE_KEYS.refreshToken);
   localStorage.removeItem(AUTH_STORAGE_KEYS.user);
