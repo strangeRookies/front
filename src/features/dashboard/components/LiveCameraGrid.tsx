@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { AlertTriangle, Radio, Signal, SignalZero, Video } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
+import { AlertTriangle, Expand, Radio, Signal, SignalZero, Video } from 'lucide-react';
 import type { LiveCamera } from '../data/cameras';
 
 interface LiveCameraGridProps {
@@ -90,6 +90,18 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
 
 export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick }: LiveCameraGridProps) {
   const visibleCameras = cameras.slice(0, 4);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const handleFullscreen = useCallback(async (cameraId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const target = cardRefs.current[cameraId];
+    if (!target || !target.requestFullscreen) return;
+    try {
+      await target.requestFullscreen();
+    } catch {
+      // fullscreen rejected (e.g. not triggered by user gesture)
+    }
+  }, []);
 
   return (
     <div className={`grid ${gridClass(visibleCameras.length)} gap-3 ${className}`}>
@@ -97,11 +109,14 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
         const style = statusStyle(camera);
         const StatusIcon = style.icon;
         return (
-          <button
+          <div
+            ref={(el) => { cardRefs.current[camera.id] = el; }}
             key={camera.id}
-            type="button"
+            className={`group overflow-hidden rounded-xl border ${style.border} bg-[#0f172a] text-left transition-colors cursor-pointer hover:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/60`}
             onClick={() => onCameraClick?.(camera)}
-            className={`group overflow-hidden rounded-xl border ${style.border} bg-[#0f172a] text-left transition-colors hover:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/60`}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onCameraClick?.(camera); }}
           >
             <div className={`relative bg-black ${compact ? 'aspect-video' : visibleCameras.length === 1 ? 'aspect-[16/8]' : 'aspect-video'}`}>
               <CameraStream camera={camera} />
@@ -133,12 +148,22 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
                 </div>
                 <p className="mt-0.5 truncate text-[10px] font-semibold text-slate-500">{camera.location}</p>
               </div>
-              <div className="flex flex-shrink-0 items-center gap-1.5 rounded bg-slate-950/70 px-2 py-1 text-[10px] font-bold text-slate-300">
-                <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
-                {camera.connectionStatus.toUpperCase()}
+              <div className="flex flex-shrink-0 items-center gap-1.5">
+                <div className="flex items-center gap-1.5 rounded bg-slate-950/70 px-2 py-1 text-[10px] font-bold text-slate-300">
+                  <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                  {camera.connectionStatus.toUpperCase()}
+                </div>
+                <button
+                  type="button"
+                  title="전체화면"
+                  onClick={(e) => void handleFullscreen(camera.id, e)}
+                  className="p-1.5 rounded bg-slate-900 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                >
+                  <Expand className="h-3 w-3" />
+                </button>
               </div>
             </div>
-          </button>
+          </div>
         );
       })}
 

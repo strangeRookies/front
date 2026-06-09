@@ -16,6 +16,23 @@ export function aiEventKey(event: AiEvent) {
   return `${event.camera_id}:${event.event_type}:${event.timestamp}:${trackId}`;
 }
 
+// Re-export stable fingerprint from aiEventFeed so callers can import from one place
+export { aiEventFingerprint } from './aiEventFeed';
+
+export function formatAiEventLabel(event: AiEvent): string {
+  const upper = event.event_type.trim().toUpperCase();
+  const korean = getEventTypeKorean(event.event_type);
+  return `${upper} (${korean}) 감지`;
+}
+
+export function getSeverityTone(severity: string): 'critical' | 'warning' | 'info' {
+  const upper = severity.toUpperCase();
+  if (upper === 'CRITICAL' || upper === 'HIGH') return 'critical';
+  if (upper === 'MEDIUM') return 'warning';
+  return 'info';
+}
+
+
 export function findCameraForAiEvent(cameras: readonly LiveCamera[], event: AiEvent) {
   const eventTokens = cameraIdTokens(event.camera_id);
   return cameras.find(camera => {
@@ -30,21 +47,35 @@ export function findCameraForAiEvent(cameras: readonly LiveCamera[], event: AiEv
   });
 }
 
+export function getEventTypeKorean(type: string): string {
+  const upper = type.toUpperCase();
+  if (upper.includes('FALL')) return '낙상';
+  if (upper.includes('FAINT')) return '실신';
+  if (upper.includes('COLLAPSE')) return '쓰러짐';
+  if (upper.includes('VIOLENCE') || upper.includes('FIGHT')) return '폭력';
+  if (upper.includes('CROWD')) return '혼잡';
+  if (upper.includes('FIRE')) return '화재';
+  return type;
+}
+
 export function markAiDangerCameras(cameras: readonly LiveCamera[], events: readonly AiEvent[]) {
-  const dangerCameraIds = new Set(
-    events
-      .filter(isDangerAiEvent)
-      .map(event => findCameraForAiEvent(cameras, event)?.id)
-      .filter((cameraId): cameraId is string => cameraId !== undefined),
-  );
   return cameras.map(camera => {
-    if (!dangerCameraIds.has(camera.id)) {
+    const matchingEvent = events.find(event => {
+      if (!isDangerAiEvent(event)) return false;
+      const cameraObj = findCameraForAiEvent(cameras, event);
+      return cameraObj?.id === camera.id;
+    });
+
+    if (!matchingEvent) {
       return camera;
     }
+
+    const typeUpper = matchingEvent.event_type.toUpperCase();
+    const koreanLabel = getEventTypeKorean(matchingEvent.event_type);
     return {
       ...camera,
       eventStatus: 'danger' as const,
-      eventLabel: 'AI ALERT',
+      eventLabel: `${typeUpper} (${koreanLabel}) 감지`,
     };
   });
 }

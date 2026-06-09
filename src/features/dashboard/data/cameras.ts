@@ -51,8 +51,7 @@ export const LIVE_CAMERAS: LiveCamera[] = [
     location: '1F Corridor A',
     streamUrl: streamUrl('camera-2'),
     connectionStatus: 'online',
-    eventStatus: 'danger',
-    eventLabel: 'FALL',
+    eventStatus: 'normal',
   },
   {
     id: 'camera-3',

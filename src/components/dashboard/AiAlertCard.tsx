@@ -1,5 +1,6 @@
 import { AlertTriangle, Camera, Check, Clock } from 'lucide-react';
 import type { AiEvent } from '../../hooks/useAiEvents';
+import { formatAiEventLabel } from '../../shared/utils/aiAlerts';
 
 interface AiAlertCardProps {
   readonly event: AiEvent;
@@ -43,10 +44,10 @@ export function AiAlertCard({ event, acknowledged = false, onFocus, onConfirm }:
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <h4 className={`text-base font-bold ${acknowledged ? 'text-slate-300' : 'text-red-400'}`}>
-              {event.event_type} Detected
+              {acknowledged ? '조치 확인됨' : '새 위험 이벤트 수신'}
             </h4>
             <span className="rounded-md border border-red-500/20 bg-red-950/50 px-2 py-1 font-mono text-xs text-red-300/80">
-              {(confidence * 100).toFixed(1)}%
+              {formatAiEventLabel(event)}
             </span>
           </div>
 
@@ -63,7 +64,7 @@ export function AiAlertCard({ event, acknowledged = false, onFocus, onConfirm }:
 
           <div className="mt-3 flex items-center justify-between gap-3">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              {acknowledged ? 'Acknowledged' : 'Unacknowledged'}
+              {acknowledged ? '조치 확인됨' : '미확인'}
             </span>
             {!acknowledged && (
               <button
@@ -74,7 +75,7 @@ export function AiAlertCard({ event, acknowledged = false, onFocus, onConfirm }:
                 }}
                 className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[10px] font-extrabold text-white transition-colors hover:bg-emerald-500"
               >
-                Confirm
+                확인
               </button>
             )}
           </div>

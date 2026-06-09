@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 const apiSource = readFileSync('src/app/api/aiIncidentRequests.ts', 'utf8');
 const hookSource = readFileSync('src/hooks/useAiAlertActions.ts', 'utf8');
-const dashboardSource = readFileSync('src/app/pages/NurseDashboard.tsx', 'utf8');
+const dashboardSource = readFileSync('src/features/dashboard/pages/UserDashboard.tsx', 'utf8');
 
 const checks = [
   ['preFrames is 150', apiSource.includes('preFrames: 150')],
@@ -11,7 +11,7 @@ const checks = [
   ['ack endpoint is used', apiSource.includes('/api/incidents/${encodeURIComponent(request.eventId)}/acknowledge-and-record')],
   ['POST method is used', apiSource.includes("method: 'POST'")],
   ['Confirm calls backend API', hookSource.includes('acknowledgeAndRequestRecording(event, username)')],
-  ['Confirm acknowledges local event', hookSource.includes('next.add(aiEventKey(event))')],
+  ['Confirm acknowledges local event', hookSource.includes('next.add(fp)') || hookSource.includes('next.add(aiEventFingerprint')],
   ['NurseDashboard uses extracted panel', dashboardSource.includes('<AiDangerPanel')],
   ['NurseDashboard uses extracted hook', dashboardSource.includes('useAiAlertActions({ userType, username, liveCameras, focusHome })')],
 ];
