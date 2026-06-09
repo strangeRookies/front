@@ -1260,15 +1260,15 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                     <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
                       <div className="px-5 py-4 bg-[#061224] border-b border-slate-800">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${CATEGORY_STYLES[selectedAdminQna.category]}`}>
-                            {selectedAdminQna.category}
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20`}>
+                            {selectedAdminQna.categoryDescription}
                           </span>
                           <span className="text-[10px] text-slate-400">
-                            {selectedAdminQna.userType === 'individual' ? '개인 사용자' : '기업 사용자'} · {selectedAdminQna.username}
+                             {selectedAdminQna.userEmail} · {selectedAdminQna.userName}
                           </span>
                         </div>
                         <h3 className="text-sm font-extrabold text-white">{selectedAdminQna.title}</h3>
-                        <p className="text-[10px] text-slate-500 mt-1.5">작성일: {selectedAdminQna.createdAt}</p>
+                        <p className="text-[10px] text-slate-500 mt-1.5">작성일: {selectedAdminQna.createdAt.replace('T', ' ')}</p>
                       </div>
                       <div className="p-5">
                         <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{selectedAdminQna.content}</p>
@@ -1280,21 +1280,21 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                       <div className="flex items-center gap-3 mb-4">
                         <span className="h-px flex-1 bg-slate-800" />
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                          {selectedAdminQna.reply ? '등록된 답변' : '답변 작성'}
+                          {selectedAdminQna.status === 'ANSWERED' ? '등록된 답변' : '답변 작성'}
                         </span>
                         <span className="h-px flex-1 bg-slate-800" />
                       </div>
 
-                      {selectedAdminQna.reply ? (
+                      {selectedAdminQna.status === 'ANSWERED' && selectedAdminQna.replyContent ? (
                         <div className="bg-[#0f192b] border border-emerald-500/20 rounded-2xl p-5">
                           <div className="flex items-center gap-2 mb-3">
                             <div className="w-6 h-6 rounded-full bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center">
                               <Shield className="w-3 h-3 text-emerald-400" />
                             </div>
-                            <span className="text-xs font-bold text-emerald-400">관리자 답변</span>
-                            <span className="text-[10px] text-slate-500">{selectedAdminQna.reply.repliedAt}</span>
+                            <span className="text-xs font-bold text-emerald-400">{selectedAdminQna.repliedByName || '관리자'}</span>
+                            <span className="text-[10px] text-slate-500">{selectedAdminQna.repliedAt?.replace('T', ' ')}</span>
                           </div>
-                          <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{selectedAdminQna.reply.content}</p>
+                          <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{selectedAdminQna.replyContent}</p>
                         </div>
                       ) : (
                         <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-4">

@@ -213,11 +213,22 @@ export function NurseDashboard({ username, userType, onLogout, inquiries, onAddI
     setShowAddCamera(false);
   };
 
-  const handleSubmitQna = () => {
+  const handleSubmitQna = async () => {
     if (!qnaTitle.trim() || !qnaContent.trim()) return;
-    onAddInquiry({ userId: username, username, userType, category: qnaCategory, title: qnaTitle.trim(), content: qnaContent.trim() });
-    setQnaTitle(''); setQnaContent(''); setQnaCategory('기타');
-    setShowNewQnaModal(false);
+    try {
+      await submitInquiry({
+        category: mapLabelToCategory(qnaCategory),
+        title: qnaTitle.trim(),
+        content: qnaContent.trim()
+      });
+      toast.success('문의가 등록되었습니다.');
+      setQnaTitle(''); setQnaContent(''); setQnaCategory('기타');
+      setShowNewQnaModal(false);
+      loadInquiries(); // 목록 새로고침
+    } catch (error) {
+      console.error('Failed to submit inquiry:', error);
+      toast.error('문의 등록에 실패했습니다.');
+    }
   };
 
   const handleSaveProfile = async () => {
