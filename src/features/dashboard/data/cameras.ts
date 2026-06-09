@@ -40,7 +40,7 @@ export const LIVE_CAMERAS: LiveCamera[] = [
   {
     id: 'camera-1',
     name: 'CCTV-01',
-    location: '1F Room 1',
+    location: '1층 병실 1',
     streamUrl: streamUrl('camera-1'),
     connectionStatus: 'online',
     eventStatus: 'normal',
@@ -48,7 +48,7 @@ export const LIVE_CAMERAS: LiveCamera[] = [
   {
     id: 'camera-2',
     name: 'CCTV-02',
-    location: '1F Corridor A',
+    location: '1층 복도 A',
     streamUrl: streamUrl('camera-2'),
     connectionStatus: 'online',
     eventStatus: 'normal',
@@ -56,7 +56,7 @@ export const LIVE_CAMERAS: LiveCamera[] = [
   {
     id: 'camera-3',
     name: 'CCTV-03',
-    location: 'Remote Webcam 1',
+    location: '원격 카메라 1',
     streamUrl: streamUrl('camera-3'),
     connectionStatus: 'online',
     eventStatus: 'normal',
@@ -64,7 +64,7 @@ export const LIVE_CAMERAS: LiveCamera[] = [
   {
     id: 'camera-4',
     name: 'CCTV-04',
-    location: 'Remote Webcam 2',
+    location: '원격 카메라 2',
     streamUrl: streamUrl('camera-4'),
     connectionStatus: 'online',
     eventStatus: 'normal',

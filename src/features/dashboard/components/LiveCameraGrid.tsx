@@ -1,6 +1,8 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import { AlertTriangle, Expand, Radio, Signal, SignalZero, Video } from 'lucide-react';
 import type { LiveCamera } from '../data/cameras';
+import { useFullscreenCamera } from '../hooks/useFullscreenCamera';
 
 interface LiveCameraGridProps {
   cameras: LiveCamera[];
@@ -15,7 +17,7 @@ function statusStyle(camera: LiveCamera) {
       border: 'border-slate-700',
       badge: 'bg-slate-700/80 text-slate-200 border-slate-600',
       dot: 'bg-slate-400',
-      label: 'OFFLINE',
+      label: '연결 끊김',
       icon: SignalZero,
     };
   }
@@ -24,7 +26,7 @@ function statusStyle(camera: LiveCamera) {
       border: 'border-amber-500/60',
       badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
       dot: 'bg-amber-400 animate-pulse',
-      label: 'CONNECTING',
+      label: '연결 중',
       icon: Signal,
     };
   }
@@ -33,7 +35,7 @@ function statusStyle(camera: LiveCamera) {
       border: 'border-rose-500/80 shadow-[0_0_0_1px_rgba(244,63,94,0.45)]',
       badge: 'bg-rose-500/15 text-rose-200 border-rose-500/40',
       dot: 'bg-rose-500 animate-ping',
-      label: camera.eventLabel || 'EVENT',
+      label: camera.eventLabel || '이벤트 확인 필요',
       icon: AlertTriangle,
     };
   }
@@ -42,7 +44,7 @@ function statusStyle(camera: LiveCamera) {
       border: 'border-amber-500/70',
       badge: 'bg-amber-500/15 text-amber-200 border-amber-500/35',
       dot: 'bg-amber-400 animate-pulse',
-      label: camera.eventLabel || 'WARNING',
+      label: camera.eventLabel || '주의 필요',
       icon: AlertTriangle,
     };
   }
@@ -50,7 +52,7 @@ function statusStyle(camera: LiveCamera) {
     border: 'border-slate-800',
     badge: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25',
     dot: 'bg-emerald-400 animate-pulse',
-    label: 'ONLINE',
+    label: '모니터링 중',
     icon: Signal,
   };
 }
@@ -70,7 +72,7 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
       {!failed && (
         <img
           src={camera.streamUrl}
-          alt={`${camera.name} live stream`}
+          alt={`${camera.name} 실시간 영상`}
           className={`absolute inset-0 h-full w-full object-cover ${unavailable ? 'opacity-25 grayscale' : ''}`}
           onError={() => setFailed(true)}
         />
@@ -78,9 +80,9 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
       {unavailable && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030712]/90 text-slate-500">
           <SignalZero className="w-10 h-10 mb-3 text-slate-600" />
-          <span className="text-xs font-extrabold tracking-wider text-slate-300">OFFLINE</span>
+          <span className="text-xs font-extrabold tracking-wider text-slate-300">연결 끊김</span>
           <span className="mt-1 text-[10px] text-slate-500">
-            {failed ? 'Stream endpoint unavailable' : 'Waiting for RTSP signal'}
+            {failed ? '카메라 연결 상태를 확인해주세요.' : '카메라 영상을 불러오는 중입니다.'}
           </span>
         </div>
       )}
@@ -90,18 +92,18 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
 
 export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick }: LiveCameraGridProps) {
   const visibleCameras = cameras.slice(0, 4);
-  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const { activeFullscreenCameraId, requestCameraFullscreen, setCameraCardRef } = useFullscreenCamera();
 
-  const handleFullscreen = useCallback(async (cameraId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const target = cardRefs.current[cameraId];
-    if (!target || !target.requestFullscreen) return;
-    try {
-      await target.requestFullscreen();
-    } catch {
-      // fullscreen rejected (e.g. not triggered by user gesture)
-    }
-  }, []);
+  const handleFullscreen = useCallback((cameraId: string, event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    void requestCameraFullscreen(cameraId);
+  }, [requestCameraFullscreen]);
+
+  const handleCameraKeyDown = useCallback((camera: LiveCamera, event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    onCameraClick?.(camera);
+  }, [onCameraClick]);
 
   return (
     <div className={`grid ${gridClass(visibleCameras.length)} gap-3 ${className}`}>
@@ -110,20 +112,20 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
         const StatusIcon = style.icon;
         return (
           <div
-            ref={(el) => { cardRefs.current[camera.id] = el; }}
+            ref={(element) => setCameraCardRef(camera.id, element)}
             key={camera.id}
             className={`group overflow-hidden rounded-xl border ${style.border} bg-[#0f172a] text-left transition-colors cursor-pointer hover:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/60`}
             onClick={() => onCameraClick?.(camera)}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onCameraClick?.(camera); }}
+            onKeyDown={(event) => handleCameraKeyDown(camera, event)}
           >
             <div className={`relative bg-black ${compact ? 'aspect-video' : visibleCameras.length === 1 ? 'aspect-[16/8]' : 'aspect-video'}`}>
               <CameraStream camera={camera} />
 
               <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded bg-black/75 px-2 py-1 text-[10px] font-extrabold text-rose-300 backdrop-blur">
                 <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
-                LIVE
+                실시간
               </div>
 
               <div className={`absolute right-2 top-2 flex items-center gap-1.5 rounded border px-2 py-1 text-[10px] font-extrabold backdrop-blur ${style.badge}`}>
@@ -134,7 +136,7 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
               {camera.eventStatus === 'danger' && camera.connectionStatus !== 'offline' && (
                 <div className="absolute inset-0 border-2 border-rose-500 bg-rose-600/10">
                   <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-rose-600 px-3 py-1 text-xs font-extrabold text-white shadow-lg">
-                    {camera.eventLabel || 'DANGER'}
+                    {camera.eventLabel || '이상 상황'}
                   </div>
                 </div>
               )}
@@ -151,12 +153,12 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
               <div className="flex flex-shrink-0 items-center gap-1.5">
                 <div className="flex items-center gap-1.5 rounded bg-slate-950/70 px-2 py-1 text-[10px] font-bold text-slate-300">
                   <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
-                  {camera.connectionStatus.toUpperCase()}
+                  {camera.connectionStatus === 'online' ? '정상' : camera.connectionStatus === 'connecting' ? '연결 중' : '오류'}
                 </div>
                 <button
                   type="button"
-                  title="전체화면"
-                  onClick={(e) => void handleFullscreen(camera.id, e)}
+                  title={activeFullscreenCameraId === camera.id ? '전체 화면으로 표시 중' : '전체 화면'}
+                  onClick={(event) => handleFullscreen(camera.id, event)}
                   className="p-1.5 rounded bg-slate-900 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
                 >
                   <Expand className="h-3 w-3" />
@@ -169,7 +171,7 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
 
       {visibleCameras.length === 0 && (
         <div className="flex aspect-video items-center justify-center rounded-xl border border-dashed border-slate-700 bg-[#0f172a] text-xs font-semibold text-slate-500">
-          No cameras configured
+          등록된 카메라가 없습니다.
         </div>
       )}
     </div>

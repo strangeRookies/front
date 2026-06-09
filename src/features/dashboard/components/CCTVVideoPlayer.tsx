@@ -18,7 +18,7 @@ export function CCTVVideoPlayer({
   onClose,
 }: CCTVVideoPlayerProps) {
   const isOffline = status === 'offline' || !streamUrl;
-  const eventLabel = eventStatus === 'danger' ? 'DANGER' : eventStatus === 'warning' ? 'WARNING' : 'NORMAL';
+  const eventLabel = eventStatus === 'danger' ? '이상 상황' : eventStatus === 'warning' ? '주의 필요' : '정상 모니터링';
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50">
@@ -38,12 +38,12 @@ export function CCTVVideoPlayer({
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <SignalZero className="mx-auto mb-2 h-12 w-12 text-slate-700" />
-              <p className="text-sm font-bold text-slate-500">OFFLINE</p>
+              <p className="text-sm font-bold text-slate-500">연결 끊김</p>
               <p className="mt-1 text-xs text-slate-700">{cameraName}</p>
             </div>
           </div>
         ) : (
-          <img src={streamUrl} alt={`${cameraName} live stream`} className="absolute inset-0 h-full w-full object-cover" />
+          <img src={streamUrl} alt={`${cameraName} 실시간 영상`} className="absolute inset-0 h-full w-full object-cover" />
         )}
 
         <div className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 font-mono text-xs text-white backdrop-blur-sm">

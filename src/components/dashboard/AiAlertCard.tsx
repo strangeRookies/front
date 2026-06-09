@@ -15,8 +15,6 @@ export function AiAlertCard({ event, acknowledged = false, onFocus, onConfirm }:
   }
 
   const time = new Date(event.timestamp * 1000).toLocaleTimeString();
-  const confidence = Number.isFinite(event.confidence) ? event.confidence : event.score;
-
   return (
     <div
       role="button"
@@ -44,7 +42,7 @@ export function AiAlertCard({ event, acknowledged = false, onFocus, onConfirm }:
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <h4 className={`text-base font-bold ${acknowledged ? 'text-slate-300' : 'text-red-400'}`}>
-              {acknowledged ? '조치 확인됨' : '새 위험 이벤트 수신'}
+              {acknowledged ? '담당자가 확인한 이벤트입니다.' : '이상 상황이 감지되었습니다.'}
             </h4>
             <span className="rounded-md border border-red-500/20 bg-red-950/50 px-2 py-1 font-mono text-xs text-red-300/80">
               {formatAiEventLabel(event)}
@@ -64,7 +62,7 @@ export function AiAlertCard({ event, acknowledged = false, onFocus, onConfirm }:
 
           <div className="mt-3 flex items-center justify-between gap-3">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              {acknowledged ? '조치 확인됨' : '미확인'}
+              {acknowledged ? '확인 완료' : '확인 대기'}
             </span>
             {!acknowledged && (
               <button

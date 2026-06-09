@@ -14,12 +14,14 @@ interface AiDangerPanelProps {
 
 export function AiDangerPanel({ events, acknowledgedEventIds, onFocus, onConfirm, fallback }: AiDangerPanelProps) {
   if (events.length === 0) {
+    if (fallback) return <>{fallback}</>;
+
     return (
       <>
         <div className="py-8 text-center text-slate-500">
           <Shield className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-xs font-semibold">실시간 위험 이벤트 대기 중</p>
-          <p className="text-[10px] mt-1 text-slate-600">새 MQTT/STOMP 이벤트가 들어오면 여기에 표시됩니다.</p>
+          <p className="text-xs font-semibold">현재 감지된 이상 상황이 없습니다.</p>
+          <p className="text-[10px] mt-1 text-slate-600">실시간 모니터링 중입니다.</p>
         </div>
       </>
     );

@@ -1,6 +1,12 @@
 import { AlertTriangle, X } from 'lucide-react';
 import { useEffect } from 'react';
 
+declare global {
+  interface Window {
+    readonly webkitAudioContext?: typeof AudioContext;
+  }
+}
+
 interface AlertNotificationProps {
   message: string;
   cameraId: string;
@@ -9,8 +15,10 @@ interface AlertNotificationProps {
 
 export function AlertNotification({ message, cameraId, onClose }: AlertNotificationProps) {
   useEffect(() => {
-    // 알림 소리 재생 (Web Audio API 사용)
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextConstructor = window.AudioContext ?? window.webkitAudioContext;
+    if (!AudioContextConstructor) return;
+
+    const audioContext = new AudioContextConstructor();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
 
@@ -23,7 +31,6 @@ export function AlertNotification({ message, cameraId, onClose }: AlertNotificat
 
     oscillator.start();
 
-    // 비프음 패턴 (3회 반복)
     setTimeout(() => oscillator.stop(), 200);
     setTimeout(() => {
       const osc2 = audioContext.createOscillator();
@@ -48,7 +55,6 @@ export function AlertNotification({ message, cameraId, onClose }: AlertNotificat
       setTimeout(() => osc3.stop(), 200);
     }, 600);
 
-    // 자동 닫기
     const timer = setTimeout(onClose, 10000);
     return () => clearTimeout(timer);
   }, [onClose]);
@@ -60,9 +66,9 @@ export function AlertNotification({ message, cameraId, onClose }: AlertNotificat
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-6 h-6 flex-shrink-0 animate-pulse" />
             <div className="flex-1">
-              <h4 className="font-bold mb-1">⚠️ 안전 위험 감지</h4>
+              <h4 className="font-bold mb-1">안전 이벤트 알림</h4>
               <p className="text-sm mb-1">{message}</p>
-              <p className="text-xs opacity-90">위치: {cameraId}</p>
+              <p className="text-xs opacity-90">카메라: {cameraId}</p>
             </div>
             <button
               onClick={onClose}
