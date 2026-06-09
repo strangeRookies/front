@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   Bell,
   Check,
@@ -11,6 +12,8 @@ import {
   Smartphone,
   User,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { fetchUserProfile, updateUserProfile, updatePassword } from '../../../app/api/userDashboard';
 import { MOCK_LOGIN_HISTORY, getPasswordStrength } from '../utils/dashboardStatus';
 import type { MypageTab } from '../types/dashboard';
 
@@ -26,77 +29,89 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (value: boolean
 }
 
 interface DashboardMyPageViewProps {
-  alertLevel: 'all' | 'warning' | 'critical';
-  confirmPw: string;
-  currentPw: string;
-  newPw: string;
-  notifEmail: boolean;
-  notifEvent: boolean;
-  notifSms: boolean;
-  mypageTab: MypageTab;
-  profileEmail: string;
-  profileName: string;
-  profilePhone: string;
-  showConfirmPw: boolean;
-  showCurrentPw: boolean;
-  showNewPw: boolean;
   userType: 'individual' | 'corporate';
   username: string;
-  onAlertLevelChange: (value: 'all' | 'warning' | 'critical') => void;
-  onChangePassword: () => void;
-  onConfirmPwChange: (value: string) => void;
-  onCurrentPwChange: (value: string) => void;
-  onMypageTabChange: (value: MypageTab) => void;
-  onNotifEmailChange: (value: boolean) => void;
-  onNotifEventChange: (value: boolean) => void;
-  onNotifSmsChange: (value: boolean) => void;
-  onNewPwChange: (value: string) => void;
-  onProfileEmailChange: (value: string) => void;
-  onProfileNameChange: (value: string) => void;
-  onProfilePhoneChange: (value: string) => void;
-  onSaveNotifications: () => void;
-  onSaveProfile: () => void;
-  onToggleConfirmPw: () => void;
-  onToggleCurrentPw: () => void;
-  onToggleNewPw: () => void;
 }
 
 export function DashboardMyPageView(props: DashboardMyPageViewProps) {
-  const {
-    alertLevel,
-    confirmPw,
-    currentPw,
-    newPw,
-    notifEmail,
-    notifEvent,
-    notifSms,
-    mypageTab,
-    profileEmail,
-    profileName,
-    profilePhone,
-    showConfirmPw,
-    showCurrentPw,
-    showNewPw,
-    userType,
-    username,
-    onAlertLevelChange,
-    onChangePassword,
-    onConfirmPwChange,
-    onCurrentPwChange,
-    onMypageTabChange,
-    onNotifEmailChange,
-    onNotifEventChange,
-    onNotifSmsChange,
-    onNewPwChange,
-    onProfileEmailChange,
-    onProfileNameChange,
-    onProfilePhoneChange,
-    onSaveNotifications,
-    onSaveProfile,
-    onToggleConfirmPw,
-    onToggleCurrentPw,
-    onToggleNewPw,
-  } = props;
+  const { userType, username } = props;
+
+  const [mypageTab, setMypageTab] = useState<MypageTab>('profile');
+  const [profileName, setProfileName] = useState(username || '사용자');
+  const [profileEmail, setProfileEmail] = useState(username?.includes('@') ? username : `${username || 'user'}@example.com`);
+  const [profilePhone, setProfilePhone] = useState('010-1234-5678');
+  const [profileCreatedAt, setProfileCreatedAt] = useState('2026-01-01');
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+  const [notifEvent, setNotifEvent] = useState(true);
+  const [notifEmail, setNotifEmail] = useState(true);
+  const [notifSms, setNotifSms] = useState(false);
+  const [alertLevel, setAlertLevel] = useState<'all' | 'warning' | 'critical'>('warning');
+
+  // Load profile from API
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profile = await fetchUserProfile();
+        if (profile.name) setProfileName(profile.name);
+        if (profile.email) setProfileEmail(profile.email);
+        if (profile.phoneNumber) setProfilePhone(profile.phoneNumber);
+        if (profile.createdAt) {
+          const dateOnly = profile.createdAt.split('T')[0];
+          setProfileCreatedAt(dateOnly);
+        }
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+      }
+    };
+    loadProfile();
+  }, []);
+
+  const handleSaveProfile = async () => {
+    try {
+      await updateUserProfile({
+        name: profileName,
+        email: profileEmail,
+        phoneNumber: profilePhone.replace(/[^0-9]/g, ''),
+      });
+      toast.success('프로필 정보가 성공적으로 저장되었습니다.');
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      toast.error('프로필 정보를 저장하는데 실패했습니다.');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPw) {
+      toast.error('현재 비밀번호를 입력해 주세요.');
+      return;
+    }
+    if (newPw.length < 8) {
+      toast.error('새 비밀번호는 8자 이상이어야 합니다.');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      toast.error('새 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    try {
+      await updatePassword(currentPw, newPw);
+      toast.success('비밀번호가 성공적으로 변경되었습니다.');
+      setCurrentPw('');
+      setNewPw('');
+      setConfirmPw('');
+    } catch (error) {
+      console.error('Failed to change password:', error);
+      toast.error('비밀번호 변경에 실패했습니다. 현재 비밀번호를 다시 확인해 주세요.');
+    }
+  };
+
+  const handleSaveNotifications = () => toast.success('알림 설정을 저장했습니다.');
 
   const pwStrength = getPasswordStrength(newPw);
 
@@ -121,7 +136,7 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
           ] as const).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => onMypageTabChange(id)}
+              onClick={() => setMypageTab(id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 mypageTab === id ? 'bg-[#0758D6] text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
               }`}
@@ -143,18 +158,28 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
             <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><User className="w-3 h-3" />이름</label>
-                <input value={profileName} onChange={(event) => onProfileNameChange(event.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                <input value={profileName} onChange={(event) => setProfileName(event.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><Mail className="w-3 h-3" />이메일</label>
-                <input value={profileEmail} onChange={(event) => onProfileEmailChange(event.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                <input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><Phone className="w-3 h-3" />연락처</label>
-                <input value={profilePhone} onChange={(event) => onProfilePhoneChange(event.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+              </div>
+              <div className="pt-1 grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400">계정 유형</label>
+                  <div className="px-3 py-2.5 bg-slate-900/50 border border-slate-800 rounded-xl text-xs text-slate-400">{userType === 'individual' ? '개인 안전담당자' : '기업 안전담당자'}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400">가입일</label>
+                  <div className="px-3 py-2.5 bg-slate-900/50 border border-slate-800 rounded-xl text-xs text-slate-400">{profileCreatedAt}</div>
+                </div>
               </div>
             </div>
-            <button onClick={onSaveProfile} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">저장</button>
+            <button onClick={handleSaveProfile} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">저장</button>
           </div>
         )}
 
@@ -168,8 +193,8 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400">현재 비밀번호</label>
                 <div className="relative">
-                  <input type={showCurrentPw ? 'text' : 'password'} value={currentPw} onChange={(event) => onCurrentPwChange(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
-                  <button onClick={onToggleCurrentPw} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
+                  <input type={showCurrentPw ? 'text' : 'password'} value={currentPw} onChange={(event) => setCurrentPw(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                  <button onClick={() => setShowCurrentPw((p) => !p)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
                     {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
@@ -177,8 +202,8 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400">새 비밀번호</label>
                 <div className="relative">
-                  <input type={showNewPw ? 'text' : 'password'} value={newPw} onChange={(event) => onNewPwChange(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
-                  <button onClick={onToggleNewPw} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
+                  <input type={showNewPw ? 'text' : 'password'} value={newPw} onChange={(event) => setNewPw(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                  <button onClick={() => setShowNewPw((p) => !p)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
                     {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
@@ -198,8 +223,8 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400">새 비밀번호 확인</label>
                 <div className="relative">
-                  <input type={showConfirmPw ? 'text' : 'password'} value={confirmPw} onChange={(event) => onConfirmPwChange(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
-                  <button onClick={onToggleConfirmPw} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
+                  <input type={showConfirmPw ? 'text' : 'password'} value={confirmPw} onChange={(event) => setConfirmPw(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                  <button onClick={() => setShowConfirmPw((p) => !p)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
                     {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
@@ -211,7 +236,13 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
                 )}
               </div>
             </div>
-            <button onClick={onChangePassword} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">비밀번호 변경</button>
+            <div className="bg-blue-500/5 border border-blue-500/15 rounded-xl p-3.5">
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                · 비밀번호는 8자 이상, 영문·숫자·특수문자를 포함해야 합니다.<br />
+                · 변경 후 모든 기기에서 재로그인이 필요합니다.
+              </p>
+            </div>
+            <button onClick={handleChangePassword} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">비밀번호 변경</button>
           </div>
         )}
 
@@ -223,9 +254,9 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
             </div>
             <div className="bg-[#071329] border border-slate-800 rounded-2xl divide-y divide-slate-800/80">
               {[
-                { label: '이벤트 알림', desc: '이상 상황 이벤트를 즉시 알립니다.', icon: Bell, value: notifEvent, onChange: onNotifEventChange },
-                { label: '이메일 알림', desc: '이벤트 요약을 이메일로 전송합니다.', icon: Mail, value: notifEmail, onChange: onNotifEmailChange },
-                { label: 'SMS 알림', desc: '긴급 이벤트를 문자로 전송합니다.', icon: Smartphone, value: notifSms, onChange: onNotifSmsChange },
+                { label: '이벤트 알림', desc: '이상 상황 이벤트를 즉시 알립니다.', icon: Bell, value: notifEvent, onChange: setNotifEvent },
+                { label: '이메일 알림', desc: '이벤트 요약을 이메일로 전송합니다.', icon: Mail, value: notifEmail, onChange: setNotifEmail },
+                { label: 'SMS 알림', desc: '긴급 이벤트를 문자로 전송합니다.', icon: Smartphone, value: notifSms, onChange: setNotifSms },
               ].map(({ label, desc, icon: Icon, value, onChange }) => (
                 <div key={label} className="flex items-center justify-between p-4">
                   <div className="flex items-start gap-3">
@@ -249,7 +280,7 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
                 ].map((option) => (
                   <button
                     key={option.id}
-                    onClick={() => onAlertLevelChange(option.id as 'all' | 'warning' | 'critical')}
+                    onClick={() => setAlertLevel(option.id as 'all' | 'warning' | 'critical')}
                     className={`py-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                       alertLevel === option.id
                         ? 'bg-blue-600/15 border-blue-500/40 text-blue-300'
@@ -262,7 +293,7 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
                 ))}
               </div>
             </div>
-            <button onClick={onSaveNotifications} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">저장</button>
+            <button onClick={handleSaveNotifications} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">저장</button>
           </div>
         )}
 
