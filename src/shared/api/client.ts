@@ -1,3 +1,5 @@
+import { authStore } from './authStore';
+
 const API_BASE_URL = (import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
 
 export interface ApiSuccessResponse<T> {
@@ -38,11 +40,13 @@ interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { body, accessToken, headers, ...init } = options;
+  const token = accessToken || authStore.getAccessToken();
+  
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
