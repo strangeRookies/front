@@ -41,6 +41,7 @@ export interface EmergencyJurisdictionRequest {
   postcode: string;
   address: string;
   addressDetail: string;
+  region3DepthName?: string;
 }
 
 export interface EmergencyJurisdictionResponse {
@@ -66,6 +67,7 @@ export interface IndividualSignupPayload {
     postcode: string;
     address: string;
     addressDetail: string;
+    region3DepthName?: string;
     district: string;
     jurisdiction: string;
   };
@@ -90,6 +92,7 @@ export interface CorporateSignupPayload {
     postcode: string;
     address: string;
     addressDetail: string;
+    region3DepthName?: string;
     district: string;
     jurisdiction: string;
   };

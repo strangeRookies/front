@@ -21,6 +21,7 @@ import {
   requestSmsVerification,
   signupCorporate,
 } from '../../auth/api/authApi';
+import { ApiError } from '../../../shared/api/client';
 import { AgreementDetailDialog } from '../components/AgreementDetailDialog';
 import { getAgreementById, type AgreementId } from '../data/agreements';
 import {
@@ -60,6 +61,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
   const [postcode, setPostcode] = useState('');
   const [address, setAddress] = useState('');
   const [addressDetail, setAddressDetail] = useState('');
+  const [region3DepthName, setRegion3DepthName] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('강남구');
   const [jurisdiction, setJurisdiction] = useState('강남소방서');
   const [emergencyJurisdiction, setEmergencyJurisdiction] = useState<EmergencyJurisdictionResponse | null>(null);
@@ -77,7 +79,12 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
   const [agreeMarketing, setAgreeMarketing] = useState(false);
   const [selectedAgreementId, setSelectedAgreementId] = useState<AgreementId | null>(null);
 
-  const resolveJurisdiction = async (nextPostcode: string, nextAddress: string, nextAddressDetail = '') => {
+  const resolveJurisdiction = async (
+    nextPostcode: string,
+    nextAddress: string,
+    nextAddressDetail = '',
+    nextRegion3DepthName = '',
+  ) => {
     setJurisdictionStatus('loading');
     setJurisdictionError('');
     setEmergencyJurisdiction(null);
@@ -89,6 +96,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         postcode: nextPostcode,
         address: nextAddress,
         addressDetail: nextAddressDetail,
+        region3DepthName: nextRegion3DepthName || undefined,
       });
       setEmergencyJurisdiction(result);
       setSelectedDistrict(result.district);
@@ -96,7 +104,11 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       setJurisdictionStatus('success');
     } catch (error) {
       setJurisdictionStatus('error');
-      setJurisdictionError(error instanceof Error ? error.message : '관할 정보를 찾을 수 없습니다. 주소를 다시 선택해주세요.');
+      if (error instanceof ApiError && error.code === 'EMERGENCY_JURISDICTION_NOT_FOUND') {
+        setJurisdictionError('해당 주소에 매칭되는 관할 119센터를 찾을 수 없습니다. 정확한 주소를 입력해주세요.');
+      } else {
+        setJurisdictionError(error instanceof Error ? error.message : '관할 정보를 찾을 수 없습니다. 주소를 다시 선택해주세요.');
+      }
     }
   };
 
@@ -108,7 +120,8 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
           setPostcode(data.zonecode);
           setAddress(data.address);
           setAddressDetail('');
-          void resolveJurisdiction(data.zonecode, data.address, '');
+          setRegion3DepthName(data.bname || '');
+          void resolveJurisdiction(data.zonecode, data.address, '', data.bname || '');
         }
       }).open();
     };
@@ -239,7 +252,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         return;
       }
       if (!emergencyJurisdiction || jurisdictionStatus !== 'success') {
-        alert('관할 119센터 조회가 완료된 주소를 선택해주세요.');
+        alert(jurisdictionError || '관할 119센터 조회가 완료된 주소를 선택해주세요.');
         return;
       }
       try {
@@ -274,6 +287,12 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         alert('필수 약관에 모두 동의해주셔야 가입이 진행됩니다.');
         return;
       }
+      const resolvedJurisdiction = emergencyJurisdiction;
+      if (!resolvedJurisdiction) {
+        alert('관할 119센터 조회가 완료된 주소를 선택해주세요.');
+        setStep(2);
+        return;
+      }
       try {
         setIsSubmitting(true);
         await signupCorporate({
@@ -288,9 +307,10 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
             size: companySize,
             postcode,
             address,
-            addressDetail,
-            district: selectedDistrict,
-            jurisdiction,
+            addressDetail: addressDetail.trim(),
+            region3DepthName: region3DepthName || undefined,
+            district: resolvedJurisdiction.district,
+            jurisdiction: resolvedJurisdiction.jurisdiction,
           },
           manager: {
             name: managerName.trim(),
@@ -313,7 +333,12 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         alert('기업용 안전 관제 가입 신청이 성공적으로 접수되었습니다!');
         setStep(5);
       } catch (error) {
-        alert(error instanceof Error ? error.message : '회원가입 요청에 실패했습니다.');
+        if (error instanceof ApiError && error.code === 'EMERGENCY_JURISDICTION_NOT_FOUND') {
+          alert('선택하신 주소의 관할 정보를 백엔드에서 다시 계산하는 중 오류가 발생했습니다(관할 미매칭). 다른 주소를 시도해주세요.');
+          setStep(2);
+        } else {
+          alert(error instanceof Error ? error.message : '회원가입 요청에 실패했습니다.');
+        }
       } finally {
         setIsSubmitting(false);
       }
