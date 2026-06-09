@@ -55,8 +55,9 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   if (!response.ok || payload?.success === false) {
     const error = payload && payload.success === false ? payload.error : undefined;
+    const fieldErrorMessage = formatFieldErrors(error?.fieldErrors);
     throw new ApiError(
-      error?.message || `요청 처리에 실패했습니다. (${response.status})`,
+      [error?.message || `요청 처리에 실패했습니다. (${response.status})`, fieldErrorMessage].filter(Boolean).join('\n'),
       response.status,
       error?.code,
       error?.fieldErrors,
@@ -68,4 +69,36 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   return undefined as T;
+}
+
+function formatFieldErrors(fieldErrors: unknown): string {
+  if (!fieldErrors) {
+    return '';
+  }
+
+  if (Array.isArray(fieldErrors)) {
+    return fieldErrors
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item;
+        }
+        if (item && typeof item === 'object') {
+          const record = item as Record<string, unknown>;
+          const field = record.field || record.name || record.path;
+          const message = record.message || record.defaultMessage || record.reason;
+          return [field, message].filter(Boolean).join(': ');
+        }
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (typeof fieldErrors === 'object') {
+    return Object.entries(fieldErrors as Record<string, unknown>)
+      .map(([field, message]) => `${field}: ${String(message)}`)
+      .join('\n');
+  }
+
+  return String(fieldErrors);
 }

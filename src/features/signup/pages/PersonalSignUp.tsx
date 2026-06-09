@@ -23,6 +23,14 @@ import {
 } from '../../auth/api/authApi';
 import { AgreementDetailDialog } from '../components/AgreementDetailDialog';
 import { getAgreementById, type AgreementId } from '../data/agreements';
+import {
+  isValidEmail,
+  isValidPassword,
+  isValidPhoneNumber,
+  isValidVerificationCode,
+  PHONE_RULE_MESSAGE,
+  SIGNUP_PASSWORD_RULE_MESSAGE,
+} from '../utils/validation';
 
 interface PersonalSignUpProps {
   onBackToLogin: () => void;
@@ -138,9 +146,22 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
     }
   };
 
+  const handlePhoneChange = (value: string) => {
+    setPhone(value);
+    setVerificationCode('');
+    setIsPhoneVerified(false);
+    setIsCodeSent(false);
+    setVerificationId('');
+    setVerificationToken('');
+  };
+
   const handleSendCode = async () => {
     if (!phone) {
       alert('휴대폰 번호를 입력하세요.');
+      return;
+    }
+    if (!isValidPhoneNumber(phone)) {
+      alert(PHONE_RULE_MESSAGE);
       return;
     }
     try {
@@ -167,6 +188,10 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
       alert('인증번호를 입력해주세요.');
       return;
     }
+    if (!isValidVerificationCode(verificationCode)) {
+      alert('인증번호는 숫자 6자리로 입력해주세요.');
+      return;
+    }
     try {
       setIsSubmitting(true);
       const response = await confirmSmsVerification(verificationId, verificationCode.trim());
@@ -183,6 +208,10 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
   const handleAddEmergencyContact = () => {
     if (!contactName || !contactRelation || !contactPhone) {
       alert('비상 연락처 정보를 모두 입력해주세요.');
+      return;
+    }
+    if (!isValidPhoneNumber(contactPhone)) {
+      alert(`비상 연락처 ${PHONE_RULE_MESSAGE}`);
       return;
     }
     setEmergencyContacts(prev => [...prev, {
@@ -205,8 +234,16 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
     }
 
     if (step === 1) {
-      if (!email || !password || !passwordConfirm || !name) {
+      if (!email.trim() || !password || !passwordConfirm || !name.trim()) {
         alert('필수 계정 정보를 모두 입력하세요.');
+        return;
+      }
+      if (!isValidEmail(email)) {
+        alert('이메일 형식이 올바르지 않습니다. 예: user@example.com');
+        return;
+      }
+      if (!isValidPassword(password)) {
+        alert(SIGNUP_PASSWORD_RULE_MESSAGE);
         return;
       }
       if (password !== passwordConfirm) {
@@ -233,8 +270,8 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
       }
       setStep(3);
     } else if (step === 3) {
-      if (!targetName || !relation || !ageGroup || !address) {
-        alert('보호 대상자 정보 및 주소를 모두 입력해주세요.');
+      if (!targetName.trim() || !relation || !ageGroup || !address || !addressDetail.trim()) {
+        alert('보호 대상자 정보와 설치 주소지, 상세 주소를 모두 입력해주세요.');
         return;
       }
       if (!emergencyJurisdiction || jurisdictionStatus !== 'success') {
@@ -441,7 +478,7 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
                     <input
                       type="text"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
                       placeholder="휴대폰 번호를 입력해주세요 (- 없이)"
                       className="flex-1 px-4 py-3 bg-[#070e1b] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
                     />
