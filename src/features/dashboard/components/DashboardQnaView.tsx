@@ -5,10 +5,10 @@ import { CATEGORY_STYLES } from '../utils/dashboardStatus';
 
 interface DashboardQnaViewProps {
   inquiries: readonly Inquiry[];
-  selectedQnaId: string | null;
+  selectedQnaId: number | null;
   onBack: () => void;
   onCreateInquiry: () => void;
-  onSelectQna: (id: string) => void;
+  onSelectQna: (id: number) => void;
 }
 
 export function DashboardQnaView({
@@ -34,7 +34,7 @@ export function DashboardQnaView({
             </button>
           </div>
           <p className="text-[10px] text-slate-500">
-            전체 {inquiries.length}건 / 답변 대기 {inquiries.filter((item) => !item.reply).length}건
+            전체 {inquiries.length}건 / 답변 대기 {inquiries.filter((item) => item.status === 'WAITING').length}건
           </p>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -58,11 +58,11 @@ export function DashboardQnaView({
                     {inquiry.category}
                   </span>
                   <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                    inquiry.reply
+                    inquiry.status === 'COMPLETED'
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                       : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                   }`}>
-                    {inquiry.reply ? <><Check className="w-2.5 h-2.5" />답변 완료</> : '답변 대기'}
+                    {inquiry.status === 'COMPLETED' ? <><Check className="w-2.5 h-2.5" />답변 완료</> : '답변 대기'}
                   </span>
                 </div>
                 <p className="text-xs font-bold text-white truncate">{inquiry.title}</p>
@@ -97,16 +97,16 @@ export function DashboardQnaView({
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">관리자 답변</span>
                 <span className="h-px flex-1 bg-slate-800" />
               </div>
-              {selectedQna.reply ? (
+              {selectedQna.status === 'COMPLETED' && selectedQna.replyContent ? (
                 <div className="bg-[#0f192b] border border-blue-500/20 rounded-2xl p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-6 h-6 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
                       <Shield className="w-3 h-3 text-blue-400" />
                     </div>
                     <span className="text-xs font-bold text-blue-400">관리자</span>
-                    <span className="text-[10px] text-slate-500">{selectedQna.reply.repliedAt}</span>
+                    <span className="text-[10px] text-slate-500">{selectedQna.repliedAt}</span>
                   </div>
-                  <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{selectedQna.reply.content}</p>
+                  <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{selectedQna.replyContent}</p>
                 </div>
               ) : (
                 <div className="bg-[#071329] border border-dashed border-slate-700 rounded-2xl p-10 text-center">

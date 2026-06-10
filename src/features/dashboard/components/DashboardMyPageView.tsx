@@ -13,7 +13,7 @@ import {
   User,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchUserProfile, updateUserProfile, updatePassword } from '../../../app/api/userDashboard';
+import { fetchUserProfile, updateUserProfile, updatePassword, withdrawAccount } from '../../../app/api/userDashboard';
 import { MOCK_LOGIN_HISTORY, getPasswordStrength } from '../utils/dashboardStatus';
 import type { MypageTab } from '../types/dashboard';
 
@@ -31,10 +31,11 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (value: boolean
 interface DashboardMyPageViewProps {
   userType: 'individual' | 'corporate';
   username: string;
+  onLogout: () => void;
 }
 
 export function DashboardMyPageView(props: DashboardMyPageViewProps) {
-  const { userType, username } = props;
+  const { userType, username, onLogout } = props;
 
   const [mypageTab, setMypageTab] = useState<MypageTab>('profile');
   const [profileName, setProfileName] = useState(username || '사용자');
@@ -113,6 +114,23 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
 
   const handleSaveNotifications = () => toast.success('알림 설정을 저장했습니다.');
 
+  const handleWithdraw = async () => {
+    if (!window.confirm('정말로 회원 탈퇴를 진행하시겠습니까? 모든 정보가 영구적으로 삭제되며 복구할 수 없습니다.')) {
+      return;
+    }
+
+    try {
+      await withdrawAccount();
+      toast.success('회원 탈퇴가 완료되었습니다. 이용해 주셔서 감사합니다.');
+      setTimeout(() => {
+        onLogout();
+      }, 1500);
+    } catch (error) {
+      console.error('Failed to withdraw account:', error);
+      toast.error('회원 탈퇴 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    }
+  };
+
   const pwStrength = getPasswordStrength(newPw);
 
   return (
@@ -130,9 +148,8 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
         <nav className="space-y-0.5">
           {([
             { id: 'profile', label: '프로필', icon: User },
-            { id: 'password', label: '비밀번호', icon: Lock },
-            { id: 'notifications', label: '알림 설정', icon: Bell },
-            { id: 'account', label: '계정 보안', icon: Shield },
+            { id: 'password', label: '비밀번호 변경', icon: Lock },
+            { id: 'account', label: '계정 관리', icon: Shield },
           ] as const).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -246,87 +263,30 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
           </div>
         )}
 
-        {mypageTab === 'notifications' && (
-          <div className="max-w-xl space-y-6">
-            <div>
-              <h2 className="text-base font-extrabold text-white">알림 설정</h2>
-              <p className="text-xs text-slate-400 mt-1">이벤트 알림을 받을 채널을 선택합니다.</p>
-            </div>
-            <div className="bg-[#071329] border border-slate-800 rounded-2xl divide-y divide-slate-800/80">
-              {[
-                { label: '이벤트 알림', desc: '이상 상황 이벤트를 즉시 알립니다.', icon: Bell, value: notifEvent, onChange: setNotifEvent },
-                { label: '이메일 알림', desc: '이벤트 요약을 이메일로 전송합니다.', icon: Mail, value: notifEmail, onChange: setNotifEmail },
-                { label: 'SMS 알림', desc: '긴급 이벤트를 문자로 전송합니다.', icon: Smartphone, value: notifSms, onChange: setNotifSms },
-              ].map(({ label, desc, icon: Icon, value, onChange }) => (
-                <div key={label} className="flex items-center justify-between p-4">
-                  <div className="flex items-start gap-3">
-                    <Icon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold text-white">{label}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{desc}</p>
-                    </div>
-                  </div>
-                  <Toggle value={value} onChange={onChange} />
-                </div>
-              ))}
-            </div>
-            <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-3">
-              <p className="text-xs font-bold text-white">알림 기준</p>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {[
-                  { id: 'all', label: '전체', desc: '정보 포함' },
-                  { id: 'warning', label: '주의 이상', desc: '주의 이상' },
-                  { id: 'critical', label: '긴급', desc: '긴급만' },
-                ].map((option) => (
-                  <button
-                    key={option.id}
-                    onClick={() => setAlertLevel(option.id as 'all' | 'warning' | 'critical')}
-                    className={`py-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                      alertLevel === option.id
-                        ? 'bg-blue-600/15 border-blue-500/40 text-blue-300'
-                        : 'bg-[#020817] border-slate-800 text-slate-400 hover:border-slate-600'
-                    }`}
-                  >
-                    <p>{option.label}</p>
-                    <p className="text-[9px] font-normal mt-0.5 opacity-60">{option.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button onClick={handleSaveNotifications} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">저장</button>
-          </div>
-        )}
 
         {mypageTab === 'account' && (
           <div className="max-w-xl space-y-6">
             <div>
-              <h2 className="text-base font-extrabold text-white">계정 보안</h2>
-              <p className="text-xs text-slate-400 mt-1">로그인 및 기기 상태를 확인합니다.</p>
+              <h2 className="text-base font-extrabold text-white">계정 관리</h2>
+              <p className="text-xs text-slate-400 mt-1">서비스를 탈퇴할 수 있습니다.</p>
             </div>
-            <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
-                <LogIn className="w-3.5 h-3.5 text-slate-400" />
-                <h3 className="text-xs font-bold text-white">최근 로그인 기록</h3>
+
+            <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <Shield className="w-5 h-5 text-rose-500 mt-0.5" />
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-white">회원 탈퇴</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    회원 탈퇴 시 서비스 이용 권한이 즉시 회수되며, 등록된 정보는 시스템 관리 방침에 따라 처리됩니다.
+                  </p>
+                </div>
               </div>
-              <div className="divide-y divide-slate-800/60">
-                {MOCK_LOGIN_HISTORY.map((log) => (
-                  <div key={`${log.date}-${log.ip}`} className="px-5 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-300">{log.device}</p>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
-                        <span className="font-mono">{log.date}</span>
-                        <span>/</span>
-                        <span className="font-mono">{log.ip}</span>
-                      </div>
-                    </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      log.status === '성공'
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        : 'bg-red-500/10 text-red-400 border-red-500/20'
-                    }`}>{log.status}</span>
-                  </div>
-                ))}
-              </div>
+              <button 
+                onClick={handleWithdraw}
+                className="w-full sm:w-auto px-6 py-2.5 bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 font-bold rounded-xl text-xs transition-all cursor-pointer"
+              >
+                서비스 탈퇴하기
+              </button>
             </div>
           </div>
         )}

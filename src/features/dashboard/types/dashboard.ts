@@ -17,6 +17,8 @@ export interface RegisteredCamera {
   name: string;
   location: string;
   password?: string;
+  status?: string;
+  rtspUrl?: string;
 }
 
 export interface MenuItemDefinition {

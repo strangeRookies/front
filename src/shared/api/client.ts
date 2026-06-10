@@ -3,18 +3,21 @@ import { authStore } from './authStore';
 const API_BASE_URL = (import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
 
 export interface ApiSuccessResponse<T> {
-  success: true;
-  message: string;
+  success?: boolean;
+  status?: string;
+  message?: string;
   data: T;
 }
 
 export interface ApiErrorResponse {
-  success: false;
-  error: {
+  success?: boolean;
+  status?: string;
+  error?: {
     code: string;
     message: string;
     fieldErrors: unknown;
   };
+  message?: string;
 }
 
 export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
@@ -57,19 +60,29 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     ? ((await response.json()) as ApiResponse<T>)
     : null;
 
-  if (!response.ok || payload?.success === false) {
-    const error = payload && payload.success === false ? payload.error : undefined;
+  const isSuccess = !!payload && ((payload as ApiSuccessResponse<T>).success === true || (payload as any).status === 'SUCCESS');
+  const isError = !!payload && ((payload as ApiErrorResponse).success === false || (payload as any).status === 'ERROR' || (payload as any).status === 'FAIL');
+
+  if (!response.ok || isError) {
+    const error = payload && 'error' in payload ? payload.error : undefined;
+    const errorMessage = error?.message || (payload as any)?.message || `요청 처리에 실패했습니다. (${response.status})`;
     const fieldErrorMessage = formatFieldErrors(error?.fieldErrors);
+    
     throw new ApiError(
-      [error?.message || `요청 처리에 실패했습니다. (${response.status})`, fieldErrorMessage].filter(Boolean).join('\n'),
+      [errorMessage, fieldErrorMessage].filter(Boolean).join('\n'),
       response.status,
-      error?.code,
+      error?.code || (payload as any)?.status,
       error?.fieldErrors,
     );
   }
 
-  if (payload?.success === true) {
+  if (isSuccess && payload && 'data' in payload) {
     return payload.data;
+  }
+
+  // Fallback for raw data if no success/status envelope is found but response is ok
+  if (response.ok && payload && !('success' in payload) && !('status' in payload)) {
+    return payload as T;
   }
 
   return undefined as T;

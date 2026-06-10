@@ -16,13 +16,12 @@ import { useLiveCameras } from '../hooks/useLiveCameras';
 import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import { CCTVRegistration } from '../components/CCTVRegistration';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
-import type { Inquiry } from '../../../shared/types/inquiry';
+import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
+import { fetchAdminUsers, type AdminUserResponse } from '../api/adminApi';
+import { fetchAllInquiries, fetchMyInquiries, createInquiry, answerInquiry } from '../api/inquiryApi';
 
 interface IntegratedDashboardProps {
   onLogout: () => void;
-  inquiries: Inquiry[];
-  onAddReply: (inquiryId: string, replyContent: string) => void;
-  onAddInquiry?: (data: Omit<Inquiry, 'id' | 'createdAt'>) => void;
 }
 
 interface CCTVCamera {
@@ -92,7 +91,6 @@ const SPACES = [
 type MenuId     = 'home' | 'adminlist' | 'cctvReg' | 'qna' | 'test';
 type TestMenuId = 'home' | 'alerts' | 'history' | 'cameras' | 'mypage' | 'qna';
 type MypageTab  = 'profile' | 'password' | 'notifications' | 'account';
-type InquiryCategory = Inquiry['category'];
 type MemberStatus = '활성' | '비활성' | '대기';
 
 interface OrgMember {
@@ -109,20 +107,40 @@ interface IndividualMember {
 }
 type AnyMember = OrgMember | IndividualMember;
 
-const MOCK_ORGS: OrgMember[] = [
-  { id: 'org-001', type: 'corporate', orgName: '서울 성모 병원',  representative: '이관호', contact: '02-1234-5678', email: 'admin@smc.ac.kr',       region: '서울 용산구', registeredAt: '2026-01-15', cameraCount: 32, status: '활성'   },
-  { id: 'org-002', type: 'corporate', orgName: '강북구 주민센터', representative: '박지수', contact: '02-2345-6789', email: 'safe@gangbuk.go.kr',    region: '서울 강북구', registeredAt: '2026-02-03', cameraCount: 8,  status: '활성'   },
-  { id: 'org-003', type: 'corporate', orgName: '남산골 공원',    representative: '최민우', contact: '02-3456-7890', email: 'park@namsangol.kr',    region: '서울 중구',   registeredAt: '2026-03-11', cameraCount: 5,  status: '대기'   },
-  { id: 'org-004', type: 'corporate', orgName: '서울 요양병원',  representative: '정혜린', contact: '02-4567-8901', email: 'care@seoulyoyang.com', region: '서울 노원구', registeredAt: '2026-03-20', cameraCount: 14, status: '활성'   },
-  { id: 'org-005', type: 'corporate', orgName: '중구 어린이집',  representative: '한소라', contact: '02-5678-9012', email: 'kids@junggu.go.kr',    region: '서울 중구',   registeredAt: '2026-04-02', cameraCount: 3,  status: '비활성' },
-];
-const MOCK_INDIVIDUALS: IndividualMember[] = [
-  { id: 'usr-001', type: 'individual', name: '김민정', contact: '010-1111-2222', email: 'minjeong@naver.com', region: '서울 마포구', registeredAt: '2026-01-20', cameraCount: 2, status: '활성'   },
-  { id: 'usr-002', type: 'individual', name: '이준호', contact: '010-2222-3333', email: 'junho@kakao.com',    region: '서울 강남구', registeredAt: '2026-02-14', cameraCount: 1, status: '활성'   },
-  { id: 'usr-003', type: 'individual', name: '박서연', contact: '010-3333-4444', email: 'seoyeon@gmail.com',  region: '경기 성남시', registeredAt: '2026-03-05', cameraCount: 3, status: '대기'   },
-  { id: 'usr-004', type: 'individual', name: '최다연', contact: '010-4444-5555', email: 'dayeon@outlook.com', region: '서울 송파구', registeredAt: '2026-04-18', cameraCount: 1, status: '비활성' },
-  { id: 'usr-005', type: 'individual', name: '정태양', contact: '010-5555-6666', email: 'taeyang@naver.com',  region: '인천 남동구', registeredAt: '2026-05-01', cameraCount: 2, status: '활성'   },
-];
+function statusToKorean(status: AdminUserResponse['status']): MemberStatus {
+  if (status === 'ACTIVE') return '활성';
+  if (status === 'PENDING_APPROVAL') return '대기';
+  return '비활성';
+}
+
+function toOrgMember(u: AdminUserResponse): OrgMember {
+  return {
+    id: String(u.userId),
+    type: 'corporate',
+    orgName: u.name,
+    representative: u.representative ?? '-',
+    contact: u.contact ?? '-',
+    email: u.email,
+    region: u.region ?? '-',
+    registeredAt: u.registeredAt,
+    cameraCount: u.cameraCount,
+    status: statusToKorean(u.status),
+  };
+}
+
+function toIndividualMember(u: AdminUserResponse): IndividualMember {
+  return {
+    id: String(u.userId),
+    type: 'individual',
+    name: u.name,
+    contact: u.contact ?? '-',
+    email: u.email,
+    region: u.region ?? '-',
+    registeredAt: u.registeredAt,
+    cameraCount: u.cameraCount,
+    status: statusToKorean(u.status),
+  };
+}
 const STATUS_STYLE: Record<MemberStatus, string> = {
   '활성':   'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   '비활성': 'bg-slate-500/10 text-slate-400 border-slate-500/20',
@@ -220,7 +238,7 @@ function TestToggle({ value, onChange }: { value: boolean; onChange: (v: boolean
   );
 }
 
-export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInquiry }: IntegratedDashboardProps) {
+export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   const liveCameras = useLiveCameras();
   const [activeMenu, setActiveMenu] = useState<MenuId>('home');
   const [selectedFloor, setSelectedFloor] = useState<'1F' | '2F' | '3F'>('1F');
@@ -232,7 +250,9 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
   const [volume, setVolume] = useState(70);
 
   // Admin QnA state
-  const [selectedAdminQnaId, setSelectedAdminQnaId] = useState<string | null>(null);
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [tMyInquiries, setTMyInquiries] = useState<Inquiry[]>([]);
+  const [selectedAdminQnaId, setSelectedAdminQnaId] = useState<number | null>(null);
   const [adminReply, setAdminReply] = useState('');
 
   // ── 테스트 모드 state ──────────────────────────────────────────────
@@ -272,7 +292,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
   const [tNotifSms, setTNotifSms]             = useState(false);
   const [tAlertLevel, setTAlertLevel]         = useState<'all'|'warning'|'critical'>('warning');
   // qna (user perspective)
-  const [tSelectedQnaId, setTSelectedQnaId]   = useState<string | null>(null);
+  const [tSelectedQnaId, setTSelectedQnaId]   = useState<number | null>(null);
   const [tShowNewQnaModal, setTShowNewQnaModal] = useState(false);
   const [tQnaTitle, setTQnaTitle]             = useState('');
   const [tQnaContent, setTQnaContent]         = useState('');
@@ -289,7 +309,6 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
     if (tSearchDate === 'month' && age > 30*86400000) return false;
     return true;
   });
-  const tMyInquiries = inquiries.filter(i => i.username === 'admin-test');
   const tSelectedQna = tMyInquiries.find(i => i.id === tSelectedQnaId) ?? null;
   const tPwStrength  = getPasswordStrength(tNewPw);
 
@@ -301,9 +320,14 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
     setTNewCamName(''); setTNewCamId(''); setTNewCamLocation(''); setTNewCamPassword('');
     setTShowNewCamPw(false); setTShowAddCamera(false);
   };
-  const handleTSubmitQna = () => {
+  const handleTSubmitQna = async () => {
     if (!tQnaTitle.trim() || !tQnaContent.trim()) return;
-    onAddInquiry?.({ userId:'admin-test', username:'admin-test', userType:'corporate', category:tQnaCategory, title:tQnaTitle.trim(), content:tQnaContent.trim() });
+    try {
+      await createInquiry(tQnaCategory, tQnaTitle.trim(), tQnaContent.trim());
+      loadTestInquiries();
+    } catch (err) {
+      console.error('[TestQna] create failed:', err);
+    }
     setTQnaTitle(''); setTQnaContent(''); setTQnaCategory('기타'); setTShowNewQnaModal(false);
   };
 
@@ -314,12 +338,41 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
   const [editingMember, setEditingMember]   = useState<AnyMember | null>(null);
   const [editStatus, setEditStatus]         = useState<MemberStatus>('활성');
   const [editContact, setEditContact]       = useState('');
-  const [orgList, setOrgList]               = useState<OrgMember[]>(MOCK_ORGS);
-  const [indList, setIndList]               = useState<IndividualMember[]>(MOCK_INDIVIDUALS);
+  const [orgList, setOrgList]               = useState<OrgMember[]>([]);
+  const [indList, setIndList]               = useState<IndividualMember[]>([]);
+  const [adminLoading, setAdminLoading]     = useState(false);
+  const [adminError, setAdminError]         = useState<string | null>(null);
+
+  useEffect(() => {
+    setAdminLoading(true);
+    fetchAdminUsers()
+      .then(page => {
+        setOrgList(page.content.filter(u => u.role === 'CORPORATE').map(toOrgMember));
+        setIndList(page.content.filter(u => u.role === 'INDIVIDUAL').map(toIndividualMember));
+        setAdminError(null);
+      })
+      .catch((err: unknown) => {
+        console.error('[AdminList] fetch failed:', err);
+        setAdminError('회원 목록을 불러오지 못했습니다.');
+      })
+      .finally(() => setAdminLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetchAllInquiries()
+      .then(setInquiries)
+      .catch((err: unknown) => console.error('[AdminQna] fetch failed:', err));
+  }, []);
+
+  const loadTestInquiries = () => {
+    fetchMyInquiries()
+      .then(setTMyInquiries)
+      .catch((err: unknown) => console.error('[TestQna] fetch failed:', err));
+  };
 
   const selectedAdminQna = inquiries.find(inq => inq.id === selectedAdminQnaId) ?? null;
-  const unansweredCount = inquiries.filter(i => !i.reply).length;
-  const answeredCount = inquiries.filter(i => i.reply).length;
+  const unansweredCount = inquiries.filter(i => i.status === 'WAITING').length;
+  const answeredCount = inquiries.filter(i => i.status === 'COMPLETED').length;
 
   useEffect(() => {
     if (selectedFloor === '1F') { setCameras(FLOOR_1_CAMERAS); setSelectedCamera(FLOOR_1_CAMERAS[1]); }
@@ -332,9 +385,15 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
   const handleResolveEvent = (id: string) =>
     setEvents(prev => prev.map(e => e.id === id ? { ...e, status: 'resolved' as const } : e));
 
-  const handleSubmitReply = () => {
+  const handleSubmitReply = async () => {
     if (!adminReply.trim() || !selectedAdminQnaId) return;
-    onAddReply(selectedAdminQnaId, adminReply.trim());
+    try {
+      await answerInquiry(selectedAdminQnaId, adminReply.trim());
+      const updated = await fetchAllInquiries();
+      setInquiries(updated);
+    } catch (err) {
+      console.error('[AdminQna] answer failed:', err);
+    }
     setAdminReply('');
   };
 
@@ -444,7 +503,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                       return (
                         <button
                           key={id}
-                          onClick={() => setTestSubMenu(id)}
+                          onClick={() => { setTestSubMenu(id); if (id === 'qna') loadTestInquiries(); }}
                           className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                             isActive ? 'bg-[#0758D6] text-white shadow-lg' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
                           }`}
@@ -740,7 +799,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                     <h2 className="text-sm font-extrabold text-white flex items-center gap-2"><MessageSquare className="w-4 h-4 text-blue-400"/>내 문의 내역</h2>
                     <button onClick={() => setTShowNewQnaModal(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer"><Plus className="w-3 h-3"/>새 문의</button>
                   </div>
-                  <p className="text-[10px] text-slate-500">총 {tMyInquiries.length}건 · 미답변 {tMyInquiries.filter(i=>!i.reply).length}건</p>
+                  <p className="text-[10px] text-slate-500">총 {tMyInquiries.length}건 · 미답변 {tMyInquiries.filter(i=>i.status==='WAITING').length}건</p>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
                   {tMyInquiries.length === 0
@@ -749,7 +808,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                       <button key={inq.id} onClick={() => setTSelectedQnaId(inq.id)} className={`w-full text-left bg-[#071329] border rounded-xl p-3 cursor-pointer ${tSelectedQnaId===inq.id?'border-blue-500/50 bg-blue-600/5':'border-slate-800 hover:border-slate-700'}`}>
                         <div className="flex items-center justify-between mb-1.5">
                           <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${CATEGORY_STYLES[inq.category]}`}>{inq.category}</span>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${inq.reply?'bg-emerald-500/10 text-emerald-400 border-emerald-500/20':'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>{inq.reply?<><Check className="w-2.5 h-2.5"/>답변완료</>:'미답변'}</span>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${inq.status==='COMPLETED'?'bg-emerald-500/10 text-emerald-400 border-emerald-500/20':'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>{inq.status==='COMPLETED'?<><Check className="w-2.5 h-2.5"/>답변완료</>:'미답변'}</span>
                         </div>
                         <p className="text-xs font-bold text-white truncate">{inq.title}</p>
                         <p className="text-[10px] text-slate-500 mt-1">{inq.createdAt}</p>
@@ -772,8 +831,8 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                     </div>
                     <div>
                       <div className="flex items-center gap-3 mb-4"><span className="h-px flex-1 bg-slate-800"/><span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">관리자 답변</span><span className="h-px flex-1 bg-slate-800"/></div>
-                      {tSelectedQna.reply
-                        ? <div className="bg-[#0f192b] border border-blue-500/20 rounded-2xl p-5"><div className="flex items-center gap-2 mb-3"><div className="w-6 h-6 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center"><Shield className="w-3 h-3 text-blue-400"/></div><span className="text-xs font-bold text-blue-400">관리자</span><span className="text-[10px] text-slate-500">{tSelectedQna.reply.repliedAt}</span></div><p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{tSelectedQna.reply.content}</p></div>
+                      {tSelectedQna.status === 'COMPLETED' && tSelectedQna.replyContent
+                        ? <div className="bg-[#0f192b] border border-blue-500/20 rounded-2xl p-5"><div className="flex items-center gap-2 mb-3"><div className="w-6 h-6 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center"><Shield className="w-3 h-3 text-blue-400"/></div><span className="text-xs font-bold text-blue-400">관리자</span><span className="text-[10px] text-slate-500">{tSelectedQna.repliedAt}</span></div><p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{tSelectedQna.replyContent}</p></div>
                         : <div className="bg-[#071329] border border-dashed border-slate-700 rounded-2xl p-10 text-center"><Clock className="w-8 h-8 text-slate-600 mx-auto mb-2"/><p className="text-xs text-slate-500 font-semibold">답변 대기 중입니다.</p><p className="text-[10px] text-slate-600 mt-1">관리자가 확인 후 빠른 시일 내에 답변드릴 예정입니다.</p></div>
                       }
                     </div>
@@ -1111,9 +1170,13 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                     <span className="text-center w-14">편집</span>
                   </div>
                   <div className="divide-y divide-slate-800/60">
-                    {list.length === 0
-                      ? <div className="py-16 text-center text-xs text-slate-500">검색 결과가 없습니다.</div>
-                      : list.map(member => (
+                    {adminLoading
+                      ? <div className="py-16 text-center text-xs text-slate-500">불러오는 중...</div>
+                      : adminError
+                        ? <div className="py-16 text-center text-xs text-red-400">{adminError}</div>
+                        : list.length === 0
+                          ? <div className="py-16 text-center text-xs text-slate-500">검색 결과가 없습니다.</div>
+                          : list.map(member => (
                         <div key={member.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto_auto_auto] px-4 py-3 items-center hover:bg-slate-800/20 text-xs">
                           <span className="font-semibold text-white truncate pr-2">{member.type === 'corporate' ? member.orgName : member.name}</span>
                           <span className="text-slate-400 truncate pr-2">{member.type === 'corporate' ? member.representative : member.contact}</span>
@@ -1127,8 +1190,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      ))
-                    }
+                      ))}
                   </div>
                 </div>
                 <p className="text-[10px] text-slate-600 text-right">총 {list.length}건</p>
@@ -1223,20 +1285,20 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                             {inq.category}
                           </span>
                           <span className="text-[9px] text-slate-500 font-medium">
-                            {inq.userType === 'individual' ? '개인' : '기업'}
+                            {inq.userRole === 'INDIVIDUAL' ? '개인' : '기업'}
                           </span>
                         </div>
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                          inq.reply
+                          inq.status === 'COMPLETED'
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                             : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                         }`}>
-                          {inq.reply ? <><Check className="w-2.5 h-2.5" />답변완료</> : '미답변'}
+                          {inq.status === 'COMPLETED' ? <><Check className="w-2.5 h-2.5" />답변완료</> : '미답변'}
                         </span>
                       </div>
                       <p className="text-xs font-bold text-white truncate">{inq.title}</p>
                       <div className="flex items-center justify-between mt-1">
-                        <span className="text-[10px] text-slate-400 font-semibold">{inq.username}</span>
+                        <span className="text-[10px] text-slate-400 font-semibold">{inq.userName}</span>
                         <span className="text-[10px] text-slate-600">{inq.createdAt}</span>
                       </div>
                     </button>
@@ -1264,7 +1326,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                             {selectedAdminQna.category}
                           </span>
                           <span className="text-[10px] text-slate-400">
-                            {selectedAdminQna.userType === 'individual' ? '개인 사용자' : '기업 사용자'} · {selectedAdminQna.username}
+                            {selectedAdminQna.userRole === 'INDIVIDUAL' ? '개인 사용자' : '기업 사용자'} · {selectedAdminQna.userName}
                           </span>
                         </div>
                         <h3 className="text-sm font-extrabold text-white">{selectedAdminQna.title}</h3>
@@ -1280,21 +1342,21 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                       <div className="flex items-center gap-3 mb-4">
                         <span className="h-px flex-1 bg-slate-800" />
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                          {selectedAdminQna.reply ? '등록된 답변' : '답변 작성'}
+                          {selectedAdminQna.status === 'COMPLETED' ? '등록된 답변' : '답변 작성'}
                         </span>
                         <span className="h-px flex-1 bg-slate-800" />
                       </div>
 
-                      {selectedAdminQna.reply ? (
+                      {selectedAdminQna.status === 'COMPLETED' ? (
                         <div className="bg-[#0f192b] border border-emerald-500/20 rounded-2xl p-5">
                           <div className="flex items-center gap-2 mb-3">
                             <div className="w-6 h-6 rounded-full bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center">
                               <Shield className="w-3 h-3 text-emerald-400" />
                             </div>
                             <span className="text-xs font-bold text-emerald-400">관리자 답변</span>
-                            <span className="text-[10px] text-slate-500">{selectedAdminQna.reply.repliedAt}</span>
+                            <span className="text-[10px] text-slate-500">{selectedAdminQna.repliedAt}</span>
                           </div>
-                          <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{selectedAdminQna.reply.content}</p>
+                          <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{selectedAdminQna.replyContent}</p>
                         </div>
                       ) : (
                         <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-4">
