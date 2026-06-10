@@ -29,7 +29,9 @@ import {
   isValidEmail,
   isValidPassword,
   isValidPhoneNumber,
+  isValidRepresentativePhoneNumber,
   isValidVerificationCode,
+  normalizeRepresentativePhoneNumber,
   PHONE_RULE_MESSAGE,
   SIGNUP_PASSWORD_RULE_MESSAGE,
 } from '../utils/validation';
@@ -150,13 +152,14 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       alert('휴대폰 번호를 입력하세요.');
       return;
     }
-    if (!isValidPhoneNumber(managerPhone)) {
+    if (!isValidRepresentativePhoneNumber(managerPhone)) {
       alert(PHONE_RULE_MESSAGE);
       return;
     }
+    const normalizedPhone = normalizeRepresentativePhoneNumber(managerPhone);
     try {
       setIsSubmitting(true);
-      const response = await requestSmsVerification(normalizePhoneNumber(managerPhone));
+      const response = await requestSmsVerification(normalizedPhone);
       setVerificationId(response.verificationId);
       setVerificationToken('');
       setIsPhoneVerified(false);
@@ -167,6 +170,8 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         alert('인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요.');
       } else if (error instanceof ApiError && error.code === 'SMS_SEND_FAILED') {
         alert('인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      } else if (error instanceof ApiError && error.code === 'COMMON_INVALID_INPUT') {
+        alert(PHONE_RULE_MESSAGE);
       } else if (error instanceof ApiError && error.status >= 500) {
         alert('인증번호 발송 처리 중 서버 오류가 발생했습니다. 백엔드 서버 로그에서 SMS 설정 또는 Mock 인증번호 생성 상태를 확인해주세요.');
       } else {
@@ -221,7 +226,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         alert(SIGNUP_PASSWORD_RULE_MESSAGE);
         return;
       }
-      if (!isValidPhoneNumber(managerPhone)) {
+      if (!isValidRepresentativePhoneNumber(managerPhone)) {
         alert(PHONE_RULE_MESSAGE);
         return;
       }
@@ -303,10 +308,11 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       }
       try {
         setIsSubmitting(true);
+        const normalizedPhone = normalizeRepresentativePhoneNumber(managerPhone);
         await signupCorporate({
           email: email.trim(),
           password,
-          phone: normalizePhoneNumber(managerPhone),
+          phone: normalizedPhone,
           verificationToken,
           company: {
             name: companyName.trim(),

@@ -27,8 +27,11 @@ import { getAgreementById, type AgreementId } from '../data/agreements';
 import {
   isValidEmail,
   isValidPassword,
+  isValidPersonalPhoneSuffix,
   isValidPhoneNumber,
   isValidVerificationCode,
+  normalizePersonalPhoneSuffix,
+  PERSONAL_PHONE_SUFFIX_RULE_MESSAGE,
   PHONE_RULE_MESSAGE,
   SIGNUP_PASSWORD_RULE_MESSAGE,
 } from '../utils/validation';
@@ -173,13 +176,14 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
       alert('휴대폰 번호를 입력하세요.');
       return;
     }
-    if (!isValidPhoneNumber(phone)) {
-      alert(PHONE_RULE_MESSAGE);
+    if (!isValidPersonalPhoneSuffix(phone)) {
+      alert(PERSONAL_PHONE_SUFFIX_RULE_MESSAGE);
       return;
     }
+    const normalizedPhone = normalizePersonalPhoneSuffix(phone);
     try {
       setIsSubmitting(true);
-      const response = await requestSmsVerification(normalizePhoneNumber(phone));
+      const response = await requestSmsVerification(normalizedPhone);
       setVerificationId(response.verificationId);
       setVerificationToken('');
       setIsPhoneVerified(false);
@@ -190,6 +194,8 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
         alert('인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요.');
       } else if (error instanceof ApiError && error.code === 'SMS_SEND_FAILED') {
         alert('인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      } else if (error instanceof ApiError && error.code === 'COMMON_INVALID_INPUT') {
+        alert(PERSONAL_PHONE_SUFFIX_RULE_MESSAGE);
       } else if (error instanceof ApiError && error.status >= 500) {
         alert('인증번호 발송 처리 중 서버 오류가 발생했습니다. 백엔드 서버 로그에서 SMS 설정 또는 Mock 인증번호 생성 상태를 확인해주세요.');
       } else {
@@ -320,11 +326,12 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
       }
       try {
         setIsSubmitting(true);
+        const normalizedPhone = normalizePersonalPhoneSuffix(phone);
         await signupIndividual({
           email: email.trim(),
           password,
           name: name.trim(),
-          phone: normalizePhoneNumber(phone),
+          phone: normalizedPhone,
           verificationToken,
           careTarget: {
             name: targetName.trim(),
