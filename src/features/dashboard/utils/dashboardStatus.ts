@@ -26,7 +26,7 @@ export const ALL_MENU_ITEMS: readonly MenuItemDefinition[] = [
   { id: 'home', label: '대시보드', icon: Tv, individualOnly: false },
   { id: 'alerts', label: '이벤트 알림', icon: Bell, individualOnly: false },
   { id: 'history', label: '이벤트 기록', icon: Calendar, individualOnly: false },
-  { id: 'cameras', label: '카메라 관리', icon: Camera, individualOnly: true },
+  { id: 'cameras', label: '카메라 등록', icon: Camera, individualOnly: true },
   { id: 'mypage', label: '마이페이지', icon: User, individualOnly: false },
   { id: 'qna', label: '문의', icon: HelpCircle, individualOnly: false },
 ];

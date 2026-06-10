@@ -437,6 +437,7 @@ export function NurseDashboard({
             <DashboardMyPageView
               userType={userType}
               username={username}
+              onLogout={onLogout}
             />
           )}
           {activeMenu === 'qna' && (
