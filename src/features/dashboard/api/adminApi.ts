@@ -1,5 +1,4 @@
 import { apiRequest } from '../../../shared/api/client';
-import { AUTH_STORAGE_KEYS } from '../../auth/api/authApi';
 
 export interface AdminUserResponse {
   userId: number;
@@ -19,13 +18,8 @@ interface PageResponse<T> {
   totalElements: number;
 }
 
-function getToken(): string | undefined {
-  return localStorage.getItem(AUTH_STORAGE_KEYS.accessToken) ?? undefined;
-}
-
 export async function fetchAdminUsers(page = 0, size = 100): Promise<PageResponse<AdminUserResponse>> {
   return apiRequest<PageResponse<AdminUserResponse>>(
     `/api/users/admin?page=${page}&size=${size}`,
-    { accessToken: getToken() },
   );
 }
