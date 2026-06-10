@@ -3,16 +3,18 @@ import { Shield } from 'lucide-react';
 import { aiEventFingerprint } from '../../shared/utils/aiAlerts';
 import type { AiEvent } from '../../hooks/useAiEvents';
 import { AiAlertCard } from './AiAlertCard';
+import type { FeedbackType } from './AiAlertCard';
 
 interface AiDangerPanelProps {
   readonly events: readonly AiEvent[];
   readonly acknowledgedEventIds: ReadonlySet<string>;
   readonly onFocus: (event: AiEvent) => void;
   readonly onConfirm: (event: AiEvent) => void;
+  readonly onFeedback?: (event: AiEvent, feedback: FeedbackType) => void;
   readonly fallback?: ReactNode;
 }
 
-export function AiDangerPanel({ events, acknowledgedEventIds, onFocus, onConfirm, fallback }: AiDangerPanelProps) {
+export function AiDangerPanel({ events, acknowledgedEventIds, onFocus, onConfirm, onFeedback, fallback }: AiDangerPanelProps) {
   if (events.length === 0) {
     if (fallback) return <>{fallback}</>;
 
@@ -36,6 +38,7 @@ export function AiDangerPanel({ events, acknowledgedEventIds, onFocus, onConfirm
           acknowledged={acknowledgedEventIds.has(aiEventFingerprint(event))}
           onFocus={onFocus}
           onConfirm={onConfirm}
+          onFeedback={onFeedback}
         />
       ))}
     </>

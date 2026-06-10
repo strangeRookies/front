@@ -29,6 +29,8 @@ import { DashboardQnaView } from '../components/DashboardQnaView';
 import { AddCameraModal } from '../modals/AddCameraModal';
 import { IncidentPlaybackModal } from '../modals/IncidentPlaybackModal';
 import { NewInquiryModal } from '../modals/NewInquiryModal';
+import { useCameraStatusWebSocket } from '../hooks/useCameraStatusWebSocket';
+
 
 interface NurseDashboardProps {
   username: string;
@@ -140,6 +142,9 @@ export function NurseDashboard({
     setFocusedCameraId,
     connectionState,
   } = useAiAlertActions({ userType, username, liveCameras, focusHome });
+
+  // --- Real-time Camera Status from MQTT (23.md 1순위 UI/UX) ---
+  const cameraStatusMap = useCameraStatusWebSocket();
 
   const {
     alerts,
@@ -390,6 +395,7 @@ export function NurseDashboard({
               onConfirmAiEvent={handleConfirmAiEvent}
               onEmergency={handleTriggerEmergency}
               onFocusAiEvent={focusAiEventCamera}
+              cameraStatusMap={cameraStatusMap}
             />
           )}
           {activeMenu === 'alerts' && (

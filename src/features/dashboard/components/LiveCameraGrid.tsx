@@ -1,17 +1,38 @@
 import { useCallback, useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
-import { AlertTriangle, Expand, Radio, Signal, SignalZero, Video } from 'lucide-react';
+import { AlertTriangle, Expand, Radio, Signal, SignalZero, Video, WifiOff, RefreshCw, AlertCircle, EyeOff } from 'lucide-react';
 import type { LiveCamera } from '../data/cameras';
 import { useFullscreenCamera } from '../hooks/useFullscreenCamera';
+import type { CameraStatusMap, CameraConnectionStatus } from '../hooks/useCameraStatusWebSocket';
+import { toCameraConnectionStatusDisplay } from '../hooks/useCameraStatusWebSocket';
 
 interface LiveCameraGridProps {
   cameras: LiveCamera[];
   className?: string;
   compact?: boolean;
   onCameraClick?: (camera: LiveCamera) => void;
+  /** 실시간 카메라 연결 상태 맵 (MQTT → Backend WebSocket → 프론트) */
+  cameraStatusMap?: CameraStatusMap;
 }
 
-function statusStyle(camera: LiveCamera) {
+function statusStyle(camera: LiveCamera, realtimeStatus?: CameraConnectionStatus) {
+  // 실시간 MQTT 상태가 있으면 우선 적용 (23.md 1순위 UI/UX)
+  if (realtimeStatus && realtimeStatus !== 'UNKNOWN') {
+    const display = toCameraConnectionStatusDisplay(realtimeStatus);
+    return {
+      border: display.border,
+      badge: display.badge,
+      dot: display.dot,
+      label: display.label,
+      icon: realtimeStatus === 'CONNECTED' ? Signal
+          : realtimeStatus === 'DISCONNECTED' ? WifiOff
+          : realtimeStatus === 'RECONNECTING' ? RefreshCw
+          : realtimeStatus === 'ERROR' ? AlertCircle
+          : realtimeStatus === 'DISABLED' ? EyeOff
+          : Signal,
+    };
+  }
+  // Fallback: 기존 LiveCamera 상태 기반 스타일
   if (camera.connectionStatus === 'offline') {
     return {
       border: 'border-slate-700',
@@ -90,7 +111,7 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
   );
 }
 
-export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick }: LiveCameraGridProps) {
+export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick, cameraStatusMap }: LiveCameraGridProps) {
   const visibleCameras = cameras.slice(0, 4);
   const { activeFullscreenCameraId, requestCameraFullscreen, setCameraCardRef } = useFullscreenCamera();
 
@@ -108,7 +129,11 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
   return (
     <div className={`grid ${gridClass(visibleCameras.length)} gap-3 ${className}`}>
       {visibleCameras.map(camera => {
-        const style = statusStyle(camera);
+        // 실시간 MQTT 상태를 cameraStatusMap에서 조회 (camera_login_id 기준)
+        const realtimeCameraStatus = cameraStatusMap?.get(camera.id)
+          ?? cameraStatusMap?.get(camera.name)
+          ?? undefined;
+        const style = statusStyle(camera, realtimeCameraStatus?.status);
         const StatusIcon = style.icon;
         return (
           <div

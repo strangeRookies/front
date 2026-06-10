@@ -3,6 +3,7 @@ import { AiDangerPanel } from '../../../components/dashboard/AiDangerPanel';
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import type { LiveCamera } from '../data/cameras';
 import { LiveCameraGrid } from './LiveCameraGrid';
+import type { CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
 
 interface DashboardHomeViewProps {
   acknowledgedAiEventIds: ReadonlySet<string>;
@@ -12,6 +13,8 @@ interface DashboardHomeViewProps {
   onConfirmAiEvent: (event: AiEvent) => void;
   onEmergency: () => void;
   onFocusAiEvent: (event: AiEvent) => void;
+  /** 실시간 카메라 연결 상태 맵 (MQTT → Backend → WebSocket) */
+  cameraStatusMap?: CameraStatusMap;
 }
 
 export function DashboardHomeView({
@@ -22,6 +25,7 @@ export function DashboardHomeView({
   onConfirmAiEvent,
   onEmergency,
   onFocusAiEvent,
+  cameraStatusMap,
 }: DashboardHomeViewProps) {
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -39,6 +43,7 @@ export function DashboardHomeView({
         <LiveCameraGrid
           cameras={[...focusedLiveCameras]}
           onCameraClick={onCameraSelect}
+          cameraStatusMap={cameraStatusMap}
         />
       </div>
 
