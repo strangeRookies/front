@@ -223,7 +223,7 @@ export function ForgotPasswordPage({ onBackToLogin, onResetComplete }: ForgotPas
                   className="w-full px-4 py-3 bg-[#070e1b] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono tracking-widest"
                 />
 
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-stretch">
                   <ActionButton onClick={handleConfirmCode} disabled={isSubmitting}>
                     인증 확인
                   </ActionButton>
@@ -231,7 +231,7 @@ export function ForgotPasswordPage({ onBackToLogin, onResetComplete }: ForgotPas
                     type="button"
                     onClick={handleRequestCode}
                     disabled={isSubmitting}
-                    className="px-5 py-3 rounded-xl border border-slate-800 bg-[#070e1b] text-xs font-bold text-slate-300 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto sm:min-w-[96px] shrink-0 px-5 py-3 rounded-xl border border-slate-800 bg-[#070e1b] text-xs font-bold text-slate-300 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed whitespace-nowrap"
                   >
                     재발송
                   </button>

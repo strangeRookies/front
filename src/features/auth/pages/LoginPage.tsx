@@ -198,7 +198,7 @@ export function LoginPage({ onLogin, onNavigateToSignUp, onNavigateToForgotPassw
           </div>
 
           {/* System Key Highlights */}
-          <div className="space-y-4 max-w-lg">
+          <div className="space-y-4 max-w-lg mt-4 lg:mt-5">
             {/* Highlight 1 */}
             <div className="flex gap-4">
               <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
