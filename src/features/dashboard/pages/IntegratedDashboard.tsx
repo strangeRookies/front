@@ -17,6 +17,7 @@ import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import { CCTVRegistration } from '../components/CCTVRegistration';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry } from '../../../shared/types/inquiry';
+import { fetchAdminUsers, type AdminUserResponse } from '../api/adminApi';
 
 interface IntegratedDashboardProps {
   onLogout: () => void;
@@ -109,20 +110,40 @@ interface IndividualMember {
 }
 type AnyMember = OrgMember | IndividualMember;
 
-const MOCK_ORGS: OrgMember[] = [
-  { id: 'org-001', type: 'corporate', orgName: '서울 성모 병원',  representative: '이관호', contact: '02-1234-5678', email: 'admin@smc.ac.kr',       region: '서울 용산구', registeredAt: '2026-01-15', cameraCount: 32, status: '활성'   },
-  { id: 'org-002', type: 'corporate', orgName: '강북구 주민센터', representative: '박지수', contact: '02-2345-6789', email: 'safe@gangbuk.go.kr',    region: '서울 강북구', registeredAt: '2026-02-03', cameraCount: 8,  status: '활성'   },
-  { id: 'org-003', type: 'corporate', orgName: '남산골 공원',    representative: '최민우', contact: '02-3456-7890', email: 'park@namsangol.kr',    region: '서울 중구',   registeredAt: '2026-03-11', cameraCount: 5,  status: '대기'   },
-  { id: 'org-004', type: 'corporate', orgName: '서울 요양병원',  representative: '정혜린', contact: '02-4567-8901', email: 'care@seoulyoyang.com', region: '서울 노원구', registeredAt: '2026-03-20', cameraCount: 14, status: '활성'   },
-  { id: 'org-005', type: 'corporate', orgName: '중구 어린이집',  representative: '한소라', contact: '02-5678-9012', email: 'kids@junggu.go.kr',    region: '서울 중구',   registeredAt: '2026-04-02', cameraCount: 3,  status: '비활성' },
-];
-const MOCK_INDIVIDUALS: IndividualMember[] = [
-  { id: 'usr-001', type: 'individual', name: '김민정', contact: '010-1111-2222', email: 'minjeong@naver.com', region: '서울 마포구', registeredAt: '2026-01-20', cameraCount: 2, status: '활성'   },
-  { id: 'usr-002', type: 'individual', name: '이준호', contact: '010-2222-3333', email: 'junho@kakao.com',    region: '서울 강남구', registeredAt: '2026-02-14', cameraCount: 1, status: '활성'   },
-  { id: 'usr-003', type: 'individual', name: '박서연', contact: '010-3333-4444', email: 'seoyeon@gmail.com',  region: '경기 성남시', registeredAt: '2026-03-05', cameraCount: 3, status: '대기'   },
-  { id: 'usr-004', type: 'individual', name: '최다연', contact: '010-4444-5555', email: 'dayeon@outlook.com', region: '서울 송파구', registeredAt: '2026-04-18', cameraCount: 1, status: '비활성' },
-  { id: 'usr-005', type: 'individual', name: '정태양', contact: '010-5555-6666', email: 'taeyang@naver.com',  region: '인천 남동구', registeredAt: '2026-05-01', cameraCount: 2, status: '활성'   },
-];
+function statusToKorean(status: AdminUserResponse['status']): MemberStatus {
+  if (status === 'ACTIVE') return '활성';
+  if (status === 'PENDING_APPROVAL') return '대기';
+  return '비활성';
+}
+
+function toOrgMember(u: AdminUserResponse): OrgMember {
+  return {
+    id: String(u.userId),
+    type: 'corporate',
+    orgName: u.name,
+    representative: u.representative ?? '-',
+    contact: u.contact ?? '-',
+    email: u.email,
+    region: u.region ?? '-',
+    registeredAt: u.registeredAt,
+    cameraCount: u.cameraCount,
+    status: statusToKorean(u.status),
+  };
+}
+
+function toIndividualMember(u: AdminUserResponse): IndividualMember {
+  return {
+    id: String(u.userId),
+    type: 'individual',
+    name: u.name,
+    contact: u.contact ?? '-',
+    email: u.email,
+    region: u.region ?? '-',
+    registeredAt: u.registeredAt,
+    cameraCount: u.cameraCount,
+    status: statusToKorean(u.status),
+  };
+}
 const STATUS_STYLE: Record<MemberStatus, string> = {
   '활성':   'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   '비활성': 'bg-slate-500/10 text-slate-400 border-slate-500/20',
@@ -314,8 +335,25 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
   const [editingMember, setEditingMember]   = useState<AnyMember | null>(null);
   const [editStatus, setEditStatus]         = useState<MemberStatus>('활성');
   const [editContact, setEditContact]       = useState('');
-  const [orgList, setOrgList]               = useState<OrgMember[]>(MOCK_ORGS);
-  const [indList, setIndList]               = useState<IndividualMember[]>(MOCK_INDIVIDUALS);
+  const [orgList, setOrgList]               = useState<OrgMember[]>([]);
+  const [indList, setIndList]               = useState<IndividualMember[]>([]);
+  const [adminLoading, setAdminLoading]     = useState(false);
+  const [adminError, setAdminError]         = useState<string | null>(null);
+
+  useEffect(() => {
+    setAdminLoading(true);
+    fetchAdminUsers()
+      .then(page => {
+        setOrgList(page.content.filter(u => u.role === 'CORPORATE').map(toOrgMember));
+        setIndList(page.content.filter(u => u.role === 'INDIVIDUAL').map(toIndividualMember));
+        setAdminError(null);
+      })
+      .catch((err: unknown) => {
+        console.error('[AdminList] fetch failed:', err);
+        setAdminError('회원 목록을 불러오지 못했습니다.');
+      })
+      .finally(() => setAdminLoading(false));
+  }, []);
 
   const selectedAdminQna = inquiries.find(inq => inq.id === selectedAdminQnaId) ?? null;
   const unansweredCount = inquiries.filter(i => !i.reply).length;
@@ -1111,9 +1149,13 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                     <span className="text-center w-14">편집</span>
                   </div>
                   <div className="divide-y divide-slate-800/60">
-                    {list.length === 0
-                      ? <div className="py-16 text-center text-xs text-slate-500">검색 결과가 없습니다.</div>
-                      : list.map(member => (
+                    {adminLoading
+                      ? <div className="py-16 text-center text-xs text-slate-500">불러오는 중...</div>
+                      : adminError
+                        ? <div className="py-16 text-center text-xs text-red-400">{adminError}</div>
+                        : list.length === 0
+                          ? <div className="py-16 text-center text-xs text-slate-500">검색 결과가 없습니다.</div>
+                          : list.map(member => (
                         <div key={member.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto_auto_auto] px-4 py-3 items-center hover:bg-slate-800/20 text-xs">
                           <span className="font-semibold text-white truncate pr-2">{member.type === 'corporate' ? member.orgName : member.name}</span>
                           <span className="text-slate-400 truncate pr-2">{member.type === 'corporate' ? member.representative : member.contact}</span>
@@ -1127,8 +1169,7 @@ export function IntegratedDashboard({ onLogout, inquiries, onAddReply, onAddInqu
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      ))
-                    }
+                      ))}
                   </div>
                 </div>
                 <p className="text-[10px] text-slate-600 text-right">총 {list.length}건</p>

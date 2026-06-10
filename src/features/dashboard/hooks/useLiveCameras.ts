@@ -40,6 +40,8 @@ export function useLiveCameras(refreshMs = 5000) {
 
   useEffect(() => {
     let cancelled = false;
+    let consecutiveFailures = 0;
+    let timer: number | undefined;
 
     async function refresh() {
       try {
@@ -47,17 +49,24 @@ export function useLiveCameras(refreshMs = 5000) {
         if (!response.ok) throw new Error(`camera status ${response.status}`);
         const payload = (await response.json()) as CameraStatusResponse;
         if (!cancelled) {
+          consecutiveFailures = 0;
           setCameras(current => mergeCameraStatus(current, payload));
         }
       } catch {
         if (!cancelled) {
-          console.warn(`Failed to fetch camera statuses from ${STREAM_BASE_URL}/cameras. Retaining configured statuses.`);
+          consecutiveFailures++;
+          if (consecutiveFailures === 1) {
+            console.warn(`Camera stream service unavailable at ${STREAM_BASE_URL}. Polling stopped after 3 failures.`);
+          }
+          if (consecutiveFailures >= 3) {
+            window.clearInterval(timer);
+          }
         }
       }
     }
 
     refresh();
-    const timer = window.setInterval(refresh, refreshMs);
+    timer = window.setInterval(refresh, refreshMs);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
