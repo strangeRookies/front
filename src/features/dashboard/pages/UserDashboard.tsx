@@ -274,7 +274,7 @@ export function NurseDashboard({
       <header className="h-14 bg-[#061224] border-b border-slate-800/60 px-6 flex items-center justify-between z-10 flex-shrink-0">
         <div className="flex items-center gap-3">
           <Shield className="w-5 h-5 text-blue-400 fill-blue-400/20" />
-          <h1 className="text-sm font-extrabold tracking-wider text-white">쉴더스 관제 대시보드</h1>
+          <h1 className="text-sm font-extrabold tracking-wider text-white">스마트 안전 관제 시스템</h1>
           <span className="h-4 w-px bg-slate-700" />
           <span className="text-xs font-bold text-slate-400">
             {userType === 'individual' ? '개인용 대시보드' : '기업용 대시보드'}
