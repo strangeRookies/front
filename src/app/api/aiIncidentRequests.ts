@@ -1,7 +1,6 @@
 import type { AiEvent } from '../../hooks/useAiEvents';
+import { rawApiRequest } from '../../shared/api/client';
 import { aiEventKey } from '../../shared/utils/aiAlerts';
-
-const BACKEND_BASE_URL = (import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
 
 export const ACKNOWLEDGE_RECORDING_FRAMES = {
   preFrames: 150,
@@ -53,28 +52,11 @@ export async function acknowledgeAndRequestRecording(
   acknowledgedBy?: string,
 ): Promise<AcknowledgeRecordingResponse> {
   const request = buildAcknowledgeRecordingRequest(event, acknowledgedBy);
-  const response = await fetch(
-    `${BACKEND_BASE_URL}/api/incidents/${encodeURIComponent(request.eventId)}/acknowledge-and-record`,
+  return rawApiRequest<AcknowledgeRecordingResponse>(
+    `/api/incidents/${encodeURIComponent(request.eventId)}/acknowledge-and-record`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
+      body: request,
     },
   );
-
-  if (!response.ok) {
-    throw new AcknowledgeRecordingError(response.status);
-  }
-
-  return response.json();
-}
-
-export class AcknowledgeRecordingError extends Error {
-  readonly status: number;
-
-  constructor(status: number) {
-    super(`Acknowledge recording request failed with HTTP ${status}`);
-    this.name = 'AcknowledgeRecordingError';
-    this.status = status;
-  }
 }

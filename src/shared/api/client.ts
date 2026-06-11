@@ -2,6 +2,18 @@ import { authStore } from './authStore';
 
 const API_BASE_URL = (import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
 
+export function buildApiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+export function getBackendWsUrl(path = '/ws'): string {
+  return buildApiUrl(path).replace(/^http/i, 'ws');
+}
+
 export interface ApiSuccessResponse<T> {
   success?: boolean;
   status?: string;
@@ -45,7 +57,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const { body, accessToken, headers, ...init } = options;
   const token = accessToken || authStore.getAccessToken();
   
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(buildApiUrl(path), {
     ...init,
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
@@ -86,6 +98,41 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   return undefined as T;
+}
+
+export async function rawApiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { body, accessToken, headers, ...init } = options;
+  const token = accessToken || authStore.getAccessToken();
+
+  const response = await fetch(buildApiUrl(path), {
+    ...init,
+    headers: {
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const payload = contentType.includes('application/json') ? await response.json() : null;
+
+  if (!response.ok) {
+    const error = payload && typeof payload === 'object' && 'error' in payload
+      ? (payload as ApiErrorResponse).error
+      : undefined;
+    const errorMessage = error?.message || (payload as any)?.message || `요청 처리에 실패했습니다. (${response.status})`;
+    const fieldErrorMessage = formatFieldErrors(error?.fieldErrors);
+
+    throw new ApiError(
+      [errorMessage, fieldErrorMessage].filter(Boolean).join('\n'),
+      response.status,
+      error?.code || (payload as any)?.status,
+      error?.fieldErrors,
+    );
+  }
+
+  return payload as T;
 }
 
 function formatFieldErrors(fieldErrors: unknown): string {

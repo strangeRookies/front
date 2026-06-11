@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
+import { getBackendWsUrl } from '../shared/api/client';
 import { SimpleStompClient } from '../shared/utils/stomp';
 import { aiEventFingerprint, reduceAiEventFeed, STALE_EVENT_WINDOW_MS } from '../shared/utils/aiEventFeed';
 
@@ -96,8 +97,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
   const options = typeof input === 'string' ? { url: input, enabled: true } : input;
   const enabled = options.enabled ?? true;
 
-  const backendBaseUrl = (import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
-  const defaultWsUrl = backendBaseUrl.replace(/^http/, 'ws') + '/ws';
+  const defaultWsUrl = getBackendWsUrl('/ws');
   const url = options.url ?? defaultWsUrl;
 
   const [feedState, setFeedState] = useState<AiEventFeedState>({
