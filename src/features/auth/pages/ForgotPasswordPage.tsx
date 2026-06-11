@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Check, KeyRound, Lock, Mail, Phone, ShieldCheck } from 'lucide-react';
 import {
-  confirmSmsVerification,
+  confirmPasswordResetSms,
   requestPasswordResetSms,
   resetPassword,
 } from '../api/authApi';
@@ -28,7 +28,6 @@ export function ForgotPasswordPage({ onBackToLogin, onResetComplete }: ForgotPas
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
-  const [verificationId, setVerificationId] = useState<number | string>('');
   const [verificationToken, setVerificationToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
@@ -56,8 +55,7 @@ export function ForgotPasswordPage({ onBackToLogin, onResetComplete }: ForgotPas
 
     try {
       setIsSubmitting(true);
-      const response = await requestPasswordResetSms(email.trim(), normalizedPhone);
-      setVerificationId(response.verificationId);
+      await requestPasswordResetSms(email.trim(), normalizedPhone);
       setVerificationToken('');
       setVerificationCode('');
       setStep('verify');
@@ -70,7 +68,7 @@ export function ForgotPasswordPage({ onBackToLogin, onResetComplete }: ForgotPas
   };
 
   const handleConfirmCode = async () => {
-    if (!verificationId) {
+    if (step !== 'verify') {
       alert('인증번호를 먼저 발송해주세요.');
       setStep('identity');
       return;
@@ -82,7 +80,15 @@ export function ForgotPasswordPage({ onBackToLogin, onResetComplete }: ForgotPas
 
     try {
       setIsSubmitting(true);
-      const response = await confirmSmsVerification(verificationId, verificationCode.trim());
+      const response = await confirmPasswordResetSms({
+        email: email.trim(),
+        phone: normalizedPhone,
+        code: verificationCode.trim(),
+      });
+      if (!response.verified) {
+        alert('인증번호가 올바르지 않습니다.');
+        return;
+      }
       setVerificationToken(response.verificationToken);
       setStep('password');
       alert('휴대폰 본인 인증이 완료되었습니다.');

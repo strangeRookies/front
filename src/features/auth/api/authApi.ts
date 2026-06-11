@@ -21,8 +21,18 @@ export interface SmsVerificationConfirmResponse {
 }
 
 export interface PasswordResetVerificationResponse {
-  verificationId: number | string;
-  expiresInSeconds?: number;
+  expiresIn?: number;
+}
+
+export interface PasswordResetVerificationConfirmResponse {
+  verified: boolean;
+  verificationToken: string;
+}
+
+export interface PasswordResetVerificationConfirmPayload {
+  email: string;
+  phone: string;
+  code: string;
 }
 
 export interface PasswordResetRequestPayload {
@@ -192,6 +202,13 @@ export async function requestPasswordResetSms(email: string, phone: string) {
       email,
       phone,
     },
+  });
+}
+
+export async function confirmPasswordResetSms(payload: PasswordResetVerificationConfirmPayload) {
+  return apiRequest<PasswordResetVerificationConfirmResponse>('/api/auth/password-reset/verifications/sms/confirm', {
+    method: 'POST',
+    body: payload,
   });
 }
 
