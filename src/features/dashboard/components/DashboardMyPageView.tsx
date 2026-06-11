@@ -149,7 +149,6 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
           {([
             { id: 'profile', label: '프로필', icon: User },
             { id: 'password', label: '비밀번호 변경', icon: Lock },
-            { id: 'account', label: '계정 관리', icon: Shield },
           ] as const).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -197,6 +196,26 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
               </div>
             </div>
             <button onClick={handleSaveProfile} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">저장</button>
+
+            <div className="pt-10 space-y-6">
+              <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <Shield className="w-5 h-5 text-rose-500 mt-0.5" />
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-white">회원 탈퇴</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      회원 탈퇴 시 서비스 이용 권한이 즉시 회수되며, 등록된 정보는 시스템 관리 방침에 따라 처리됩니다.
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleWithdraw}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  서비스 탈퇴하기
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -260,34 +279,6 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
               </p>
             </div>
             <button onClick={handleChangePassword} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">비밀번호 변경</button>
-          </div>
-        )}
-
-
-        {mypageTab === 'account' && (
-          <div className="max-w-xl space-y-6">
-            <div>
-              <h2 className="text-base font-extrabold text-white">계정 관리</h2>
-              <p className="text-xs text-slate-400 mt-1">서비스를 탈퇴할 수 있습니다.</p>
-            </div>
-
-            <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-6 space-y-4">
-              <div className="flex items-start gap-3">
-                <Shield className="w-5 h-5 text-rose-500 mt-0.5" />
-                <div className="space-y-1">
-                  <h3 className="text-sm font-bold text-white">회원 탈퇴</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    회원 탈퇴 시 서비스 이용 권한이 즉시 회수되며, 등록된 정보는 시스템 관리 방침에 따라 처리됩니다.
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={handleWithdraw}
-                className="w-full sm:w-auto px-6 py-2.5 bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 font-bold rounded-xl text-xs transition-all cursor-pointer"
-              >
-                서비스 탈퇴하기
-              </button>
-            </div>
           </div>
         )}
       </div>
