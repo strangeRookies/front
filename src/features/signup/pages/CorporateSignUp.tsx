@@ -333,11 +333,6 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
             email: managerEmail.trim(),
             contact: normalizePhoneNumber(managerContact || managerPhone),
           },
-          installation: {
-            count: '',
-            preferredDate: '',
-            specialRequest: '',
-          },
           agreements: {
             termsAgreed: agreeTerms,
             privacyAgreed: agreePrivacy,

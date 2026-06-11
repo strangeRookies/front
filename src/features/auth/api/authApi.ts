@@ -128,7 +128,7 @@ export interface CorporateSignupPayload {
     email: string;
     contact: string;
   };
-  installation: {
+  installation?: {
     count: string;
     preferredDate: string;
     specialRequest: string;
