@@ -112,7 +112,7 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
 }
 
 export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick, cameraStatusMap }: LiveCameraGridProps) {
-  const visibleCameras = cameras.slice(0, 4);
+  const visibleCameras = cameras;
   const { activeFullscreenCameraId, requestCameraFullscreen, setCameraCardRef } = useFullscreenCamera();
 
   const handleFullscreen = useCallback((cameraId: string, event: MouseEvent<HTMLButtonElement>) => {

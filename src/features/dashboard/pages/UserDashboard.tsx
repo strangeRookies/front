@@ -39,17 +39,6 @@ interface NurseDashboardProps {
   onLogout: () => void;
 }
 
-const HARDCODED_LIVE_CAMERA: LiveCamera = {
-  id: 'cam_03',
-  cameraLoginId: 'cam_03',
-  cameraDbId: 'hardcoded-cam-03',
-  name: 'cam_03',
-  location: '임시 하드코딩 카메라',
-  streamUrl: 'http://localhost:8012/stream',
-  connectionStatus: 'online',
-  eventStatus: 'normal',
-};
-
 function toLiveCameraConnectionStatus(camera: CameraResponse): CameraConnectionStatus {
   if (camera.status !== 'ACTIVE') return 'offline';
 
@@ -66,6 +55,13 @@ function toLiveCameraConnectionStatus(camera: CameraResponse): CameraConnectionS
     default:
       return 'connecting';
   }
+}
+
+function isVisibleLiveCamera(camera: CameraResponse) {
+  return camera.status === 'ACTIVE'
+    && camera.connectionStatus !== 'DISCONNECTED'
+    && camera.connectionStatus !== 'ERROR'
+    && camera.connectionStatus !== 'DISABLED';
 }
 
 function toLiveCameraStreamUrl(camera: CameraResponse) {
@@ -118,8 +114,19 @@ export function NurseDashboard({
 
   // --- Derived Live Cameras for Monitoring (using backend data) ---
   const liveCameras = useMemo<LiveCamera[]>(() => {
-    return [HARDCODED_LIVE_CAMERA];
-  }, []);
+    return registeredCameras
+      .filter(isVisibleLiveCamera)
+      .map((camera) => ({
+        id: camera.cameraLoginId || camera.cameraId.toString(),
+        cameraLoginId: camera.cameraLoginId,
+        cameraDbId: camera.cameraId.toString(),
+        name: camera.cameraName || camera.cameraLoginId,
+        location: camera.locationDescription || camera.cameraLoginId || '-',
+        streamUrl: toLiveCameraStreamUrl(camera),
+        connectionStatus: toLiveCameraConnectionStatus(camera),
+        eventStatus: 'normal',
+      }));
+  }, [registeredCameras]);
 
   // --- Facility Fetch Logic (Automatic) ---
   const loadInitialData = useCallback(async () => {

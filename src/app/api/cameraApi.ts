@@ -61,6 +61,12 @@ export async function fetchCamerasByFacility(facilityId: number | string): Promi
   });
 }
 
+export async function fetchActiveCameras(): Promise<CameraResponse[]> {
+  return apiRequest<CameraResponse[]>('/api/cameras/active', {
+    method: 'GET',
+  });
+}
+
 /**
  * [PUT] 카메라 정보 수정
  * URL: /api/cameras/{cameraId}
