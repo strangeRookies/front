@@ -238,13 +238,17 @@ export function NurseDashboard({
       alert('시리얼 넘버를 입력해주세요.');
       return;
     }
+    if (!newCamPassword.trim()) {
+      alert('비밀번호를 입력해주세요.');
+      return;
+    }
 
     try {
       await registerCamera(currentFacility.facilityId, {
         cameraName: newCamName.trim(),
         cameraSerialNumber: newCamSerialNumber.trim(),
         cameraLoginId: newCamLoginId.trim() || undefined,
-        cameraPassword: newCamPassword.trim() || undefined,
+        cameraPassword: newCamPassword.trim(),
         rtspUrl: newCamSourceType === 'SIMULATED_RTSP' ? undefined : newCamRtspUrl.trim() || undefined,
         locationDescription: newCamLocation.trim() || '미지정',
         sourceType: newCamSourceType,
