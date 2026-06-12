@@ -158,14 +158,11 @@ export function NurseDashboard({
 
   // --- Camera Fetch Logic ---
   const refreshCameras = useCallback(async () => {
-    if (userType === 'individual') {
-      setRegisteredCameras([]);
-      return;
-    }
-    if (!currentFacility) return;
+    if (userType === 'corporate' && !currentFacility) return;
     try {
       setIsLoadingCameras(true);
-      const data = await fetchCamerasByFacility(currentFacility.facilityId);
+      const facilityId = userType === 'individual' ? undefined : currentFacility?.facilityId;
+      const data = await fetchCamerasByFacility(facilityId);
       setRegisteredCameras(data);
     } catch (error) {
       console.error('Failed to fetch cameras:', error);
@@ -233,7 +230,7 @@ export function NurseDashboard({
   };
 
   const handleAddCamera = async () => {
-    if (!currentFacility) {
+    if (userType === 'corporate' && !currentFacility) {
       alert('연결된 시설 정보가 없습니다.');
       return;
     }
@@ -247,7 +244,8 @@ export function NurseDashboard({
     }
 
     try {
-      await registerCamera(currentFacility.facilityId, {
+      const facilityId = userType === 'individual' ? undefined : currentFacility?.facilityId;
+      await registerCamera(facilityId, {
         cameraName: newCamName.trim(),
         cameraSerialNumber: newCamSerialNumber.trim(),
         cameraLoginId: newCamLoginId.trim() || undefined,
