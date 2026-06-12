@@ -1,42 +1,54 @@
 import { useEffect, useState } from 'react';
-import { LIVE_CAMERAS, STREAM_BASE_URL, configuredStreamUrl, streamUrl, type CameraConnectionStatus, type LiveCamera } from '../data/cameras';
+import { fetchActiveCameras, type CameraResponse, type CameraConnectionStatus as BackendCameraConnectionStatus } from '../../../app/api/cameraApi';
+import { STREAM_MODE, cameraLoginIdFor, getDynamicStreamUrl, streamRenderKind, type CameraConnectionStatus, type LiveCamera } from '../data/cameras';
 
-interface CameraStatusResponse {
-  cameras?: Array<{
-    id: string;
-    name?: string;
-    location?: string;
-    connected?: boolean;
-    streamUrl?: string;
-  }>;
+function backendConnectionStatus(status: BackendCameraConnectionStatus | undefined): CameraConnectionStatus {
+  switch (status) {
+    case 'CONNECTED':
+      return 'online';
+    case 'DISCONNECTED':
+    case 'ERROR':
+    case 'DISABLED':
+      return 'offline';
+    case 'RECONNECTING':
+    case 'UNKNOWN':
+    case undefined:
+      return 'connecting';
+  }
 }
 
-function toConnectionStatus(connected: boolean | undefined): CameraConnectionStatus {
-  if (connected === true) return 'online';
-  if (connected === false) return 'offline';
-  return 'connecting';
+function isFrontendVisibleCamera(camera: CameraResponse): boolean {
+  return camera.status === 'ACTIVE'
+    && camera.connectionStatus !== 'DISCONNECTED'
+    && camera.connectionStatus !== 'ERROR'
+    && camera.connectionStatus !== 'DISABLED';
 }
 
-function mergeCameraStatus(current: LiveCamera[], payload: CameraStatusResponse): LiveCamera[] {
-  const byId = new Map((payload.cameras || []).map(camera => [camera.id, camera]));
-  return current.map(camera => {
-    const status = byId.get(camera.id);
-    if (!status) return camera;
-    const directStreamUrl = configuredStreamUrl(status.id);
-    return {
-      ...camera,
-      name: status.name || camera.name,
-      location: status.location || camera.location,
-      streamUrl: directStreamUrl || (status.streamUrl?.startsWith('http')
-        ? status.streamUrl
-        : streamUrl(status.id)),
-      connectionStatus: toConnectionStatus(status.connected),
-    };
-  });
+function cameraStreamUrl(camera: CameraResponse): string {
+  const cameraLoginId = cameraLoginIdFor(camera.cameraLoginId, camera.cameraId);
+  const url = getDynamicStreamUrl(cameraLoginId);
+  console.log(`[CCTV Stream URL] mode=${STREAM_MODE}, cameraLoginId=${cameraLoginId}, cameraId=${camera.cameraId} -> ${url}`);
+  return url;
 }
+
+function activeCameraToLiveCamera(camera: CameraResponse): LiveCamera {
+  return {
+    id: cameraLoginIdFor(camera.cameraLoginId, camera.cameraId),
+    cameraLoginId: cameraLoginIdFor(camera.cameraLoginId, camera.cameraId),
+    cameraDbId: String(camera.cameraId),
+    name: camera.cameraName || camera.cameraLoginId || `CCTV-${camera.cameraId}`,
+    location: camera.locationDescription || camera.cameraLoginId || '-',
+    streamUrl: cameraStreamUrl(camera),
+    streamMode: STREAM_MODE,
+    streamKind: streamRenderKind(),
+    connectionStatus: backendConnectionStatus(camera.connectionStatus),
+    eventStatus: 'normal',
+  };
+}
+
 
 export function useLiveCameras(refreshMs = 5000) {
-  const [cameras, setCameras] = useState<LiveCamera[]>(LIVE_CAMERAS);
+  const [cameras, setCameras] = useState<LiveCamera[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,18 +57,22 @@ export function useLiveCameras(refreshMs = 5000) {
 
     async function refresh() {
       try {
-        const response = await fetch(`${STREAM_BASE_URL}/cameras`, { cache: 'no-store' });
-        if (!response.ok) throw new Error(`camera status ${response.status}`);
-        const payload = (await response.json()) as CameraStatusResponse;
+        const activeCameras = await fetchActiveCameras();
+        const activeLiveCameras = activeCameras
+          .filter(isFrontendVisibleCamera)
+          .map(activeCameraToLiveCamera);
         if (!cancelled) {
           consecutiveFailures = 0;
-          setCameras(current => mergeCameraStatus(current, payload));
+          setCameras(activeLiveCameras);
         }
       } catch {
         if (!cancelled) {
           consecutiveFailures++;
-          if (consecutiveFailures === 1) {
-            console.warn(`Camera stream service unavailable at ${STREAM_BASE_URL}. Polling stopped after 3 failures.`);
+          try {
+            const activeCameras = await fetchActiveCameras();
+            setCameras(activeCameras.filter(isFrontendVisibleCamera).map(activeCameraToLiveCamera));
+          } catch {
+            setCameras([]);
           }
           if (consecutiveFailures >= 3) {
             window.clearInterval(timer);

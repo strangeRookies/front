@@ -1,5 +1,7 @@
 export type CameraConnectionStatus = 'online' | 'offline' | 'connecting';
 export type CameraEventStatus = 'normal' | 'warning' | 'danger';
+export type StreamMode = 'raw' | 'overlay';
+export type StreamRenderKind = 'hls' | 'mjpeg';
 
 export interface LiveCamera {
   id: string;
@@ -8,6 +10,8 @@ export interface LiveCamera {
   name: string;
   location: string;
   streamUrl: string;
+  streamMode: StreamMode;
+  streamKind: StreamRenderKind;
   connectionStatus: CameraConnectionStatus;
   eventStatus: CameraEventStatus;
   eventLabel?: string;
@@ -15,59 +19,105 @@ export interface LiveCamera {
 
 const env = import.meta.env;
 
-export const STREAM_BASE_URL = (env.VITE_STREAM_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+export const STREAM_MODE: StreamMode = env.VITE_STREAM_MODE === 'raw' ? 'raw' : 'overlay';
+export const HLS_BASE_URL = (env.VITE_HLS_BASE_URL || 'http://localhost:8888').replace(/\/$/, '');
+export const OVERLAY_BASE_URL = (env.VITE_OVERLAY_BASE_URL || 'http://localhost:8010').replace(/\/$/, '');
 
-const CAMERA_STREAM_URLS: Record<string, string | undefined> = {
-  'camera-1': env.VITE_CAMERA_1_STREAM_URL,
-  'camera-2': env.VITE_CAMERA_2_STREAM_URL,
-  'camera-3': env.VITE_CAMERA_3_STREAM_URL,
-  'camera-4': env.VITE_CAMERA_4_STREAM_URL,
-};
+function cameraNumber(cameraLoginId: string): number {
+  const match = cameraLoginId.match(/(\d+)$/);
+  if (!match) return 1;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
 
-export const configuredStreamUrl = (cameraId: string) => {
-  const directUrl = CAMERA_STREAM_URLS[cameraId];
-  if (directUrl && directUrl.trim().length > 0) {
-    return directUrl.trim();
+export function cameraLoginIdFor(cameraLoginId: string | undefined, cameraId: number | string): string {
+  if (cameraLoginId && cameraLoginId.trim().length > 0) {
+    return cameraLoginId.trim();
   }
-  return undefined;
+  const rawId = String(cameraId).trim();
+  if (rawId.startsWith('cam_')) {
+    return rawId;
+  }
+  const numericId = Number.parseInt(rawId, 10);
+  if (Number.isFinite(numericId) && numericId > 0) {
+    return `cam_${String(numericId).padStart(2, '0')}`;
+  }
+  return rawId;
+}
+
+function overlayUrl(cameraLoginId: string): string {
+  try {
+    const url = new URL(OVERLAY_BASE_URL);
+    const basePort = Number.parseInt(url.port || '8010', 10);
+    if (Number.isFinite(basePort)) {
+      url.port = String(basePort + cameraNumber(cameraLoginId) - 1);
+    }
+    url.pathname = '';
+    url.search = '';
+    url.hash = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return OVERLAY_BASE_URL;
+  }
+}
+
+export function streamRenderKind(): StreamRenderKind {
+  return STREAM_MODE === 'raw' ? 'hls' : 'mjpeg';
+}
+
+export const getDynamicStreamUrl = (cameraLoginId: string): string => {
+  if (STREAM_MODE === 'raw') {
+    return `${HLS_BASE_URL}/${cameraLoginId}/index.m3u8`;
+  }
+  return overlayUrl(cameraLoginId);
 };
 
 export const streamUrl = (cameraId: string) => {
-  const directUrl = configuredStreamUrl(cameraId);
-  if (directUrl) return directUrl;
-  return `${STREAM_BASE_URL}/stream/${cameraId}`;
+  return getDynamicStreamUrl(cameraId);
 };
 
 export const LIVE_CAMERAS: LiveCamera[] = [
   {
-    id: 'camera-1',
+    id: 'cam_01',
+    cameraLoginId: 'cam_01',
     name: 'CCTV-01',
-    location: '1층 병실 1',
-    streamUrl: streamUrl('camera-1'),
+    location: 'Camera 1',
+    streamUrl: streamUrl('cam_01'),
+    streamMode: STREAM_MODE,
+    streamKind: streamRenderKind(),
     connectionStatus: 'online',
     eventStatus: 'normal',
   },
   {
-    id: 'camera-2',
+    id: 'cam_02',
+    cameraLoginId: 'cam_02',
     name: 'CCTV-02',
-    location: '1층 복도 A',
-    streamUrl: streamUrl('camera-2'),
+    location: 'Camera 2',
+    streamUrl: streamUrl('cam_02'),
+    streamMode: STREAM_MODE,
+    streamKind: streamRenderKind(),
     connectionStatus: 'online',
     eventStatus: 'normal',
   },
   {
-    id: 'camera-3',
+    id: 'cam_03',
+    cameraLoginId: 'cam_03',
     name: 'CCTV-03',
-    location: '원격 카메라 1',
-    streamUrl: streamUrl('camera-3'),
+    location: 'Camera 3',
+    streamUrl: streamUrl('cam_03'),
+    streamMode: STREAM_MODE,
+    streamKind: streamRenderKind(),
     connectionStatus: 'online',
     eventStatus: 'normal',
   },
   {
-    id: 'camera-4',
+    id: 'cam_04',
+    cameraLoginId: 'cam_04',
     name: 'CCTV-04',
-    location: '원격 카메라 2',
-    streamUrl: streamUrl('camera-4'),
+    location: 'Camera 4',
+    streamUrl: streamUrl('cam_04'),
+    streamMode: STREAM_MODE,
+    streamKind: streamRenderKind(),
     connectionStatus: 'online',
     eventStatus: 'normal',
   },

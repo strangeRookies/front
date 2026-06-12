@@ -1,22 +1,38 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
-import { AlertTriangle, Expand, Radio, Signal, SignalZero, Video, WifiOff, RefreshCw, AlertCircle, EyeOff } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Expand, EyeOff, RefreshCw, Signal, SignalZero, Video, WifiOff } from 'lucide-react';
 import type { LiveCamera } from '../data/cameras';
 import { useFullscreenCamera } from '../hooks/useFullscreenCamera';
-import type { CameraStatusMap, CameraConnectionStatus } from '../hooks/useCameraStatusWebSocket';
+import type { CameraConnectionStatus, CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
 import { toCameraConnectionStatusDisplay } from '../hooks/useCameraStatusWebSocket';
+import { CameraStreamFrame } from './CameraStreamFrame';
 
 interface LiveCameraGridProps {
   cameras: LiveCamera[];
   className?: string;
   compact?: boolean;
   onCameraClick?: (camera: LiveCamera) => void;
-  /** 실시간 카메라 연결 상태 맵 (MQTT → Backend WebSocket → 프론트) */
   cameraStatusMap?: CameraStatusMap;
 }
 
+function realtimeStatusIcon(status: CameraConnectionStatus) {
+  switch (status) {
+    case 'CONNECTED':
+      return Signal;
+    case 'DISCONNECTED':
+      return WifiOff;
+    case 'RECONNECTING':
+      return RefreshCw;
+    case 'ERROR':
+      return AlertCircle;
+    case 'DISABLED':
+      return EyeOff;
+    case 'UNKNOWN':
+      return Signal;
+  }
+}
+
 function statusStyle(camera: LiveCamera, realtimeStatus?: CameraConnectionStatus) {
-  // 실시간 MQTT 상태가 있으면 우선 적용 (23.md 1순위 UI/UX)
   if (realtimeStatus && realtimeStatus !== 'UNKNOWN') {
     const display = toCameraConnectionStatusDisplay(realtimeStatus);
     return {
@@ -24,21 +40,15 @@ function statusStyle(camera: LiveCamera, realtimeStatus?: CameraConnectionStatus
       badge: display.badge,
       dot: display.dot,
       label: display.label,
-      icon: realtimeStatus === 'CONNECTED' ? Signal
-          : realtimeStatus === 'DISCONNECTED' ? WifiOff
-          : realtimeStatus === 'RECONNECTING' ? RefreshCw
-          : realtimeStatus === 'ERROR' ? AlertCircle
-          : realtimeStatus === 'DISABLED' ? EyeOff
-          : Signal,
+      icon: realtimeStatusIcon(realtimeStatus),
     };
   }
-  // Fallback: 기존 LiveCamera 상태 기반 스타일
   if (camera.connectionStatus === 'offline') {
     return {
       border: 'border-slate-700',
       badge: 'bg-slate-700/80 text-slate-200 border-slate-600',
       dot: 'bg-slate-400',
-      label: '연결 끊김',
+      label: '연결 없음',
       icon: SignalZero,
     };
   }
@@ -47,7 +57,7 @@ function statusStyle(camera: LiveCamera, realtimeStatus?: CameraConnectionStatus
       border: 'border-amber-500/60',
       badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
       dot: 'bg-amber-400 animate-pulse',
-      label: '연결 중',
+      label: '연결 확인 중',
       icon: Signal,
     };
   }
@@ -85,26 +95,22 @@ function gridClass(count: number) {
 }
 
 function CameraStream({ camera }: { camera: LiveCamera }) {
-  const [failed, setFailed] = useState(false);
-  const unavailable = failed || camera.connectionStatus === 'offline';
+  const unavailable = camera.connectionStatus === 'offline';
 
   return (
     <>
-      {!failed && (
-        <img
-          src={camera.streamUrl}
-          alt={`${camera.name} 실시간 영상`}
-          className={`absolute inset-0 h-full w-full object-cover ${unavailable ? 'opacity-25 grayscale' : ''}`}
-          onError={() => setFailed(true)}
-        />
-      )}
+      <CameraStreamFrame
+        streamUrl={camera.streamUrl}
+        streamKind={camera.streamKind}
+        title={`${camera.name} live stream`}
+        className="absolute inset-0 h-full w-full object-cover"
+        dimmed={unavailable}
+      />
       {unavailable && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030712]/90 text-slate-500">
-          <SignalZero className="w-10 h-10 mb-3 text-slate-600" />
-          <span className="text-xs font-extrabold tracking-wider text-slate-300">연결 끊김</span>
-          <span className="mt-1 text-[10px] text-slate-500">
-            {failed ? '카메라 연결 상태를 확인해주세요.' : '카메라 영상을 불러오는 중입니다.'}
-          </span>
+          <SignalZero className="mb-3 h-10 w-10 text-slate-600" />
+          <span className="text-xs font-extrabold tracking-wider text-slate-300">연결 없음</span>
+          <span className="mt-1 text-[10px] text-slate-500">카메라 연결 상태를 확인해 주세요.</span>
         </div>
       )}
     </>
@@ -112,9 +118,7 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
 }
 
 export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick, cameraStatusMap }: LiveCameraGridProps) {
-  const visibleCameras = cameras.slice(0, 4);
   const { activeFullscreenCameraId, requestCameraFullscreen, setCameraCardRef } = useFullscreenCamera();
-
   const handleFullscreen = useCallback((cameraId: string, event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     void requestCameraFullscreen(cameraId);
@@ -127,9 +131,8 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
   }, [onCameraClick]);
 
   return (
-    <div className={`grid ${gridClass(visibleCameras.length)} gap-3 ${className}`}>
-      {visibleCameras.map(camera => {
-        // 실시간 MQTT 상태를 cameraStatusMap에서 조회 (camera_login_id 기준)
+    <div className={`grid ${gridClass(cameras.length)} gap-3 ${className}`}>
+      {cameras.map(camera => {
         const realtimeCameraStatus = cameraStatusMap?.get(camera.cameraLoginId ?? '')
           ?? cameraStatusMap?.get(camera.id)
           ?? cameraStatusMap?.get(camera.cameraDbId ?? '')
@@ -141,17 +144,17 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
           <div
             ref={(element) => setCameraCardRef(camera.id, element)}
             key={camera.id}
-            className={`group overflow-hidden rounded-xl border ${style.border} bg-[#0f172a] text-left transition-colors cursor-pointer hover:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/60`}
+            className={`group cursor-pointer overflow-hidden rounded-xl border ${style.border} bg-[#0f172a] text-left transition-colors hover:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/60`}
             onClick={() => onCameraClick?.(camera)}
             role="button"
             tabIndex={0}
             onKeyDown={(event) => handleCameraKeyDown(camera, event)}
           >
-            <div className={`relative bg-black ${compact ? 'aspect-video' : visibleCameras.length === 1 ? 'aspect-[16/8]' : 'aspect-video'}`}>
+            <div className={`relative bg-black ${compact ? 'aspect-video' : cameras.length === 1 ? 'aspect-[16/8]' : 'aspect-video'}`}>
               <CameraStream camera={camera} />
 
               <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded bg-black/75 px-2 py-1 text-[10px] font-extrabold text-rose-300 backdrop-blur">
-                <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
                 실시간
               </div>
 
@@ -184,9 +187,9 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
                 </div>
                 <button
                   type="button"
-                  title={activeFullscreenCameraId === camera.id ? '전체 화면으로 표시 중' : '전체 화면'}
+                  title={activeFullscreenCameraId === camera.id ? '전체 화면 표시 중' : '전체 화면'}
                   onClick={(event) => handleFullscreen(camera.id, event)}
-                  className="p-1.5 rounded bg-slate-900 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                  className="rounded bg-slate-900 p-1.5 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
                 >
                   <Expand className="h-3 w-3" />
                 </button>
@@ -196,7 +199,7 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
         );
       })}
 
-      {visibleCameras.length === 0 && (
+      {cameras.length === 0 && (
         <div className="flex aspect-video items-center justify-center rounded-xl border border-dashed border-slate-700 bg-[#0f172a] text-xs font-semibold text-slate-500">
           등록된 카메라가 없습니다.
         </div>

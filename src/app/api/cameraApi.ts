@@ -44,8 +44,9 @@ export interface UpdateCameraRequest {
  * [POST] 특정 사업장(Facility)에 새로운 카메라를 등록합니다.
  * URL: /api/facilities/{facilityId}/cameras
  */
-export async function registerCamera(facilityId: number | string, data: RegisterCameraRequest): Promise<CameraResponse> {
-  return apiRequest<CameraResponse>(`/api/facilities/${facilityId}/cameras`, {
+export async function registerCamera(facilityId?: number | string | null, data?: RegisterCameraRequest): Promise<CameraResponse> {
+  const url = facilityId ? `/api/facilities/${facilityId}/cameras` : '/api/cameras';
+  return apiRequest<CameraResponse>(url, {
     method: 'POST',
     body: data,
   });
@@ -55,8 +56,15 @@ export async function registerCamera(facilityId: number | string, data: Register
  * [GET] 특정 사업장에 등록된 모든 카메라 목록을 가져옵니다.
  * URL: /api/facilities/{facilityId}/cameras
  */
-export async function fetchCamerasByFacility(facilityId: number | string): Promise<CameraResponse[]> {
-  return apiRequest<CameraResponse[]>(`/api/facilities/${facilityId}/cameras`, {
+export async function fetchCamerasByFacility(facilityId?: number | string | null): Promise<CameraResponse[]> {
+  const url = facilityId ? `/api/facilities/${facilityId}/cameras` : '/api/cameras';
+  return apiRequest<CameraResponse[]>(url, {
+    method: 'GET',
+  });
+}
+
+export async function fetchActiveCameras(): Promise<CameraResponse[]> {
+  return apiRequest<CameraResponse[]>('/api/cameras/active', {
     method: 'GET',
   });
 }

@@ -5,7 +5,7 @@ import { fetchMyInquiries, createInquiry } from '../api/inquiryApi';
 import { useAiAlertActions } from '../../../hooks/useAiAlertActions';
 import { useDashboardAlerts } from '../hooks/useDashboardAlerts';
 import type { MenuId, InquiryCategory, IncidentAlert } from '../types/dashboard';
-import { streamUrl, type LiveCamera, type CameraConnectionStatus, type CameraEventStatus } from '../data/cameras';
+import { STREAM_MODE, cameraLoginIdFor, getDynamicStreamUrl, streamRenderKind, type LiveCamera, type CameraConnectionStatus, type CameraEventStatus } from '../data/cameras';
 import {
   ALL_MENU_ITEMS,
   CATEGORIES,
@@ -39,17 +39,6 @@ interface NurseDashboardProps {
   onLogout: () => void;
 }
 
-const HARDCODED_LIVE_CAMERA: LiveCamera = {
-  id: 'cam_03',
-  cameraLoginId: 'cam_03',
-  cameraDbId: 'hardcoded-cam-03',
-  name: 'cam_03',
-  location: '임시 하드코딩 카메라',
-  streamUrl: 'http://localhost:8012/stream',
-  connectionStatus: 'online',
-  eventStatus: 'normal',
-};
-
 function toLiveCameraConnectionStatus(camera: CameraResponse): CameraConnectionStatus {
   if (camera.status !== 'ACTIVE') return 'offline';
 
@@ -68,11 +57,18 @@ function toLiveCameraConnectionStatus(camera: CameraResponse): CameraConnectionS
   }
 }
 
+function isVisibleLiveCamera(camera: CameraResponse) {
+  return camera.status === 'ACTIVE'
+    && camera.connectionStatus !== 'DISCONNECTED'
+    && camera.connectionStatus !== 'ERROR'
+    && camera.connectionStatus !== 'DISABLED';
+}
+
 function toLiveCameraStreamUrl(camera: CameraResponse) {
-  if (camera.displayStreamUrl && camera.displayStreamUrl.trim().length > 0) {
-    return camera.displayStreamUrl.trim();
-  }
-  return streamUrl(camera.cameraLoginId || camera.cameraId.toString());
+  const cameraLoginId = cameraLoginIdFor(camera.cameraLoginId, camera.cameraId);
+  const url = getDynamicStreamUrl(cameraLoginId);
+  console.log(`[CCTV Stream URL] mode=${STREAM_MODE}, cameraLoginId=${cameraLoginId}, cameraId=${camera.cameraId} -> ${url}`);
+  return url;
 }
 
 export function NurseDashboard({
@@ -118,8 +114,21 @@ export function NurseDashboard({
 
   // --- Derived Live Cameras for Monitoring (using backend data) ---
   const liveCameras = useMemo<LiveCamera[]>(() => {
-    return [HARDCODED_LIVE_CAMERA];
-  }, []);
+    return registeredCameras
+      .filter(isVisibleLiveCamera)
+      .map((camera) => ({
+        id: cameraLoginIdFor(camera.cameraLoginId, camera.cameraId),
+        cameraLoginId: cameraLoginIdFor(camera.cameraLoginId, camera.cameraId),
+        cameraDbId: camera.cameraId.toString(),
+        name: camera.cameraName || camera.cameraLoginId,
+        location: camera.locationDescription || camera.cameraLoginId || '-',
+        streamUrl: toLiveCameraStreamUrl(camera),
+        streamMode: STREAM_MODE,
+        streamKind: streamRenderKind(),
+        connectionStatus: toLiveCameraConnectionStatus(camera),
+        eventStatus: 'normal',
+      }));
+  }, [registeredCameras]);
 
   // --- Facility Fetch Logic (Automatic) ---
   const loadInitialData = useCallback(async () => {
@@ -151,14 +160,11 @@ export function NurseDashboard({
 
   // --- Camera Fetch Logic ---
   const refreshCameras = useCallback(async () => {
-    if (userType === 'individual') {
-      setRegisteredCameras([]);
-      return;
-    }
-    if (!currentFacility) return;
+    if (userType === 'corporate' && !currentFacility) return;
     try {
       setIsLoadingCameras(true);
-      const data = await fetchCamerasByFacility(currentFacility.facilityId);
+      const facilityId = userType === 'individual' ? undefined : currentFacility?.facilityId;
+      const data = await fetchCamerasByFacility(facilityId);
       setRegisteredCameras(data);
     } catch (error) {
       console.error('Failed to fetch cameras:', error);
@@ -226,7 +232,7 @@ export function NurseDashboard({
   };
 
   const handleAddCamera = async () => {
-    if (!currentFacility) {
+    if (userType === 'corporate' && !currentFacility) {
       alert('연결된 시설 정보가 없습니다.');
       return;
     }
@@ -244,7 +250,8 @@ export function NurseDashboard({
     }
 
     try {
-      await registerCamera(currentFacility.facilityId, {
+      const facilityId = userType === 'individual' ? undefined : currentFacility?.facilityId;
+      await registerCamera(facilityId, {
         cameraName: newCamName.trim(),
         cameraSerialNumber: newCamSerialNumber.trim(),
         cameraLoginId: newCamLoginId.trim() || undefined,
@@ -312,6 +319,7 @@ export function NurseDashboard({
     : null;
 
   const playbackStreamUrl = selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
+  const playbackStreamKind = selectedCameraObj?.streamKind || liveCameras[0]?.streamKind;
 
   // --- Loading View ---
   if (isLoading) {
@@ -551,6 +559,7 @@ export function NurseDashboard({
           isPlaying={isPlaying}
           playbackProgress={playbackProgress}
           playbackStreamUrl={playbackStreamUrl}
+          playbackStreamKind={playbackStreamKind}
           onClose={() => setSelectedIncident(null)}
           onPlaybackProgressChange={setPlaybackProgress}
           onTogglePlaying={() => setIsPlaying((prev) => !prev)}

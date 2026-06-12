@@ -43,7 +43,10 @@ export function useDashboardAlerts({
 
         if (!exists) {
           const cameraObj = findCameraForAiEvent(liveCameras, event);
-          const cameraName = cameraObj ? cameraObj.name : event.camera_id;
+          if (!cameraObj) {
+            continue;
+          }
+          const cameraName = cameraObj.name;
           const timeString = new Date(event.timestamp * 1000).toTimeString().split(' ')[0];
           const eventType = event.event_type.toUpperCase();
           const label = `${eventType} (${getEventTypeKorean(event.event_type)}) 감지`;

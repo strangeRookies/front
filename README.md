@@ -9,6 +9,20 @@
 
   Run `npm run dev` to start the development server.
 
+  ## Stream modes
+
+  The monitoring dashboard separates raw MediaMTX HLS from AI overlay MJPEG.
+
+  ```env
+  VITE_STREAM_MODE=overlay
+  VITE_HLS_BASE_URL=http://localhost:8888
+  VITE_OVERLAY_BASE_URL=http://localhost:8010
+  ```
+
+  - `overlay`: default. `cam_01` maps to `http://localhost:8010`, `cam_02` to `http://localhost:8011`, and so on.
+  - `raw`: uses MediaMTX HLS at `http://localhost:8888/{cameraLoginId}/index.m3u8`.
+  - For SSH tunnel development from Windows, keep both base URLs as `localhost`.
+
   ## AI alert routing
 
   Active AI danger alerts are routed only to the personal/user and company/business monitoring dashboard. The admin dashboard does not subscribe to the AI SSE event stream and does not play alarm sounds.

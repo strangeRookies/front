@@ -1,9 +1,12 @@
 import { Radio, SignalZero, Video, X } from 'lucide-react';
+import { streamRenderKind, type StreamRenderKind } from '../data/cameras';
+import { CameraStreamFrame } from './CameraStreamFrame';
 
 interface CCTVVideoPlayerProps {
   cameraName: string;
   location?: string;
   streamUrl?: string;
+  streamKind?: StreamRenderKind;
   status?: 'online' | 'offline' | 'connecting';
   eventStatus?: 'normal' | 'warning' | 'danger';
   onClose: () => void;
@@ -13,6 +16,7 @@ export function CCTVVideoPlayer({
   cameraName,
   location,
   streamUrl,
+  streamKind = streamRenderKind(),
   status = 'online',
   eventStatus = 'normal',
   onClose,
@@ -38,12 +42,17 @@ export function CCTVVideoPlayer({
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <SignalZero className="mx-auto mb-2 h-12 w-12 text-slate-700" />
-              <p className="text-sm font-bold text-slate-500">연결 끊김</p>
+              <p className="text-sm font-bold text-slate-500">연결 없음</p>
               <p className="mt-1 text-xs text-slate-700">{cameraName}</p>
             </div>
           </div>
         ) : (
-          <img src={streamUrl} alt={`${cameraName} 실시간 영상`} className="absolute inset-0 h-full w-full object-cover" />
+          <CameraStreamFrame
+            streamUrl={streamUrl}
+            streamKind={streamKind}
+            title={`${cameraName} live stream`}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
         )}
 
         <div className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 font-mono text-xs text-white backdrop-blur-sm">
