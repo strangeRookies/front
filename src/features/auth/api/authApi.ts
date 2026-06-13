@@ -219,14 +219,18 @@ export async function resetPassword(payload: PasswordResetRequestPayload) {
 }
 
 export async function checkEmailAvailability(email: string) {
-  const data = await apiRequest<unknown>(`/api/auth/email-availability?email=${encodeURIComponent(email)}`);
+  const data = await apiRequest<unknown>('/api/auth/email-availability', {
+    method: 'POST',
+    body: { email },
+  });
   return readAvailability(data);
 }
 
 export async function checkBusinessNumberAvailability(businessNumber: string) {
-  const data = await apiRequest<unknown>(
-    `/api/companies/business-number-availability?businessNumber=${encodeURIComponent(businessNumber)}`,
-  );
+  const data = await apiRequest<unknown>('/api/companies/business-number-availability', {
+    method: 'POST',
+    body: { businessNumber },
+  });
   return readAvailability(data);
 }
 
