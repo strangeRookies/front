@@ -16,9 +16,11 @@ import {
 
 interface CCTVRegistrationProps {
   onRegisterComplete?: (registeredCount: number) => void;
+  onCameraChanged?: () => void;
+  defaultCompanyId?: number;
 }
 
-export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) {
+export function CCTVRegistration({ onRegisterComplete, onCameraChanged, defaultCompanyId }: CCTVRegistrationProps) {
   const [companies, setCompanies] = useState<AdminCompanyResponse[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
@@ -47,7 +49,10 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
     fetchAdminCompanies()
       .then((data) => {
         setCompanies(data);
-        if (data.length > 0) setSelectedCompanyId(data[0].companyProfileId);
+        const preferred = defaultCompanyId
+          ? data.find(c => c.companyProfileId === defaultCompanyId)
+          : null;
+        setSelectedCompanyId((preferred ?? data[0])?.companyProfileId ?? null);
       })
       .catch(() => toast.error('기업 목록을 불러오는데 실패했습니다.'))
       .finally(() => setIsLoadingCompanies(false));
@@ -117,6 +122,7 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
       }
       loadCameras(selectedCompanyId);
       onRegisterComplete?.(result.successCount);
+      onCameraChanged?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : '업로드 중 오류가 발생했습니다.';
       toast.error(message, { id: 'bulk-upload' });
@@ -152,6 +158,7 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
       setNewPassword('');
       loadCameras(selectedCompanyId);
       onRegisterComplete?.(1);
+      onCameraChanged?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : '등록 중 오류가 발생했습니다.';
       toast.error(message);
@@ -184,6 +191,7 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
       await deleteAdminCamera(cameraId);
       toast.success(`카메라 [${cameraName}]가 삭제되었습니다.`);
       if (selectedCompanyId) loadCameras(selectedCompanyId);
+      onCameraChanged?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : '삭제 중 오류가 발생했습니다.';
       toast.error(message);
@@ -200,6 +208,7 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
       await Promise.all([...selectedIds].map((id) => deleteAdminCamera(id)));
       toast.success(`${selectedIds.size}대의 카메라가 삭제되었습니다.`);
       if (selectedCompanyId) loadCameras(selectedCompanyId);
+      onCameraChanged?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : '일부 카메라 삭제 중 오류가 발생했습니다.';
       toast.error(message);

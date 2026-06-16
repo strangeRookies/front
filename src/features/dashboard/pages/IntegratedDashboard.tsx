@@ -11,13 +11,15 @@ import {
   LogIn, KeyRound, Smartphone
 } from 'lucide-react';
 import { CCTVFloorPlan } from '../components/CCTVFloorPlan';
+import { CorporateFloorPlan } from '../components/CorporateFloorPlan';
 import { LiveCameraGrid } from '../components/LiveCameraGrid';
 import { useLiveCameras } from '../hooks/useLiveCameras';
 import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import { CCTVRegistration } from '../components/CCTVRegistration';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
-import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, type AdminUserResponse } from '../api/adminApi';
+import type { LiveCamera } from '../data/cameras';
+import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse } from '../api/adminApi';
 import { fetchAllInquiries, fetchMyInquiries, createInquiry, answerInquiry } from '../api/inquiryApi';
 import { logger } from '../../../shared/utils/logger';
 
@@ -238,11 +240,14 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [spacesLoading, setSpacesLoading] = useState(true);
   const [selectedSpaceId, setSelectedSpaceId] = useState('');
-  const [corpGroupOpen, setCorpGroupOpen] = useState(true);
-  const [indGroupOpen, setIndGroupOpen] = useState(true);
+  const [corpGroupOpen, setCorpGroupOpen] = useState(false);
+  const [indGroupOpen, setIndGroupOpen] = useState(false);
   const [spaceSearch, setSpaceSearch] = useState('');
   const [cameraStats, setCameraStats] = useState<{ totalCount: number; connectedCount: number } | null>(null);
   const [todayAlertCount, setTodayAlertCount] = useState(0);
+  const [spaceViewCameras, setSpaceViewCameras] = useState<CorporateCameraResponse[] | AdminFacilityCameraResponse[]>([]);
+  const [spaceViewLoading, setSpaceViewLoading] = useState(false);
+  const [spaceSelectedCameraId, setSpaceSelectedCameraId] = useState<string | null>(null);
   const [cameras, setCameras] = useState<CCTVCamera[]>(FLOOR_1_CAMERAS);
   const [selectedCamera, setSelectedCamera] = useState<CCTVCamera | null>(FLOOR_1_CAMERAS[1]);
   const [events, setEvents] = useState<IncidentEvent[]>(INITIAL_EVENTS);
@@ -366,6 +371,39 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
       .catch((err: unknown) => console.error('[Spaces] fetch failed:', err))
       .finally(() => setSpacesLoading(false));
   }, []);
+
+  const refetchSpaceCameras = useCallback(() => {
+    if (!selectedSpaceId) return;
+    const space = spaces.find(s => s.id === selectedSpaceId);
+    if (!space) return;
+    const numericId = Number(space.id.split('-')[1]);
+    const fetcher = space.type === 'corporate'
+      ? fetchAdminCamerasByCompany(numericId)
+      : fetchAdminFacilityCameras(numericId);
+    fetcher
+      .then(cams => setSpaceViewCameras(cams as CorporateCameraResponse[] | AdminFacilityCameraResponse[]))
+      .catch((err: unknown) => console.error('[SpaceView] refetch failed:', err));
+  }, [selectedSpaceId, spaces]);
+
+  useEffect(() => {
+    if (!selectedSpaceId) return;
+    const space = spaces.find(s => s.id === selectedSpaceId);
+    if (!space) return;
+
+    setSpaceViewLoading(true);
+    setSpaceViewCameras([]);
+    setSpaceSelectedCameraId(null);
+
+    const numericId = Number(space.id.split('-')[1]);
+    const fetcher = space.type === 'corporate'
+      ? fetchAdminCamerasByCompany(numericId)
+      : fetchAdminFacilityCameras(numericId);
+
+    fetcher
+      .then(cams => setSpaceViewCameras(cams as CorporateCameraResponse[] | AdminFacilityCameraResponse[]))
+      .catch((err: unknown) => console.error('[SpaceView] fetch failed:', err))
+      .finally(() => setSpaceViewLoading(false));
+  }, [selectedSpaceId]);
 
   useEffect(() => {
     Promise.all([fetchAdminCameraStats(), fetchAdminTodayAlertCount()])
@@ -674,49 +712,172 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
         <main className="flex-1 flex flex-col overflow-hidden">
 
           {/* HOME view */}
-          {activeMenu === 'home' && (
-            <div className="flex-1 p-4 gap-4 overflow-y-auto flex flex-col">
-              <div className="h-[400px] min-h-[400px]">
-                <CCTVFloorPlan cameras={cameras} onCameraClick={handleCameraClick} selectedCameraId={selectedCamera?.id || null} />
-              </div>
-              <div className="bg-[#071329] border border-slate-800 rounded-xl overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between px-4 py-3 bg-[#061224] border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 font-semibold">보조 모니터링: </span>
-                    <h2 className="text-xs font-extrabold text-white">{selectedCamera ? `${selectedCamera.id} — ${selectedCamera.name}` : '선택된 CCTV 없음'}</h2>
-                    <div className="flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold border border-emerald-500/15">
-                      <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" /> 실시간 RTSP
-                    </div>
-                  </div>
-                  <Maximize2 className="w-4 h-4 text-slate-500 hover:text-white transition-colors cursor-pointer" />
-                </div>
-                <div className="relative bg-black overflow-hidden p-3">
-                  <LiveCameraGrid
-                    cameras={liveCameras.filter(camera => camera.name === selectedCamera?.id).slice(0, 1)}
-                    compact
-                  />
-                  <div className="absolute top-2 left-2 bg-slate-900/90 border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-300 font-mono">
-                    CH-0{selectedCamera ? selectedCamera.id.replace('CCTV-', '') : '2'}
-                  </div>
+          {activeMenu === 'home' && (() => {
+            const selectedSpace = spaces.find(s => s.id === selectedSpaceId);
 
-                  <div className="absolute bottom-0 left-0 right-0 h-10 bg-slate-950/70 backdrop-blur px-4 flex items-center justify-between text-slate-400">
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => setIsPlaying(!isPlaying)} className="hover:text-white transition-colors cursor-pointer">
-                        {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      </button>
-                      <div className="flex items-center gap-1.5">
-                        <Volume2 className="w-4 h-4" />
-                        <input type="range" min="0" max="100" value={volume} onChange={e => setVolume(Number(e.target.value))} className="w-16 h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-blue-500" />
+            // ── 기업 공간 뷰 ──────────────────────────────────────────
+            if (selectedSpace?.type === 'corporate') {
+              const corpCameras = spaceViewCameras as CorporateCameraResponse[];
+              const selectedCorp = corpCameras.find(c => String(c.cameraId) === spaceSelectedCameraId);
+              const corpStreamUrl = selectedCorp?.assignedVideoPath ?? selectedCorp?.rtspUrl ?? '';
+              const corpLiveCamera: LiveCamera | null = selectedCorp ? {
+                id: selectedCorp.cameraLoginId || String(selectedCorp.cameraId),
+                cameraLoginId: selectedCorp.cameraLoginId,
+                cameraDbId: String(selectedCorp.cameraId),
+                name: selectedCorp.cameraName,
+                location: selectedCorp.locationDescription ?? '',
+                streamUrl: corpStreamUrl,
+                streamMode: 'raw',
+                streamKind: 'hls',
+                connectionStatus: selectedCorp.connectionStatus === 'CONNECTED' ? 'online'
+                  : selectedCorp.connectionStatus === 'RECONNECTING' ? 'connecting' : 'offline',
+                eventStatus: 'normal',
+              } : null;
+
+              return (
+                <div className="flex-1 p-4 gap-4 overflow-y-auto flex flex-col">
+                  {spaceViewLoading ? (
+                    <div className="flex-1 flex items-center justify-center text-slate-500 text-sm animate-pulse">카메라 목록 로딩 중…</div>
+                  ) : (
+                    <>
+                      <div className="h-[380px] min-h-[380px]">
+                        <CorporateFloorPlan
+                          cameras={corpCameras}
+                          selectedCameraId={spaceSelectedCameraId}
+                          onCameraSelect={setSpaceSelectedCameraId}
+                          onRefresh={refetchSpaceCameras}
+                        />
+                      </div>
+                      <div className="bg-[#071329] border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between px-4 py-3 bg-[#061224] border-b border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 font-semibold">보조 모니터링: </span>
+                            <h2 className="text-xs font-extrabold text-white">
+                              {selectedCorp ? `${selectedCorp.cameraName}${selectedCorp.locationDescription ? ` — ${selectedCorp.locationDescription}` : ''}` : '도면에서 카메라를 선택하세요'}
+                            </h2>
+                            {selectedCorp && (
+                              <div className="flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold border border-emerald-500/15">
+                                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" /> 실시간 RTSP
+                              </div>
+                            )}
+                          </div>
+                          <Maximize2 className="w-4 h-4 text-slate-500 hover:text-white transition-colors cursor-pointer" />
+                        </div>
+                        <div className="relative bg-black overflow-hidden p-3 min-h-[160px]">
+                          {corpLiveCamera ? (
+                            <>
+                              <LiveCameraGrid cameras={[corpLiveCamera]} compact />
+                              <div className="absolute bottom-0 left-0 right-0 h-10 bg-slate-950/70 backdrop-blur px-4 flex items-center justify-between text-slate-400">
+                                <div className="flex items-center gap-3">
+                                  <button onClick={() => setIsPlaying(!isPlaying)} className="hover:text-white transition-colors cursor-pointer">
+                                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                  </button>
+                                  <div className="flex items-center gap-1.5">
+                                    <Volume2 className="w-4 h-4" />
+                                    <input type="range" min="0" max="100" value={volume} onChange={e => setVolume(Number(e.target.value))} className="w-16 h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-blue-500" />
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-[9px] text-rose-500 font-extrabold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                                  <span className="w-1 h-1 rounded-full bg-rose-500 animate-ping" /> LIVE
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center justify-center h-32 text-slate-600 text-sm">
+                              도면에서 카메라 아이콘을 클릭하면 영상이 표시됩니다
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            }
+
+            // ── 개인 시설 뷰 ──────────────────────────────────────────
+            if (selectedSpace?.type === 'individual') {
+              const indCameras = spaceViewCameras as AdminFacilityCameraResponse[];
+              const individualLiveCameras: LiveCamera[] = indCameras.map(cam => ({
+                id: cam.cameraLoginId || String(cam.cameraId),
+                cameraLoginId: cam.cameraLoginId,
+                cameraDbId: String(cam.cameraId),
+                name: cam.cameraName,
+                location: cam.locationDescription ?? '',
+                streamUrl: cam.assignedVideoPath ?? cam.rtspUrl,
+                streamMode: 'raw' as const,
+                streamKind: 'hls' as const,
+                connectionStatus: cam.connectionStatus === 'CONNECTED' ? 'online'
+                  : cam.connectionStatus === 'RECONNECTING' ? 'connecting' : 'offline',
+                eventStatus: 'normal' as const,
+              }));
+
+              return (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="px-4 pt-4 pb-2 flex items-center gap-2 flex-shrink-0">
+                    <h2 className="text-xs font-extrabold text-white flex items-center gap-2">
+                      <Video className="w-4 h-4 text-emerald-400" />
+                      {selectedSpace.label} — 카메라 모니터링
+                    </h2>
+                    <span className="text-[10px] text-slate-400 font-semibold">총 {indCameras.length}대</span>
+                  </div>
+                  {spaceViewLoading ? (
+                    <div className="flex-1 flex items-center justify-center text-slate-500 text-sm animate-pulse">카메라 목록 로딩 중…</div>
+                  ) : indCameras.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center text-slate-600 text-sm">등록된 카메라가 없습니다</div>
+                  ) : (
+                    <div className="flex-1 p-4 pt-2 overflow-hidden">
+                      <LiveCameraGrid cameras={individualLiveCameras} />
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // ── 공간 미선택 기본 화면 ──────────────────────────────────
+            return (
+              <div className="flex-1 p-4 gap-4 overflow-y-auto flex flex-col">
+                <div className="h-[400px] min-h-[400px]">
+                  <CCTVFloorPlan cameras={cameras} onCameraClick={handleCameraClick} selectedCameraId={selectedCamera?.id || null} />
+                </div>
+                <div className="bg-[#071329] border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between px-4 py-3 bg-[#061224] border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 font-semibold">보조 모니터링: </span>
+                      <h2 className="text-xs font-extrabold text-white">{selectedCamera ? `${selectedCamera.id} — ${selectedCamera.name}` : '선택된 CCTV 없음'}</h2>
+                      <div className="flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold border border-emerald-500/15">
+                        <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" /> 실시간 RTSP
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 text-[9px] text-rose-500 font-extrabold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                      <span className="w-1 h-1 rounded-full bg-rose-500 animate-ping" /> LIVE
+                    <Maximize2 className="w-4 h-4 text-slate-500 hover:text-white transition-colors cursor-pointer" />
+                  </div>
+                  <div className="relative bg-black overflow-hidden p-3">
+                    <LiveCameraGrid
+                      cameras={liveCameras.filter(camera => camera.name === selectedCamera?.id).slice(0, 1)}
+                      compact
+                    />
+                    <div className="absolute top-2 left-2 bg-slate-900/90 border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-300 font-mono">
+                      CH-0{selectedCamera ? selectedCamera.id.replace('CCTV-', '') : '2'}
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-10 bg-slate-950/70 backdrop-blur px-4 flex items-center justify-between text-slate-400">
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => setIsPlaying(!isPlaying)} className="hover:text-white transition-colors cursor-pointer">
+                          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <Volume2 className="w-4 h-4" />
+                          <input type="range" min="0" max="100" value={volume} onChange={e => setVolume(Number(e.target.value))} className="w-16 h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-blue-500" />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px] text-rose-500 font-extrabold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                        <span className="w-1 h-1 rounded-full bg-rose-500 animate-ping" /> LIVE
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ===== TEST MODE VIEWS ===== */}
           {/* TEST HOME */}
@@ -1346,10 +1507,12 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
 
           {/* ===== CCTV REGISTRATION VIEW ===== */}
           {activeMenu === 'cctvReg' && (
-            <CCTVRegistration 
+            <CCTVRegistration
               onRegisterComplete={(count) => {
                 logger.info(`Registered ${count} corporate cameras successfully.`);
               }}
+              onCameraChanged={refetchSpaceCameras}
+              defaultCompanyId={spaces.find(s => s.id === selectedSpaceId)?.type === 'corporate' ? Number(selectedSpaceId.split('-')[1]) : undefined}
             />
           )}
 

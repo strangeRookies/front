@@ -47,6 +47,22 @@ export async function fetchAdminIndividualFacilities(): Promise<AdminIndividualF
   return apiRequest<AdminIndividualFacilityResponse[]>('/api/admin/individual-facilities');
 }
 
+export interface AdminFacilityCameraResponse {
+  cameraId: number;
+  cameraName: string;
+  cameraLoginId: string;
+  rtspUrl: string;
+  locationDescription: string | null;
+  connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
+  status: 'ACTIVE' | 'INACTIVE';
+  sourceType: 'REAL_RTSP' | 'SIMULATED_RTSP';
+  assignedVideoPath: string | null;
+}
+
+export async function fetchAdminFacilityCameras(facilityId: number): Promise<AdminFacilityCameraResponse[]> {
+  return apiRequest<AdminFacilityCameraResponse[]>(`/api/admin/facilities/${facilityId}/cameras`);
+}
+
 // ── 시스템 통계 ────────────────────────────────────────────
 
 export interface AdminCameraStatsResponse {
