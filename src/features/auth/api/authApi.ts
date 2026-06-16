@@ -112,7 +112,7 @@ export interface CorporateSignupPayload {
   verificationToken: string;
   company: {
     name: string;
-    businessNumber: string;
+    businessNumber?: string | null;
     industry: string;
     size: string;
     postcode: string;
