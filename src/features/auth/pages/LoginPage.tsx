@@ -63,8 +63,8 @@ export function LoginPage({ onLogin, onNavigateToSignUp, onNavigateToForgotPassw
       const role = roleToFrontendAccountType(loginResponse.user.role, loginType);
       const displayName = loginResponse.user.name || loginResponse.user.email || username.trim();
       onLogin(role, displayName);
-    } catch (error) {
-      alert(error instanceof Error ? error.message : '로그인 요청에 실패했습니다.');
+    } catch {
+      alert('아이디 또는 비밀번호를 확인해주세요.');
     } finally {
       setIsSubmitting(false);
     }

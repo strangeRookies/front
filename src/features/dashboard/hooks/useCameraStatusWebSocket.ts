@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { SimpleStompClient } from '../../../shared/utils/stomp';
+import { logger } from '../../../shared/utils/logger';
 
 // 23.md Section 6 "카메라 상태 값 정의" 에 대응하는 실시간 연결 상태
 export type CameraConnectionStatus = 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
@@ -27,7 +28,7 @@ function parseCameraStatusEvent(raw: Record<string, unknown>): CameraStatusEvent
   const status = ((raw.status as string) ?? 'UNKNOWN').toUpperCase() as CameraConnectionStatus;
 
   if (!cameraLoginId && !cameraId) {
-    console.warn('[useCameraStatusWebSocket] Camera status event missing cameraLoginId/cameraId:', raw);
+    logger.warn('[useCameraStatusWebSocket] Camera status event missing cameraLoginId/cameraId.');
     return null;
   }
 
@@ -76,7 +77,7 @@ export function useCameraStatusWebSocket(): CameraStatusMap {
         });
       },
       onStatusChange: (status: 'connecting' | 'connected' | 'disconnected') => {
-        console.log('[useCameraStatusWebSocket] STOMP status:', status);
+        logger.info(`[useCameraStatusWebSocket] STOMP status: ${status}`);
       },
     });
 

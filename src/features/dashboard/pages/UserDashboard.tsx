@@ -22,6 +22,7 @@ import {
   type FacilityResponse
 } from '../../../app/api/facilityApi';
 import { authStore } from '../../../shared/api/authStore';
+import { logger } from '../../../shared/utils/logger';
 import { DashboardAlertsView } from '../components/DashboardAlertsView';
 import { DashboardCameraManagementView } from '../components/DashboardCameraManagementView';
 import { DashboardHistoryView } from '../components/DashboardHistoryView';
@@ -67,9 +68,7 @@ function isVisibleLiveCamera(camera: CameraResponse) {
 
 function toLiveCameraStreamUrl(camera: CameraResponse) {
   const cameraLoginId = cameraLoginIdFor(camera.cameraLoginId, camera.cameraId);
-  const url = getDynamicStreamUrl(cameraLoginId);
-  console.log(`[CCTV Stream URL] mode=${STREAM_MODE}, cameraLoginId=${cameraLoginId}, cameraId=${camera.cameraId} -> ${url}`);
-  return url;
+  return getDynamicStreamUrl(cameraLoginId);
 }
 
 export function NurseDashboard({
@@ -166,8 +165,8 @@ export function NurseDashboard({
       if (userFacilities.length > 0) {
         setCurrentFacility(userFacilities[0]);
       }
-    } catch (error) {
-      console.error('Failed to load facilities:', error);
+    } catch {
+      logger.error('Failed to load facilities.');
     } finally {
       setIsLoading(false);
     }
@@ -185,8 +184,8 @@ export function NurseDashboard({
       const facilityId = userType === 'individual' ? undefined : currentFacility?.facilityId;
       const data = await fetchCamerasByFacility(facilityId);
       setRegisteredCameras(data);
-    } catch (error) {
-      console.error('Failed to fetch cameras:', error);
+    } catch {
+      logger.error('Failed to fetch cameras.');
     } finally {
       setIsLoadingCameras(false);
     }
@@ -199,7 +198,7 @@ export function NurseDashboard({
   useEffect(() => {
     fetchMyInquiries()
       .then(setInquiries)
-      .catch((err: unknown) => console.error('[QnA] fetch failed:', err));
+      .catch(() => logger.error('[QnA] fetch failed.'));
   }, []);
 
   // --- AI and Alerts Hooks ---
@@ -307,8 +306,8 @@ export function NurseDashboard({
       await createInquiry(qnaCategory, qnaTitle.trim(), qnaContent.trim());
       const updated = await fetchMyInquiries();
       setInquiries(updated);
-    } catch (err) {
-      console.error('[QnA] create failed:', err);
+    } catch {
+      logger.error('[QnA] create failed.');
     }
     setQnaTitle('');
     setQnaContent('');

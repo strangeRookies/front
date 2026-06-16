@@ -3,11 +3,12 @@ import { z } from 'zod';
 import { getBackendWsUrl } from '../shared/api/client';
 import { SimpleStompClient } from '../shared/utils/stomp';
 import { aiEventFingerprint, reduceAiEventFeed, STALE_EVENT_WINDOW_MS } from '../shared/utils/aiEventFeed';
+import { logger } from '../shared/utils/logger';
 
 const unknownRecordSchema = z.record(z.string(), z.unknown());
 const aiEventSchema = z.object({
   camera_id: z.string(),
-  camera_login_id: z.string().optional(),
+  camera_login_id: z.string().nullable().optional(),
   frame_idx: z.number().default(0),
   timestamp: z.number(),
   event_type: z.string(),
@@ -52,6 +53,7 @@ interface UseAiEventsOptions {
 const PRUNE_INTERVAL_MS = 5_000;
 
 function normalizeRawPayload(raw: Record<string, unknown>) {
+  const cameraLoginId = raw.camera_login_id ?? raw.cameraLoginId;
   const timestampVal =
     typeof raw.timestamp === 'string'
       ? Math.floor(new Date(raw.timestamp as string).getTime() / 1000)
@@ -61,7 +63,7 @@ function normalizeRawPayload(raw: Record<string, unknown>) {
 
   return {
     camera_id: (raw.camera_id ?? raw.cameraId ?? raw.camera_login_id ?? raw.cameraLoginId) as string,
-    camera_login_id: (raw.camera_login_id ?? raw.cameraLoginId) as string | undefined,
+    camera_login_id: typeof cameraLoginId === 'string' && cameraLoginId.trim() ? cameraLoginId : undefined,
     event_type: (raw.event_type ?? raw.type) as string,
     timestamp: timestampVal,
     severity: (raw.severity ?? 'HIGH') as string,
@@ -80,16 +82,25 @@ function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
     const normalized = normalizeRawPayload(raw);
     const parsed = aiEventSchema.parse(normalized);
     return {
-      ...parsed,
+      camera_id: parsed.camera_id,
+      camera_login_id: parsed.camera_login_id ?? undefined,
+      frame_idx: parsed.frame_idx,
+      timestamp: parsed.timestamp,
+      event_type: parsed.event_type,
+      score: parsed.score,
+      confidence: parsed.confidence,
+      boxes: parsed.boxes,
       bbox: parsed.bbox ?? null,
+      threshold: parsed.threshold,
       track_id:
         parsed.track_id === null || parsed.track_id === undefined
           ? null
           : String(parsed.track_id),
+      severity: parsed.severity,
     };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.warn('[useAiEvents] Ignoring malformed AI event payload:', error.message);
+      logger.warn('[useAiEvents] Ignoring malformed AI event payload.');
       return null;
     }
     throw error;
@@ -136,13 +147,11 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
     const isWebSocket = url.startsWith('ws://') || url.startsWith('wss://') || url.includes('/ws');
 
     const handleIncoming = (raw: Record<string, unknown>) => {
-      console.log('[useAiEvents] Received STOMP payload:', raw);
       const aiEvent = parseToAiEvent(raw);
       if (!aiEvent) {
-        console.warn('[useAiEvents] Failed to parse event or it was filtered out.');
+        logger.warn('[useAiEvents] Failed to parse event or it was filtered out.');
         return;
       }
-      console.log('[useAiEvents] Successfully parsed AI Event:', aiEvent);
       setFeedState((prev) => ({
         connectionState: 'connected',
         lastEventAt: Date.now(),
@@ -151,7 +160,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
     };
 
     if (isWebSocket) {
-      console.log('[useAiEvents] Connecting to WebSocket:', url);
+      logger.info('[useAiEvents] Connecting to WebSocket.');
       setFeedState((prev) => ({ ...prev, connectionState: 'connecting' }));
 
       const client = new SimpleStompClient({
@@ -159,7 +168,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
         topic: '/topic/alerts',
         onMessage: handleIncoming,
         onStatusChange: (status) => {
-          console.log('[useAiEvents] WebSocket status changed:', status);
+          logger.info(`[useAiEvents] WebSocket status changed: ${status}`);
           if (status === 'connected') {
             setFeedState((prev) => ({ ...prev, connectionState: 'connected' }));
           } else if (status === 'disconnected') {
@@ -175,7 +184,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
         setFeedState((prev) => ({ ...prev, connectionState: 'disconnected' }));
       };
     } else {
-      console.log('[useAiEvents] Connecting to SSE EventSource:', url);
+      logger.info('[useAiEvents] Connecting to SSE EventSource.');
       setFeedState((prev) => ({ ...prev, connectionState: 'connecting' }));
       const eventSource = new EventSource(url);
 
@@ -189,7 +198,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
           handleIncoming(raw);
         } catch (error) {
           if (error instanceof SyntaxError) {
-            console.warn('[useAiEvents] Ignoring malformed SSE payload:', error.message);
+            logger.warn('[useAiEvents] Ignoring malformed SSE payload.');
             return;
           }
           throw error;
@@ -197,7 +206,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
       };
 
       eventSource.onerror = () => {
-        console.warn('[useAiEvents] AI event stream disconnected.');
+        logger.warn('[useAiEvents] AI event stream disconnected.');
         setFeedState((prev) => ({ ...prev, connectionState: 'disconnected' }));
       };
 

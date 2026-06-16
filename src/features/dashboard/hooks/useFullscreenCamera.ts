@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { logger } from '../../../shared/utils/logger';
 
 interface UseFullscreenCameraResult {
   readonly activeFullscreenCameraId: string | null;
@@ -37,7 +38,7 @@ export function useFullscreenCamera(): UseFullscreenCameraResult {
       setActiveFullscreenCameraId(cameraId);
     } catch (error) {
       if (error instanceof Error) {
-        console.warn('카메라 전체 화면 전환에 실패했습니다.', error.message);
+        logger.warn('카메라 전체 화면 전환에 실패했습니다.');
         return;
       }
       throw error;
@@ -50,7 +51,7 @@ export function useFullscreenCamera(): UseFullscreenCameraResult {
     if (element || activeFullscreenCameraId !== cameraId) return;
     void exitFullscreen().catch((error) => {
       if (error instanceof Error) {
-        console.warn('카메라 전체 화면 종료에 실패했습니다.', error.message);
+        logger.warn('카메라 전체 화면 종료에 실패했습니다.');
         return;
       }
       throw error;
@@ -66,7 +67,7 @@ export function useFullscreenCamera(): UseFullscreenCameraResult {
     if (!activeFullscreenCameraId) return;
     void exitFullscreen().catch((error) => {
       if (error instanceof Error) {
-        console.warn('카메라 전체 화면 정리에 실패했습니다.', error.message);
+        logger.warn('카메라 전체 화면 정리에 실패했습니다.');
         return;
       }
       throw error;

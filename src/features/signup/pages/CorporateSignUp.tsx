@@ -255,11 +255,12 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         setIsSubmitting(false);
       }
     } else if (step === 2) {
-      if (!companyName.trim() || !businessNumber.trim() || !industry || !companySize || !address || !addressDetail.trim()) {
+      if (!companyName.trim() || !industry || !companySize || !address || !addressDetail.trim()) {
         alert('기업 필수 정보와 주소, 상세 주소를 모두 입력해주세요.');
         return;
       }
-      if (!isValidBusinessNumber(businessNumber)) {
+      const normalizedBusinessNumber = normalizeBusinessNumber(businessNumber);
+      if (businessNumber.trim() && !isValidBusinessNumber(businessNumber)) {
         alert('사업자등록번호는 숫자 10자리로 입력해주세요.');
         return;
       }
@@ -269,10 +270,12 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       }
       try {
         setIsSubmitting(true);
-        const isAvailable = await checkBusinessNumberAvailability(normalizeBusinessNumber(businessNumber));
-        if (!isAvailable) {
-          alert('이미 등록된 사업자등록번호입니다.');
-          return;
+        if (normalizedBusinessNumber) {
+          const isAvailable = await checkBusinessNumberAvailability(normalizedBusinessNumber);
+          if (!isAvailable) {
+            alert('이미 등록된 사업자등록번호입니다.');
+            return;
+          }
         }
         setStep(3);
       } catch (error) {
@@ -308,6 +311,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       try {
         setIsSubmitting(true);
         const normalizedPhone = normalizeRepresentativePhoneNumber(managerPhone);
+        const normalizedBusinessNumber = normalizeBusinessNumber(businessNumber);
         await signupCorporate({
           email: email.trim(),
           password,
@@ -315,7 +319,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
           verificationToken,
           company: {
             name: companyName.trim(),
-            businessNumber: normalizeBusinessNumber(businessNumber),
+            ...(normalizedBusinessNumber ? { businessNumber: normalizedBusinessNumber } : {}),
             industry,
             size: companySize,
             postcode,
@@ -522,12 +526,12 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">사업자등록번호</label>
+                  <label className="text-xs font-semibold text-slate-300">사업자등록번호 <span className="text-slate-500">(선택)</span></label>
                   <input
                     type="text"
                     value={businessNumber}
                     onChange={(e) => setBusinessNumber(e.target.value)}
-                    placeholder="숫자 10자리 (- 없이)"
+                    placeholder="입력 시 숫자 10자리"
                     className="w-full px-4 py-3 bg-[#070e1b] border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
                   />
                 </div>
@@ -544,6 +548,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
                     <option value="제조/공업">제조 / 화학 / 안전 빌딩</option>
                     <option value="IT/서비스">IT / 정보통신</option>
                     <option value="교육/연구">교육 / 공공 연구</option>
+                    <option value="공공시설">공공시설</option>
                   </select>
                 </div>
 

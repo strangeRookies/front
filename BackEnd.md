@@ -1,66 +1,153 @@
-프론트 측 전달 내용은 아래입니다.
+프론트 측 전달 사항입니다.
 
-**신규 API**
-1. SMS 발송
-`POST /api/auth/password-reset/verifications/sms`
+**백엔드 인증 변경 사항**
+Refresh Token 전달 방식이 변경되었습니다.
 
-요청:
-```json
+기존:
+```ts
 {
-  "email": "user@example.com",
-  "phone": "010-1234-5678"
+  accessToken: "...",
+  refreshToken: "...",
+  expiresIn: 1800,
+  user: {...}
 }
 ```
 
-성공 응답:
-```json
+변경 후:
+```ts
 {
-  "success": true,
-  "message": "비밀번호 재설정 인증번호가 발급되었습니다.",
-  "data": {
-    "verificationId": 1,
-    "expiresInSeconds": 300
-  }
+  accessToken: "...",
+  expiresIn: 1800,
+  user: {...}
 }
 ```
 
-2. 비밀번호 재설정
-`POST /api/auth/password-reset`
+`refreshToken`은 더 이상 response body로 내려오지 않고, `HttpOnly Cookie`로 저장됩니다.
 
-요청:
-```json
-{
-  "email": "user@example.com",
-  "phone": "010-1234-5678",
-  "verificationToken": "confirm-api-response-token",
-  "newPassword": "NewPassword123!"
+**프론트 수정 필요 사항**
+
+1. `loginResponse.refreshToken` 사용 제거
+```ts
+saveAuthSession(loginResponse);
+```
+
+기존처럼 `refreshToken`을 인자로 넘기는 구조라면 제거해야 합니다.
+
+예상 변경:
+```ts
+authStore.setSession(loginResponse.accessToken, loginResponse.user);
+```
+
+2. `authStore`에서 `refreshToken` 제거
+현재 구조:
+```ts
+let session = {
+  accessToken: null,
+  refreshToken: null,
+  user: null,
+};
+```
+
+변경:
+```ts
+let session = {
+  accessToken: null,
+  user: null,
+};
+```
+
+3. `/api/auth/reissue` 호출 방식 변경
+기존:
+```ts
+export async function reissueToken(refreshToken: string) {
+  return apiRequest('/api/auth/reissue', {
+    method: 'POST',
+    body: { refreshToken },
+  });
 }
 ```
 
-성공 응답:
-```json
-{
-  "success": true,
-  "message": "비밀번호가 재설정되었습니다.",
-  "data": null
+변경:
+```ts
+export async function reissueToken() {
+  return apiRequest('/api/auth/reissue', {
+    method: 'POST',
+  });
 }
 ```
 
-**프론트 플로우**
-1. 사용자가 이메일, 휴대폰 번호 입력
-2. `POST /api/auth/password-reset/verifications/sms` 호출
-3. 사용자가 SMS 인증번호 입력
-4. 기존 API `POST /api/auth/verifications/sms/confirm` 호출
-5. confirm 응답의 `verificationToken` 저장
-6. 새 비밀번호 입력 후 `POST /api/auth/password-reset` 호출
-7. 성공하면 로그인 화면으로 이동
+4. `/api/auth/logout` 호출 방식 변경
+기존에 refreshToken을 body로 보내고 있었다면 제거해야 합니다.
 
-**주의사항**
-- SMS confirm API는 기존 그대로 사용합니다.
-- 휴대폰 번호는 `010` 11자리만 허용됩니다.
-  - 허용: `01012345678`, `010-1234-5678`, `010 1234 5678`
-  - 실패: `011...`, `02...`, `010-123-4567`, 빈 값, 문자 포함
-- 새 비밀번호는 `8~100자`입니다.
-- 이메일과 휴대폰 번호가 기존 활성 계정과 일치하지 않으면 `USER_NOT_FOUND`가 내려옵니다.
-- 인증번호 오류, 만료, 목적이 다른 토큰 사용 시 `AUTH_INVALID_VERIFICATION`입니다.
-- 비밀번호 재설정 성공 후 기존 refresh token은 모두 만료되므로, 기존 로그인 세션은 재로그인이 필요합니다.
+변경 후:
+```ts
+POST /api/auth/logout
+```
+
+body에 `refreshToken` 없음.
+
+5. `fetch`에 credentials 추가
+Refresh Token cookie를 주고받으려면 공통 API 요청에 아래 옵션이 필요합니다.
+
+```ts
+credentials: 'include'
+```
+
+예상 위치:
+```ts
+fetch(buildApiUrl(path), {
+  ...init,
+  credentials: 'include',
+  headers: {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  },
+  body: JSON.stringify(body),
+});
+```
+
+6. localStorage/sessionStorage에 refreshToken 저장 금지 유지
+앞으로도 refreshToken은 프론트 JS에서 직접 다루지 않습니다.
+
+```text
+refreshToken 저장 X
+refreshToken 읽기 X
+refreshToken request body 전송 X
+```
+
+7. 로그인 유지 기능을 만들 경우
+앱 시작 시 `/api/auth/reissue`를 호출해서 accessToken을 복원하면 됩니다.
+
+```text
+앱 시작
+→ POST /api/auth/reissue
+→ Cookie의 REFRESH_TOKEN으로 백엔드가 검증
+→ 새 accessToken 응답
+→ 프론트 메모리에 accessToken 저장
+```
+
+**프론트에서 알아야 할 API 계약**
+```text
+POST /api/auth/login
+- request: 기존 동일
+- response body: accessToken만 포함
+- response header: Set-Cookie: REFRESH_TOKEN=...
+
+POST /api/auth/reissue
+- request body 없음
+- cookie 필요
+- response body: 새 accessToken
+- response header: 새 REFRESH_TOKEN cookie
+
+POST /api/auth/logout
+- request body 없음
+- cookie 필요
+- response header: REFRESH_TOKEN 만료 cookie
+```
+
+핵심은 이겁니다.
+
+```text
+프론트는 refreshToken을 더 이상 저장하거나 전달하지 않는다.
+백엔드가 HttpOnly Cookie로 관리한다.
+프론트는 모든 인증 요청에 credentials: 'include'를 적용한다.
+```

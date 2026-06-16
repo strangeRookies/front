@@ -59,6 +59,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   
   const response = await fetch(buildApiUrl(path), {
     ...init,
+    credentials: 'include',
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -106,6 +107,7 @@ export async function rawApiRequest<T>(path: string, options: ApiRequestOptions 
 
   const response = await fetch(buildApiUrl(path), {
     ...init,
+    credentials: 'include',
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
