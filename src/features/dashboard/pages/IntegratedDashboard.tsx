@@ -19,6 +19,7 @@ import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
 import { fetchAdminUsers, type AdminUserResponse } from '../api/adminApi';
 import { fetchAllInquiries, fetchMyInquiries, createInquiry, answerInquiry } from '../api/inquiryApi';
+import { logger } from '../../../shared/utils/logger';
 
 interface IntegratedDashboardProps {
   onLogout: () => void;
@@ -325,8 +326,8 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
     try {
       await createInquiry(tQnaCategory, tQnaTitle.trim(), tQnaContent.trim());
       loadTestInquiries();
-    } catch (err) {
-      console.error('[TestQna] create failed:', err);
+    } catch {
+      logger.error('[TestQna] create failed.');
     }
     setTQnaTitle(''); setTQnaContent(''); setTQnaCategory('기타'); setTShowNewQnaModal(false);
   };
@@ -351,8 +352,8 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
         setIndList(page.content.filter(u => u.role === 'INDIVIDUAL').map(toIndividualMember));
         setAdminError(null);
       })
-      .catch((err: unknown) => {
-        console.error('[AdminList] fetch failed:', err);
+      .catch(() => {
+        logger.error('[AdminList] fetch failed.');
         setAdminError('회원 목록을 불러오지 못했습니다.');
       })
       .finally(() => setAdminLoading(false));
@@ -361,13 +362,13 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   useEffect(() => {
     fetchAllInquiries()
       .then(setInquiries)
-      .catch((err: unknown) => console.error('[AdminQna] fetch failed:', err));
+      .catch(() => logger.error('[AdminQna] fetch failed.'));
   }, []);
 
   const loadTestInquiries = () => {
     fetchMyInquiries()
       .then(setTMyInquiries)
-      .catch((err: unknown) => console.error('[TestQna] fetch failed:', err));
+      .catch(() => logger.error('[TestQna] fetch failed.'));
   };
 
   const selectedAdminQna = inquiries.find(inq => inq.id === selectedAdminQnaId) ?? null;
@@ -391,8 +392,8 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
       await answerInquiry(selectedAdminQnaId, adminReply.trim());
       const updated = await fetchAllInquiries();
       setInquiries(updated);
-    } catch (err) {
-      console.error('[AdminQna] answer failed:', err);
+    } catch {
+      logger.error('[AdminQna] answer failed.');
     }
     setAdminReply('');
   };
@@ -1229,7 +1230,7 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
           {activeMenu === 'cctvReg' && (
             <CCTVRegistration 
               onRegisterComplete={(count) => {
-                console.log(`Registered ${count} corporate cameras successfully.`);
+                logger.info(`Registered ${count} corporate cameras successfully.`);
               }}
             />
           )}

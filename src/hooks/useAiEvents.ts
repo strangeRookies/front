@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getBackendWsUrl } from '../shared/api/client';
 import { SimpleStompClient } from '../shared/utils/stomp';
 import { aiEventFingerprint, reduceAiEventFeed, STALE_EVENT_WINDOW_MS } from '../shared/utils/aiEventFeed';
+import { logger } from '../shared/utils/logger';
 
 const unknownRecordSchema = z.record(z.string(), z.unknown());
 const aiEventSchema = z.object({
@@ -89,7 +90,7 @@ function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
     };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.warn('[useAiEvents] Ignoring malformed AI event payload:', error.message);
+      logger.warn('[useAiEvents] Ignoring malformed AI event payload.');
       return null;
     }
     throw error;
@@ -136,13 +137,11 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
     const isWebSocket = url.startsWith('ws://') || url.startsWith('wss://') || url.includes('/ws');
 
     const handleIncoming = (raw: Record<string, unknown>) => {
-      console.log('[useAiEvents] Received STOMP payload:', raw);
       const aiEvent = parseToAiEvent(raw);
       if (!aiEvent) {
-        console.warn('[useAiEvents] Failed to parse event or it was filtered out.');
+        logger.warn('[useAiEvents] Failed to parse event or it was filtered out.');
         return;
       }
-      console.log('[useAiEvents] Successfully parsed AI Event:', aiEvent);
       setFeedState((prev) => ({
         connectionState: 'connected',
         lastEventAt: Date.now(),
@@ -151,7 +150,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
     };
 
     if (isWebSocket) {
-      console.log('[useAiEvents] Connecting to WebSocket:', url);
+      logger.info('[useAiEvents] Connecting to WebSocket.');
       setFeedState((prev) => ({ ...prev, connectionState: 'connecting' }));
 
       const client = new SimpleStompClient({
@@ -159,7 +158,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
         topic: '/topic/alerts',
         onMessage: handleIncoming,
         onStatusChange: (status) => {
-          console.log('[useAiEvents] WebSocket status changed:', status);
+          logger.info(`[useAiEvents] WebSocket status changed: ${status}`);
           if (status === 'connected') {
             setFeedState((prev) => ({ ...prev, connectionState: 'connected' }));
           } else if (status === 'disconnected') {
@@ -175,7 +174,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
         setFeedState((prev) => ({ ...prev, connectionState: 'disconnected' }));
       };
     } else {
-      console.log('[useAiEvents] Connecting to SSE EventSource:', url);
+      logger.info('[useAiEvents] Connecting to SSE EventSource.');
       setFeedState((prev) => ({ ...prev, connectionState: 'connecting' }));
       const eventSource = new EventSource(url);
 
@@ -189,7 +188,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
           handleIncoming(raw);
         } catch (error) {
           if (error instanceof SyntaxError) {
-            console.warn('[useAiEvents] Ignoring malformed SSE payload:', error.message);
+            logger.warn('[useAiEvents] Ignoring malformed SSE payload.');
             return;
           }
           throw error;
@@ -197,7 +196,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
       };
 
       eventSource.onerror = () => {
-        console.warn('[useAiEvents] AI event stream disconnected.');
+        logger.warn('[useAiEvents] AI event stream disconnected.');
         setFeedState((prev) => ({ ...prev, connectionState: 'disconnected' }));
       };
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Client, IMessage } from '@stomp/stompjs';
 import { toast } from 'sonner';
+import { logger } from '../shared/utils/logger';
 
 export interface SafetyEvent {
   cameraId?: string;
@@ -21,7 +22,7 @@ export function useAlertWebSocket(onEventReceived?: (event: SafetyEvent) => void
       brokerURL: 'ws://localhost:8080/ws',
       reconnectDelay: 5000,
       onConnect: () => {
-        console.log('Connected to WebSocket for alerts');
+        logger.info('Connected to WebSocket for alerts.');
         setConnected(true);
 
         client.subscribe('/topic/alerts', (message: IMessage) => {
@@ -46,19 +47,18 @@ export function useAlertWebSocket(onEventReceived?: (event: SafetyEvent) => void
               if (onEventReceived) {
                 onEventReceived(event);
               }
-            } catch (err) {
-              console.error('Failed to parse incoming alert message', err);
+            } catch {
+              logger.warn('Failed to parse incoming alert message.');
             }
           }
         });
       },
       onDisconnect: () => {
-        console.log('Disconnected from WebSocket');
+        logger.info('Disconnected from WebSocket.');
         setConnected(false);
       },
-      onStompError: (frame) => {
-        console.error('Broker reported error: ' + frame.headers['message']);
-        console.error('Additional details: ' + frame.body);
+      onStompError: () => {
+        logger.error('Broker reported a WebSocket error.');
       },
     });
 

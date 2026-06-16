@@ -26,9 +26,7 @@ function isFrontendVisibleCamera(camera: CameraResponse): boolean {
 
 function cameraStreamUrl(camera: CameraResponse): string {
   const cameraLoginId = cameraLoginIdFor(camera.cameraLoginId, camera.cameraId);
-  const url = getDynamicStreamUrl(cameraLoginId);
-  console.log(`[CCTV Stream URL] mode=${STREAM_MODE}, cameraLoginId=${cameraLoginId}, cameraId=${camera.cameraId} -> ${url}`);
-  return url;
+  return getDynamicStreamUrl(cameraLoginId);
 }
 
 function activeCameraToLiveCamera(camera: CameraResponse): LiveCamera {
