@@ -96,6 +96,7 @@ export async function bulkUploadCamerasForCompany(
     buildApiUrl(`/api/admin/corporate-cameras/company/${companyProfileId}/bulk`),
     {
       method: 'POST',
+      credentials: 'include',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
     },
