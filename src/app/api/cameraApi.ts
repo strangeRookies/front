@@ -79,3 +79,13 @@ export async function updateCamera(cameraId: number | string, data: UpdateCamera
     body: data,
   });
 }
+
+/**
+ * [DELETE] 카메라 삭제
+ * URL: /api/cameras/{cameraId}
+ */
+export async function deleteCamera(cameraId: number | string): Promise<void> {
+  return apiRequest<void>(`/api/cameras/${cameraId}`, {
+    method: 'DELETE',
+  });
+}

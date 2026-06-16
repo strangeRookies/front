@@ -14,6 +14,7 @@ import {
   registerCamera,
   fetchCamerasByFacility,
   updateCamera,
+  deleteCamera,
   type CameraResponse
 } from '../../../app/api/cameraApi';
 import {
@@ -130,6 +131,24 @@ export function NurseDashboard({
       }));
   }, [registeredCameras]);
 
+  // --- Real-time Camera Status from MQTT ---
+  const cameraStatusMap = useCameraStatusWebSocket();
+
+  // --- Connection Statistics for Sidebar ---
+  const connectionStats = useMemo(() => {
+    const activeCameras = registeredCameras.filter(cam => cam.status === 'ACTIVE');
+    const connectedCount = activeCameras.filter(cam => {
+      const realtime = cameraStatusMap.get(cam.cameraLoginId || '') || cameraStatusMap.get(cam.cameraId.toString());
+      const currentStatus = realtime ? realtime.status : cam.connectionStatus;
+      return currentStatus === 'CONNECTED';
+    }).length;
+
+    return {
+      connected: connectedCount,
+      total: activeCameras.length
+    };
+  }, [registeredCameras, cameraStatusMap]);
+
   // --- Facility Fetch Logic (Automatic) ---
   const loadInitialData = useCallback(async () => {
     if (userType === 'individual') {
@@ -194,9 +213,6 @@ export function NurseDashboard({
     setFocusedCameraId,
     connectionState,
   } = useAiAlertActions({ userType, username, liveCameras, focusHome });
-
-  // --- Real-time Camera Status from MQTT (23.md 1순위 UI/UX) ---
-  const cameraStatusMap = useCameraStatusWebSocket();
 
   const {
     alerts,
@@ -276,12 +292,12 @@ export function NurseDashboard({
   };
 
   const handleDeleteCamera = async (cameraId: string) => {
-    if (!window.confirm('정말로 이 카메라를 비활성화하시겠습니까?')) return;
+    if (!window.confirm('정말로 이 카메라를 삭제하시겠습니까?')) return;
     try {
-      await updateCamera(cameraId, { status: 'INACTIVE' });
+      await deleteCamera(cameraId);
       refreshCameras();
     } catch (error) {
-      alert('카메라 상태 변경에 실패했습니다.');
+      alert('카메라 삭제에 실패했습니다.');
     }
   };
 
@@ -419,7 +435,7 @@ export function NurseDashboard({
                 <div className="flex items-end gap-1.5">
                   <Camera className="w-4 h-4 text-blue-400 mb-0.5" />
                   <span className="text-sm font-extrabold text-white">
-                    {liveCameras.filter((camera) => camera.connectionStatus === 'online').length}/{liveCameras.length}
+                    {connectionStats.connected}/{connectionStats.total}
                   </span>
                   <span className="text-[9px] text-slate-500 font-bold mb-0.5">대</span>
                 </div>
