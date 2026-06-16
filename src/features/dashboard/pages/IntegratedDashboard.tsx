@@ -17,7 +17,7 @@ import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import { CCTVRegistration } from '../components/CCTVRegistration';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
-import { fetchAdminUsers, type AdminUserResponse } from '../api/adminApi';
+import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, type AdminUserResponse } from '../api/adminApi';
 import { fetchAllInquiries, fetchMyInquiries, createInquiry, answerInquiry } from '../api/inquiryApi';
 import { logger } from '../../../shared/utils/logger';
 
@@ -74,20 +74,12 @@ const INITIAL_EVENTS: IncidentEvent[] = [
   { id: 'evt-104', time: '12:30:10', camera: '수술실 복도', type: 'CROWD', label: 'CROWD (혼잡) 감지', severity: 'info',     status: 'resolved' },
 ];
 
-const SPACES = [
-  {
-    id: 'seoul-hospital',
-    label: '서울 병원',
-    floors: [
-      { id: '1F', label: '1층', alerts: 1 },
-      { id: '2F', label: '2층', alerts: 1 },
-      { id: '3F', label: '3층', alerts: 0 },
-    ],
-  },
-  { id: 'namsan', label: '남산골 공원', floors: [] },
-  { id: 'nursing-hospital', label: '서울 요양병원', floors: [] },
-  { id: 'community-center', label: '중구 주민센터', floors: [] },
-];
+interface Space {
+  id: string;
+  label: string;
+  type: 'corporate' | 'individual';
+  floors: { id: string; label: string; alerts: number }[];
+}
 
 type MenuId     = 'home' | 'adminlist' | 'cctvReg' | 'qna' | 'test';
 type TestMenuId = 'home' | 'alerts' | 'history' | 'cameras' | 'mypage' | 'qna';
@@ -243,7 +235,14 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   const liveCameras = useLiveCameras();
   const [activeMenu, setActiveMenu] = useState<MenuId>('home');
   const [selectedFloor, setSelectedFloor] = useState<'1F' | '2F' | '3F'>('1F');
-  const [expandedSpace, setExpandedSpace] = useState<string>('seoul-hospital');
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [spacesLoading, setSpacesLoading] = useState(true);
+  const [selectedSpaceId, setSelectedSpaceId] = useState('');
+  const [corpGroupOpen, setCorpGroupOpen] = useState(true);
+  const [indGroupOpen, setIndGroupOpen] = useState(true);
+  const [spaceSearch, setSpaceSearch] = useState('');
+  const [cameraStats, setCameraStats] = useState<{ totalCount: number; connectedCount: number } | null>(null);
+  const [todayAlertCount, setTodayAlertCount] = useState(0);
   const [cameras, setCameras] = useState<CCTVCamera[]>(FLOOR_1_CAMERAS);
   const [selectedCamera, setSelectedCamera] = useState<CCTVCamera | null>(FLOOR_1_CAMERAS[1]);
   const [events, setEvents] = useState<IncidentEvent[]>(INITIAL_EVENTS);
@@ -345,6 +344,39 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   const [adminError, setAdminError]         = useState<string | null>(null);
 
   useEffect(() => {
+    setSpacesLoading(true);
+    Promise.all([fetchAdminCompanies(), fetchAdminIndividualFacilities()])
+      .then(([companies, facilities]) => {
+        const corpSpaces: Space[] = companies.map(c => ({
+          id: `corp-${c.companyProfileId}`,
+          label: c.companyName,
+          type: 'corporate',
+          floors: [],
+        }));
+        const indSpaces: Space[] = facilities.map(f => ({
+          id: `ind-${f.facilityId}`,
+          label: f.facilityName,
+          type: 'individual',
+          floors: [],
+        }));
+        const all = [...corpSpaces, ...indSpaces];
+        setSpaces(all);
+        if (all.length > 0) setSelectedSpaceId(all[0].id);
+      })
+      .catch((err: unknown) => console.error('[Spaces] fetch failed:', err))
+      .finally(() => setSpacesLoading(false));
+  }, []);
+
+  useEffect(() => {
+    Promise.all([fetchAdminCameraStats(), fetchAdminTodayAlertCount()])
+      .then(([stats, alertData]) => {
+        setCameraStats(stats);
+        setTodayAlertCount(alertData.count);
+      })
+      .catch((err: unknown) => console.error('[Stats] fetch failed:', err));
+  }, []);
+
+  useEffect(() => {
     setAdminLoading(true);
     fetchAdminUsers()
       .then(page => {
@@ -443,52 +475,138 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
           <div className="p-4 space-y-6 flex-1">
 
             {/* 공간 선택 */}
-            <div className="space-y-2">
-              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">공간 선택</h3>
-              <div className="space-y-1">
-                {SPACES.map(space => (
-                  <div key={space.id}>
-                    <button
-                      onClick={() => setExpandedSpace(expandedSpace === space.id ? '' : space.id)}
-                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800/30 transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Folder className="w-3.5 h-3.5 text-blue-400" />
-                        <span>{space.label}</span>
-                      </div>
-                      {space.floors.length > 0 && (
-                        expandedSpace === space.id
-                          ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                          : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                      )}
-                    </button>
-                    {expandedSpace === space.id && space.floors.length > 0 && (
-                      <div className="ml-4 mt-0.5 space-y-0.5">
-                        {space.floors.map(floor => {
-                          const isSelected = selectedFloor === floor.id;
-                          return (
-                            <button
-                              key={floor.id}
-                              onClick={() => { setSelectedFloor(floor.id as any); if (activeMenu === 'test') setActiveMenu('home'); }}
-                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                isSelected ? 'bg-blue-600/15 border border-blue-500/20 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/25 border border-transparent'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-blue-500' : 'bg-slate-600'}`} />
-                                <span>{floor.label}</span>
-                              </div>
-                              {floor.alerts > 0 && (
-                                <span className="bg-rose-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{floor.alerts}</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
+            <div className="space-y-1.5">
+              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">공간 선택</h3>
+
+              {spacesLoading ? (
+                <div className="px-3 py-2 text-[10px] text-slate-500 animate-pulse">공간 목록 로딩 중…</div>
+              ) : (
+                <div className="space-y-1.5">
+
+                  {/* 통합 검색창 */}
+                  {spaces.length > 0 && (
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1.5 w-3 h-3 text-slate-500" />
+                      <input
+                        type="text"
+                        value={spaceSearch}
+                        onChange={e => setSpaceSearch(e.target.value)}
+                        placeholder="기업 · 시설 검색…"
+                        className="w-full pl-6 pr-2 py-1.5 bg-slate-900/50 border border-slate-800 rounded-lg text-[10px] text-slate-300 placeholder-slate-600 outline-none focus:border-slate-600"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+
+                    {/* 기업 공간 그룹 */}
+                    {(() => {
+                      const corpTotal = spaces.filter(s => s.type === 'corporate').length;
+                      const filteredCorp = spaces
+                        .filter(s => s.type === 'corporate')
+                        .filter(s => s.label.toLowerCase().includes(spaceSearch.toLowerCase()));
+                      if (spaceSearch && filteredCorp.length === 0) return null;
+                      return (
+                        <div>
+                          <button
+                            onClick={() => setCorpGroupOpen(o => !o)}
+                            className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px] font-bold text-blue-400 hover:bg-blue-500/5 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <Building2 className="w-3 h-3" />
+                              <span>단체 시설</span>
+                              <span className="bg-blue-500/15 px-1.5 py-0.5 rounded text-[9px]">
+                                {spaceSearch ? filteredCorp.length : corpTotal}
+                              </span>
+                            </div>
+                            {corpGroupOpen
+                              ? <ChevronDown className="w-3 h-3 text-slate-500" />
+                              : <ChevronRight className="w-3 h-3 text-slate-500" />
+                            }
+                          </button>
+
+                          {corpGroupOpen && (
+                            <div className="mt-0.5 space-y-0.5">
+                              {corpTotal === 0 ? (
+                                <div className="px-3 py-1.5 text-[10px] text-slate-600">등록된 기업이 없습니다.</div>
+                              ) : filteredCorp.map(space => (
+                                <button
+                                  key={space.id}
+                                  onClick={() => setSelectedSpaceId(space.id)}
+                                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer text-left ${
+                                    selectedSpaceId === space.id
+                                      ? 'bg-blue-600/15 border border-blue-500/20 text-white'
+                                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/25 border border-transparent'
+                                  }`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${selectedSpaceId === space.id ? 'bg-blue-500' : 'bg-slate-600'}`} />
+                                  <span className="truncate">{space.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* 개인 시설 그룹 */}
+                    {(() => {
+                      const indTotal = spaces.filter(s => s.type === 'individual').length;
+                      const filteredInd = spaces
+                        .filter(s => s.type === 'individual')
+                        .filter(s => s.label.toLowerCase().includes(spaceSearch.toLowerCase()));
+                      if (spaceSearch && filteredInd.length === 0) return null;
+                      return (
+                        <div>
+                          <button
+                            onClick={() => setIndGroupOpen(o => !o)}
+                            className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px] font-bold text-emerald-400 hover:bg-emerald-500/5 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <Folder className="w-3 h-3" />
+                              <span>개인 시설</span>
+                              <span className="bg-emerald-500/15 px-1.5 py-0.5 rounded text-[9px]">
+                                {spaceSearch ? filteredInd.length : indTotal}
+                              </span>
+                            </div>
+                            {indGroupOpen
+                              ? <ChevronDown className="w-3 h-3 text-slate-500" />
+                              : <ChevronRight className="w-3 h-3 text-slate-500" />
+                            }
+                          </button>
+
+                          {indGroupOpen && (
+                            <div className="mt-0.5 space-y-0.5">
+                              {indTotal === 0 ? (
+                                <div className="px-3 py-1.5 text-[10px] text-slate-600">등록된 개인 시설이 없습니다.</div>
+                              ) : filteredInd.map(space => (
+                                <button
+                                  key={space.id}
+                                  onClick={() => setSelectedSpaceId(space.id)}
+                                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer text-left ${
+                                    selectedSpaceId === space.id
+                                      ? 'bg-emerald-600/15 border border-emerald-500/20 text-white'
+                                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/25 border border-transparent'
+                                  }`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${selectedSpaceId === space.id ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+                                  <span className="truncate">{space.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* 검색 결과 없음 */}
+                    {spaceSearch && spaces.filter(s => s.label.toLowerCase().includes(spaceSearch.toLowerCase())).length === 0 && (
+                      <div className="px-3 py-2 text-[10px] text-slate-600">검색 결과 없음</div>
                     )}
+
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* 메뉴 탐색 */}
@@ -1545,9 +1663,9 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
       {!isTestMode && (
         <div className="fixed bottom-4 left-4 z-50 w-56">
           <CCTVStatsCards
-            activeFeedsCount={liveCameras.filter(c => c.connectionStatus === 'online').length}
-            totalFeedsCount={liveCameras.length}
-            alertsCount={events.filter(e => e.status === 'new').length}
+            activeFeedsCount={cameraStats?.connectedCount ?? 0}
+            totalFeedsCount={cameraStats?.totalCount ?? 0}
+            alertsCount={todayAlertCount}
           />
         </div>
       )}
