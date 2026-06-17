@@ -59,22 +59,6 @@ const FLOOR_3_CAMERAS: CCTVCamera[] = [
   { id: 'CCTV-05', name: '장비실',      x: 540, y: 345, status: 'normal' },
 ];
 
-interface IncidentEvent {
-  id: string;
-  time: string;
-  camera: string;
-  type: string;
-  label: string;
-  severity: 'critical' | 'warning' | 'info';
-  status: 'new' | 'resolved';
-}
-
-const INITIAL_EVENTS: IncidentEvent[] = [
-  { id: 'evt-101', time: '13:02:15', camera: '복도 A',    type: 'FALL',  label: 'FALL (낙상) 감지',  severity: 'critical', status: 'new'      },
-  { id: 'evt-102', time: '12:58:40', camera: '계단 통로', type: 'FAINT', label: 'FAINT (실신) 감지', severity: 'warning',  status: 'new'      },
-  { id: 'evt-103', time: '12:45:30', camera: '대기실',    type: 'CROWD', label: 'CROWD (혼잡) 감지', severity: 'info',     status: 'resolved' },
-  { id: 'evt-104', time: '12:30:10', camera: '수술실 복도', type: 'CROWD', label: 'CROWD (혼잡) 감지', severity: 'info',     status: 'resolved' },
-];
 
 interface Space {
   id: string;
@@ -165,11 +149,6 @@ const CATEGORY_STYLES: Record<InquiryCategory, string> = {
   '기타':           'bg-slate-500/10 text-slate-400 border-slate-500/20',
 };
 
-function eventButtonStyle(severity: 'critical' | 'warning' | 'info') {
-  if (severity === 'critical') return 'bg-[#ef4444] hover:bg-red-400';
-  if (severity === 'warning')  return 'bg-[#f59e0b] hover:bg-amber-400';
-  return 'bg-[#334155] hover:bg-slate-500';
-}
 
 const TEST_CCTV_FEEDS = [
   { id: 'CCTV-01', name: '방 1',     style: 'brightness-90 contrast-100 hue-rotate-15' },
@@ -250,8 +229,7 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   const [spaceSelectedCameraId, setSpaceSelectedCameraId] = useState<string | null>(null);
   const [cameras, setCameras] = useState<CCTVCamera[]>(FLOOR_1_CAMERAS);
   const [selectedCamera, setSelectedCamera] = useState<CCTVCamera | null>(FLOOR_1_CAMERAS[1]);
-  const [events, setEvents] = useState<IncidentEvent[]>(INITIAL_EVENTS);
-  const [isPlaying, setIsPlaying] = useState(true);
+const [isPlaying, setIsPlaying] = useState(true);
   const [volume, setVolume] = useState(70);
 
   // Admin QnA state
@@ -453,10 +431,7 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
 
   const handleCameraClick = useCallback((cam: CCTVCamera) => setSelectedCamera(cam), []);
 
-  const handleResolveEvent = (id: string) =>
-    setEvents(prev => prev.map(e => e.id === id ? { ...e, status: 'resolved' as const } : e));
-
-  const handleSubmitReply = async () => {
+const handleSubmitReply = async () => {
     if (!adminReply.trim() || !selectedAdminQnaId) return;
     try {
       await answerInquiry(selectedAdminQnaId, adminReply.trim());
@@ -490,10 +465,12 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
               <X className="w-3.5 h-3.5" /> 테스트 종료
             </button>
           ) : (
-            <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-[#102035] border border-slate-700/50 text-[11px] font-medium text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              실시간 위협 모니터링 연동 중
-            </div>
+            <button
+              onClick={() => { setActiveMenu('test'); setTestSubMenu('home'); }}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1e3a8a] hover:bg-blue-700 border border-blue-500/20 text-[11px] font-bold text-white cursor-pointer"
+            >
+              <Beaker className="w-3.5 h-3.5" /> 테스트 모드
+            </button>
           )}
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-200">관</div>
@@ -1678,54 +1655,6 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
 
         </main>
 
-        {/* ===== RIGHT PANEL ===== */}
-        {!isTestMode && <aside className="w-72 bg-[#020817] border-l border-slate-800/50 flex flex-col flex-shrink-0">
-          <div className="flex-1 bg-[#071329] m-3 mb-0 rounded-xl flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-slate-800/50">
-               <div className="flex items-center justify-between">
-                 <div>
-                   <h3 className="text-base font-bold text-white">실시간 AI 위험 탐지</h3>
-                   <p className="text-[10px] text-slate-400 mt-0.5">전 구역 안전 경보 리스트</p>
-                 </div>
-                 <div className="flex items-center gap-1 text-[9px] text-rose-500 font-extrabold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" /> AI 감시중
-                 </div>
-               </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {events.filter(e => e.status === 'new').length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-slate-500 opacity-50">
-                  <Shield className="w-8 h-8 mb-2" />
-                  <p className="text-xs font-semibold">특이사항 없음</p>
-                </div>
-              )}
-              {events.filter(e => e.status === 'new').map(evt => (
-                <div key={evt.id} className="bg-[#0f172a] rounded-xl p-3 flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#374151] rounded-lg flex-shrink-0 overflow-hidden">
-                    <div className="flex h-full w-full items-center justify-center bg-slate-900 text-[9px] font-bold text-slate-500">LIVE</div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-bold text-sm leading-tight truncate">{evt.type} 감지</p>
-                    <p className="text-[#cbd5e1] text-xs mt-0.5">{evt.time}</p>
-                  </div>
-                  <button onClick={() => handleResolveEvent(evt.id)} className={`${eventButtonStyle(evt.severity)} text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 cursor-pointer`}>확인</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={() => { setActiveMenu(isTestMode ? 'home' : 'test'); setTestSubMenu('home'); }}
-            className={`mx-3 my-3 py-4 font-extrabold rounded-xl text-sm flex items-center justify-center gap-2 transition-all cursor-pointer border ${
-              isTestMode
-                ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-300/30'
-                : 'bg-[#1e3a8a] hover:bg-blue-700 text-white border-blue-500/20'
-            }`}
-          >
-            <Beaker className="w-4 h-4" />
-            {isTestMode ? '테스트 종료' : '테스트 모드'}
-          </button>
-        </aside>}
 
       </div>
 

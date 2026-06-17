@@ -34,10 +34,10 @@ function isAlert(status: CorporateCameraResponse['connectionStatus']) {
 
 export function CorporateFloorPlan({ cameras, selectedCameraId, onCameraSelect, onRefresh }: CorporateFloorPlanProps) {
   return (
-    <div className="relative w-full h-full bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+    <div className="relative w-full h-full bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
       {/* 헤더 */}
-      <div className="flex items-center justify-between px-4 py-3 bg-slate-800/40 border-b border-slate-800 flex-shrink-0">
-        <h3 className="text-sm font-semibold text-gray-200">기업 공간 도면 — 카메라 배치도</h3>
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 flex-shrink-0">
+        <h3 className="text-sm font-semibold text-gray-700">기업 공간 도면 — 카메라 배치도</h3>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />연결됨
@@ -58,34 +58,34 @@ export function CorporateFloorPlan({ cameras, selectedCameraId, onCameraSelect, 
       </div>
 
       {/* SVG 도면 */}
-      <div className="flex-1 relative bg-slate-950 p-4 flex items-center justify-center overflow-hidden select-none">
+      <div className="flex-1 relative bg-white p-4 flex items-center justify-center overflow-hidden select-none">
         <svg className="w-full h-full max-h-[340px]" viewBox="0 0 780 420" fill="none">
           <defs>
             <pattern id="corp-grid" width="25" height="25" patternUnits="userSpaceOnUse">
-              <path d="M 25 0 L 0 0 0 25" fill="none" stroke="#1e293b" strokeWidth="0.5" />
+              <path d="M 25 0 L 0 0 0 25" fill="none" stroke="#e2e8f0" strokeWidth="0.5" />
             </pattern>
           </defs>
 
           {/* 외벽 */}
-          <rect x="20" y="20" width="740" height="380" fill="#0f172a" stroke="#334155" strokeWidth="2.5" rx="6" />
+          <rect x="20" y="20" width="740" height="380" fill="#f8fafc" stroke="#94a3b8" strokeWidth="2.5" rx="6" />
           <rect x="22" y="22" width="736" height="376" fill="url(#corp-grid)" />
 
           {/* 중앙 가로 복도 분리벽 */}
-          <line x1="20" y1="230" x2="760" y2="230" stroke="#334155" strokeWidth="2.5" />
+          <line x1="20" y1="230" x2="760" y2="230" stroke="#94a3b8" strokeWidth="2.5" />
 
           {/* 상단 세로 분할 */}
-          <line x1="310" y1="20" x2="310" y2="230" stroke="#334155" strokeWidth="2.5" />
-          <line x1="470" y1="20" x2="470" y2="230" stroke="#334155" strokeWidth="2.5" />
+          <line x1="310" y1="20" x2="310" y2="230" stroke="#94a3b8" strokeWidth="2.5" />
+          <line x1="470" y1="20" x2="470" y2="230" stroke="#94a3b8" strokeWidth="2.5" />
 
           {/* 하단 세로 분할 */}
-          <line x1="310" y1="230" x2="310" y2="400" stroke="#334155" strokeWidth="2.5" />
-          <line x1="470" y1="230" x2="470" y2="400" stroke="#334155" strokeWidth="2.5" />
+          <line x1="310" y1="230" x2="310" y2="400" stroke="#94a3b8" strokeWidth="2.5" />
+          <line x1="470" y1="230" x2="470" y2="400" stroke="#94a3b8" strokeWidth="2.5" />
 
           {/* 문 표시 */}
-          <path d="M 260 230 A 40 40 0 0 0 310 190" fill="none" stroke="#475569" strokeWidth="1.5" strokeDasharray="3 3" />
-          <path d="M 520 230 A 40 40 0 0 1 470 190" fill="none" stroke="#475569" strokeWidth="1.5" strokeDasharray="3 3" />
-          <path d="M 260 400 A 40 40 0 0 1 310 360" fill="none" stroke="#475569" strokeWidth="1.5" strokeDasharray="3 3" />
-          <path d="M 520 400 A 40 40 0 0 0 470 360" fill="none" stroke="#475569" strokeWidth="1.5" strokeDasharray="3 3" />
+          <path d="M 260 230 A 40 40 0 0 0 310 190" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="3 3" />
+          <path d="M 520 230 A 40 40 0 0 1 470 190" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="3 3" />
+          <path d="M 260 400 A 40 40 0 0 1 310 360" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="3 3" />
+          <path d="M 520 400 A 40 40 0 0 0 470 360" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="3 3" />
 
           {/* 카메라 아이콘 */}
           {cameras.map((cam, i) => {
@@ -140,7 +140,7 @@ export function CorporateFloorPlan({ cameras, selectedCameraId, onCameraSelect, 
                   x={slot.x}
                   y={slot.y + 28}
                   textAnchor="middle"
-                  fill="#e2e8f0"
+                  fill="#1e293b"
                   fontSize="9"
                   fontWeight="700"
                 >
@@ -167,14 +167,14 @@ export function CorporateFloorPlan({ cameras, selectedCameraId, onCameraSelect, 
 
           {/* 카메라 없을 때 */}
           {cameras.length === 0 && (
-            <text x="390" y="215" textAnchor="middle" fill="#334155" fontSize="14">
+            <text x="390" y="215" textAnchor="middle" fill="#94a3b8" fontSize="14">
               등록된 카메라가 없습니다
             </text>
           )}
         </svg>
 
         {/* 우측 하단 카메라 수 뱃지 */}
-        <div className="absolute bottom-3 right-4 bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-1.5 text-[10px] text-slate-400 font-semibold">
+        <div className="absolute bottom-3 right-4 bg-white/90 border border-slate-300 rounded-lg px-3 py-1.5 text-[10px] text-slate-600 font-semibold">
           총 {cameras.length}대
         </div>
       </div>
