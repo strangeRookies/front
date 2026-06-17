@@ -15,6 +15,7 @@ import {
   PHONE_RULE_MESSAGE,
   SIGNUP_PASSWORD_RULE_MESSAGE,
 } from '../../signup/utils/validation';
+import { SMS_VERIFICATION_SENT_MESSAGE } from '../../signup/utils/signupMessages';
 
 interface ForgotPasswordPageProps {
   onBackToLogin: () => void;
@@ -59,7 +60,7 @@ export function ForgotPasswordPage({ onBackToLogin, onResetComplete }: ForgotPas
       setVerificationToken('');
       setVerificationCode('');
       setStep('verify');
-      alert('인증번호를 발송했습니다. 개발 환경에서는 백엔드 서버 로그에서 인증번호를 확인해주세요.');
+      alert(SMS_VERIFICATION_SENT_MESSAGE);
     } catch (error) {
       handlePasswordResetError(error, '인증번호 발송에 실패했습니다.');
     } finally {

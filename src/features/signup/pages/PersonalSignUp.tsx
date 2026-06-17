@@ -35,6 +35,14 @@ import {
   PHONE_RULE_MESSAGE,
   SIGNUP_PASSWORD_RULE_MESSAGE,
 } from '../utils/validation';
+import {
+  getAvailabilityCheckErrorMessage,
+  getJurisdictionErrorMessage,
+  getSignupSubmitErrorMessage,
+  getSmsConfirmErrorMessage,
+  getSmsRequestErrorMessage,
+  SMS_VERIFICATION_SENT_MESSAGE,
+} from '../utils/signupMessages';
 
 interface PersonalSignUpProps {
   onBackToLogin: () => void;
@@ -46,20 +54,6 @@ interface EmergencyContact {
   relation: string;
   phone: string;
 }
-
-// Map of Seoul districts to fire departments
-const JURISDICTION_DATA: Record<string, { station: string; color: string; path: string }> = {
-  '강남구': { station: '강남소방서', color: '#3b82f6', path: 'M 250 170 L 270 175 L 285 200 L 265 210 Z' },
-  '서초구': { station: '서초소방서', color: '#10b981', path: 'M 220 180 L 250 170 L 265 210 L 210 215 Z' },
-  '송파구': { station: '송파소방서', color: '#f59e0b', path: 'M 285 170 L 320 170 L 320 205 L 285 200 Z' },
-  '마포구': { station: '마포소방서', color: '#ef4444', path: 'M 100 110 L 130 110 L 120 145 L 85 140 Z' },
-  '영등포구': { station: '영등포소방서', color: '#8b5cf6', path: 'M 110 150 L 140 145 L 145 180 L 105 180 Z' },
-  '용산구': { station: '용산소방서', color: '#ec4899', path: 'M 160 135 L 200 135 L 200 165 L 160 165 Z' },
-  '종로구': { station: '종로소방서', color: '#06b6d4', path: 'M 160 85 L 195 85 L 190 120 L 155 120 Z' },
-  '성동구': { station: '성동소방서', color: '#14b8a6', path: 'M 210 110 L 245 110 L 245 140 L 210 140 Z' },
-  '강서구': { station: '강서소방서', color: '#f97316', path: 'M 30 110 L 75 110 L 80 145 L 35 155 Z' },
-  '동대문구': { station: '동대문소방서', color: '#a855f7', path: 'M 235 85 L 265 85 L 260 120 L 225 120 Z' },
-};
 
 export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSignUpProps) {
   const [step, setStep] = useState(1);
@@ -130,11 +124,7 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
       setJurisdictionStatus('success');
     } catch (error) {
       setJurisdictionStatus('error');
-      if (error instanceof ApiError && error.code === 'EMERGENCY_JURISDICTION_NOT_FOUND') {
-        setJurisdictionError('해당 주소에 매칭되는 관할 119센터를 찾을 수 없습니다. 정확한 주소를 입력해주세요.');
-      } else {
-        setJurisdictionError(error instanceof Error ? error.message : '관할 정보를 찾을 수 없습니다. 주소를 다시 선택해주세요.');
-      }
+      setJurisdictionError(getJurisdictionErrorMessage(error));
     }
   };
 
@@ -188,19 +178,9 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
       setVerificationToken('');
       setIsPhoneVerified(false);
       setIsCodeSent(true);
-      alert('인증번호를 발송했습니다. 개발 환경에서는 백엔드 서버 로그에서 인증번호를 확인해주세요.');
+      alert(SMS_VERIFICATION_SENT_MESSAGE);
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'SMS_RATE_LIMITED') {
-        alert('인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요.');
-      } else if (error instanceof ApiError && error.code === 'SMS_SEND_FAILED') {
-        alert('인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.');
-      } else if (error instanceof ApiError && error.code === 'COMMON_INVALID_INPUT') {
-        alert(PERSONAL_PHONE_SUFFIX_RULE_MESSAGE);
-      } else if (error instanceof ApiError && error.status >= 500) {
-        alert('인증번호 발송 처리 중 서버 오류가 발생했습니다. 백엔드 서버 로그에서 SMS 설정 또는 Mock 인증번호 생성 상태를 확인해주세요.');
-      } else {
-        alert(error instanceof Error ? error.message : '인증번호 발송에 실패했습니다.');
-      }
+      alert(getSmsRequestErrorMessage(error, PERSONAL_PHONE_SUFFIX_RULE_MESSAGE));
     } finally {
       setIsSubmitting(false);
     }
@@ -226,7 +206,7 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
       setIsPhoneVerified(true);
       alert('본인 인증이 완료되었습니다.');
     } catch (error) {
-      alert(error instanceof Error ? error.message : '인증번호 확인에 실패했습니다.');
+      alert(getSmsConfirmErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -286,7 +266,7 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
         }
         setStep(2);
       } catch (error) {
-        alert(error instanceof Error ? error.message : '이메일 중복 확인에 실패했습니다.');
+        alert(getAvailabilityCheckErrorMessage(error, '이메일 중복 확인에 실패했습니다. 잠시 후 다시 시도해주세요.'));
       } finally {
         setIsSubmitting(false);
       }
@@ -362,7 +342,7 @@ export function PersonalSignUp({ onBackToLogin, onSignUpComplete }: PersonalSign
           alert('선택하신 주소의 관할 정보를 백엔드에서 다시 계산하는 중 오류가 발생했습니다(관할 미매칭). 다른 주소를 시도해주세요.');
           setStep(3);
         } else {
-          alert(error instanceof Error ? error.message : '회원가입 요청에 실패했습니다.');
+          alert(getSignupSubmitErrorMessage(error));
         }
       } finally {
         setIsSubmitting(false);
