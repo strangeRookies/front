@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Download, Upload, Check,
+  Upload, Check,
   Plus, FileSpreadsheet, ChevronDown, Loader2, AlertCircle, RefreshCw, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -76,23 +76,6 @@ export function CCTVRegistration({ onRegisterComplete, onCameraChanged, defaultC
 
   const selectedCompanyName =
     companies.find((c) => c.companyProfileId === selectedCompanyId)?.companyName ?? '기업 선택';
-
-  const handleDownloadTemplate = () => {
-    // 백엔드 엑셀 파싱 컬럼 순서와 일치: 카메라이름(0), 시리얼넘버(1), RTSP(2), 설치위치(3), 아이디(4), 비밀번호(5)
-    const headers = '카메라 이름,카메라 시리얼넘버,RTSP 주소,설치 위치,접속 아이디,비밀번호\n';
-    const sample =
-      '응급실 복도 카메라 1,CAM-001,rtsp://192.168.0.10/live,응급실 1층 복도 A,camera01,password01\n' +
-      '대기실 카메라 1,CAM-002,rtsp://192.168.0.11/live,응급실 1층 대기실,camera02,password02\n';
-    const blob = new Blob([headers + sample], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'cctv_registration_template.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success('엑셀 등록 템플릿(CSV)이 다운로드되었습니다.');
-  };
 
   const handleExcelUploadClick = () => {
     if (!selectedCompanyId) {
@@ -276,14 +259,6 @@ export function CCTVRegistration({ onRegisterComplete, onCameraChanged, defaultC
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleDownloadTemplate}
-            className="px-4 py-2.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-blue-400" />
-            템플릿 다운로드
-          </button>
-
           <input
             type="file"
             ref={fileInputRef}

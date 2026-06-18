@@ -216,6 +216,23 @@ export function NurseDashboard({
 
   // --- AI and Alerts Hooks ---
   const focusHome = useCallback(() => setActiveMenu('home'), []);
+
+  const handleDownloadTemplate = () => {
+    // 백엔드 엑셀 파싱 컬럼 순서와 일치: 카메라이름(0), 시리얼넘버(1), RTSP(2), 설치위치(3), 아이디(4), 비밀번호(5)
+    const headers = '카메라 이름,카메라 시리얼넘버,RTSP 주소,설치 위치,접속 아이디,비밀번호\n';
+    const sample =
+      '응급실 복도 카메라 1,CAM-001,rtsp://192.168.0.10/live,응급실 1층 복도 A,camera01,password01\n' +
+      '대기실 카메라 1,CAM-002,rtsp://192.168.0.11/live,응급실 1층 대기실,camera02,password02\n';
+    const blob = new Blob([headers + sample], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'cctv_registration_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('엑셀 등록 템플릿(CSV)이 다운로드되었습니다.');
+  };
   const {
     acknowledgedAiEventIds,
     dangerAiEvents,
@@ -469,6 +486,15 @@ export function NurseDashboard({
                   </button>
                 );
               })}
+              {userType === 'corporate' && (
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800/30 transition-all cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>템플릿 다운로드</span>
+                </button>
+              )}
             </nav>
 
             <div className="mt-8 pt-6 border-t border-slate-800/50 space-y-4 px-2">
