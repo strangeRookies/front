@@ -35,6 +35,14 @@ import {
   PHONE_RULE_MESSAGE,
   SIGNUP_PASSWORD_RULE_MESSAGE,
 } from '../utils/validation';
+import {
+  getAvailabilityCheckErrorMessage,
+  getJurisdictionErrorMessage,
+  getSignupSubmitErrorMessage,
+  getSmsConfirmErrorMessage,
+  getSmsRequestErrorMessage,
+  SMS_VERIFICATION_SENT_MESSAGE,
+} from '../utils/signupMessages';
 
 interface CorporateSignUpProps {
   onBackToLogin: () => void;
@@ -105,11 +113,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       setJurisdictionStatus('success');
     } catch (error) {
       setJurisdictionStatus('error');
-      if (error instanceof ApiError && error.code === 'EMERGENCY_JURISDICTION_NOT_FOUND') {
-        setJurisdictionError('해당 주소에 매칭되는 관할 119센터를 찾을 수 없습니다. 정확한 주소를 입력해주세요.');
-      } else {
-        setJurisdictionError(error instanceof Error ? error.message : '관할 정보를 찾을 수 없습니다. 주소를 다시 선택해주세요.');
-      }
+      setJurisdictionError(getJurisdictionErrorMessage(error));
     }
   };
 
@@ -163,19 +167,9 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       setVerificationToken('');
       setIsPhoneVerified(false);
       setIsCodeSent(true);
-      alert('인증번호를 발송했습니다. 개발 환경에서는 백엔드 서버 로그에서 인증번호를 확인해주세요.');
+      alert(SMS_VERIFICATION_SENT_MESSAGE);
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'SMS_RATE_LIMITED') {
-        alert('인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요.');
-      } else if (error instanceof ApiError && error.code === 'SMS_SEND_FAILED') {
-        alert('인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.');
-      } else if (error instanceof ApiError && error.code === 'COMMON_INVALID_INPUT') {
-        alert(PHONE_RULE_MESSAGE);
-      } else if (error instanceof ApiError && error.status >= 500) {
-        alert('인증번호 발송 처리 중 서버 오류가 발생했습니다. 백엔드 서버 로그에서 SMS 설정 또는 Mock 인증번호 생성 상태를 확인해주세요.');
-      } else {
-        alert(error instanceof Error ? error.message : '인증번호 발송에 실패했습니다.');
-      }
+      alert(getSmsRequestErrorMessage(error, PHONE_RULE_MESSAGE));
     } finally {
       setIsSubmitting(false);
     }
@@ -201,7 +195,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       setIsPhoneVerified(true);
       alert('휴대폰 본인 인증이 완료되었습니다.');
     } catch (error) {
-      alert(error instanceof Error ? error.message : '인증번호 확인에 실패했습니다.');
+      alert(getSmsConfirmErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -250,7 +244,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         }
         setStep(2);
       } catch (error) {
-        alert(error instanceof Error ? error.message : '이메일 중복 확인에 실패했습니다.');
+        alert(getAvailabilityCheckErrorMessage(error, '이메일 중복 확인에 실패했습니다. 잠시 후 다시 시도해주세요.'));
       } finally {
         setIsSubmitting(false);
       }
@@ -279,7 +273,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         }
         setStep(3);
       } catch (error) {
-        alert(error instanceof Error ? error.message : '사업자등록번호 중복 확인에 실패했습니다.');
+        alert(getAvailabilityCheckErrorMessage(error, '사업자등록번호 중복 확인에 실패했습니다. 잠시 후 다시 시도해주세요.'));
       } finally {
         setIsSubmitting(false);
       }
@@ -348,7 +342,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
           alert('선택하신 주소의 관할 정보를 백엔드에서 다시 계산하는 중 오류가 발생했습니다(관할 미매칭). 다른 주소를 시도해주세요.');
           setStep(2);
         } else {
-          alert(error instanceof Error ? error.message : '회원가입 요청에 실패했습니다.');
+          alert(getSignupSubmitErrorMessage(error));
         }
       } finally {
         setIsSubmitting(false);

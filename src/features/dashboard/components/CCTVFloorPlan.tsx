@@ -31,10 +31,10 @@ const CAMERA_COORDS: Record<string, SVGCameraCoord> = {
 
 export function CCTVFloorPlan({ cameras, onCameraClick, selectedCameraId }: CCTVFloorPlanProps) {
   return (
-    <div className="relative w-full h-full bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+    <div className="relative w-full h-full bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
       {/* 도면 헤더 및 범례 */}
-      <div className="flex items-center justify-between px-4 py-3 bg-slate-800/40 border-b border-slate-800">
-        <h3 className="text-sm font-semibold text-gray-200">선택된 구역 도면 (Floor Plan View)</h3>
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
+        <h3 className="text-sm font-semibold text-gray-700">선택된 구역 도면 (Floor Plan View)</h3>
         
         <div className="flex items-center gap-3 text-xs">
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -49,7 +49,7 @@ export function CCTVFloorPlan({ cameras, onCameraClick, selectedCameraId }: CCTV
       </div>
 
       {/* 도면 그래픽 영역 */}
-      <div className="flex-1 relative bg-slate-950 p-4 flex items-center justify-center overflow-hidden select-none">
+      <div className="flex-1 relative bg-white p-4 flex items-center justify-center overflow-hidden select-none">
         <svg className="w-full h-full max-h-[380px]" viewBox="0 0 800 420" fill="none">
           {/* 전체 외벽 바운더리 */}
           <rect x="20" y="20" width="760" height="380" fill="#f8fafc" stroke="#475569" strokeWidth="3" rx="8" />
@@ -211,18 +211,18 @@ export function CCTVFloorPlan({ cameras, onCameraClick, selectedCameraId }: CCTV
         </svg>
 
         {/* 맵 우측 플로팅 툴바 */}
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-1 bg-slate-900/90 border border-slate-800 rounded-lg p-1 shadow-2xl backdrop-blur">
-          <button className="p-2 hover:bg-slate-800 rounded-md text-gray-400 hover:text-white transition-colors" title="Zoom In">
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-1 bg-white/90 border border-slate-300 rounded-lg p-1 shadow-md backdrop-blur">
+          <button className="p-2 hover:bg-slate-100 rounded-md text-gray-500 hover:text-gray-900 transition-colors" title="Zoom In">
             <Plus className="w-4 h-4" />
           </button>
-          <button className="p-2 hover:bg-slate-800 rounded-md text-gray-400 hover:text-white transition-colors" title="Zoom Out">
+          <button className="p-2 hover:bg-slate-100 rounded-md text-gray-500 hover:text-gray-900 transition-colors" title="Zoom Out">
             <Minus className="w-4 h-4" />
           </button>
-          <div className="h-px bg-slate-800 my-0.5" />
-          <button className="p-2 hover:bg-slate-800 rounded-md text-gray-400 hover:text-white transition-colors" title="Fit to Screen">
+          <div className="h-px bg-slate-200 my-0.5" />
+          <button className="p-2 hover:bg-slate-100 rounded-md text-gray-500 hover:text-gray-900 transition-colors" title="Fit to Screen">
             <Maximize2 className="w-4 h-4" />
           </button>
-          <button className="p-2 hover:bg-slate-800 rounded-md text-gray-400 hover:text-white transition-colors" title="Toggle Layers">
+          <button className="p-2 hover:bg-slate-100 rounded-md text-gray-500 hover:text-gray-900 transition-colors" title="Toggle Layers">
             <Layers className="w-4 h-4" />
           </button>
         </div>
