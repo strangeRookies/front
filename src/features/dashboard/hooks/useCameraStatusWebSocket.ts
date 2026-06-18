@@ -46,12 +46,12 @@ function parseCameraStatusEvent(raw: Record<string, unknown>): CameraStatusEvent
 }
 
 /**
- * WebSocket /topic/camera-status 구독 훅.
+ * WebSocket /topic/facility/{id}/camera-status 구독 훅.
  * Backend가 MQTT safety/cameras/status 를 수신 → WebSocket 브로드캐스트한 이벤트를 수신한다.
  *
  * 반환: cameraLoginId → CameraStatusEvent 맵
  */
-export function useCameraStatusWebSocket(): CameraStatusMap {
+export function useCameraStatusWebSocket(facilityId?: number | string): CameraStatusMap {
   const [statusMap, setStatusMap] = useState<CameraStatusMap>(new Map());
   const backendBaseUrl = (import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
   const wsUrl = backendBaseUrl.replace(/^http/, 'ws') + '/ws';
@@ -61,9 +61,15 @@ export function useCameraStatusWebSocket(): CameraStatusMap {
   statusMapRef.current = statusMap;
 
   useEffect(() => {
+    const topic = facilityId 
+      ? `/topic/facility/${facilityId}/camera-status` 
+      : '/topic/camera-status';
+
+    logger.info(`[useCameraStatusWebSocket] Connecting to topic: ${topic}`);
+
     const client = new SimpleStompClient({
       url: wsUrl,
-      topic: '/topic/camera-status',
+      topic,
       onMessage: (raw: Record<string, unknown>) => {
         const event = parseCameraStatusEvent(raw);
         if (!event) return;
@@ -87,7 +93,7 @@ export function useCameraStatusWebSocket(): CameraStatusMap {
       client.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsUrl]);
+  }, [wsUrl, facilityId]);
 
   return statusMap;
 }

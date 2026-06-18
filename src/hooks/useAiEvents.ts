@@ -47,6 +47,7 @@ export interface AiEventFeedState {
 interface UseAiEventsOptions {
   readonly url?: string;
   readonly enabled?: boolean;
+  readonly topic?: string;
 }
 
 // Periodically prune stale events so UI clears itself when feed goes quiet
@@ -110,6 +111,7 @@ function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
 export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFeedState {
   const options = typeof input === 'string' ? { url: input, enabled: true } : input;
   const enabled = options.enabled ?? true;
+  const topic = options.topic ?? '/topic/alerts';
 
   const defaultWsUrl = getBackendWsUrl('/ws');
   const url = options.url ?? defaultWsUrl;
@@ -160,12 +162,12 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
     };
 
     if (isWebSocket) {
-      logger.info('[useAiEvents] Connecting to WebSocket.');
+      logger.info(`[useAiEvents] Connecting to WebSocket topic: ${topic}`);
       setFeedState((prev) => ({ ...prev, connectionState: 'connecting' }));
 
       const client = new SimpleStompClient({
         url,
-        topic: '/topic/alerts',
+        topic,
         onMessage: handleIncoming,
         onStatusChange: (status) => {
           logger.info(`[useAiEvents] WebSocket status changed: ${status}`);
@@ -215,7 +217,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
         setFeedState((prev) => ({ ...prev, connectionState: 'disconnected' }));
       };
     }
-  }, [enabled, url]);
+  }, [enabled, url, topic]);
 
   return feedState;
 }

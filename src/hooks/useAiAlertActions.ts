@@ -18,13 +18,22 @@ import { useRepeatingAlarm } from './useRepeatingAlarm';
 interface UseAiAlertActionsOptions {
   readonly userType: 'individual' | 'corporate';
   readonly username: string;
+  readonly facilityId?: number | string;
   readonly liveCameras: readonly LiveCamera[];
   readonly focusHome: () => void;
 }
 
-export function useAiAlertActions({ userType, username, liveCameras, focusHome }: UseAiAlertActionsOptions) {
+export function useAiAlertActions({ userType, username, facilityId, liveCameras, focusHome }: UseAiAlertActionsOptions) {
   const aiAlertsEnabled = isAiAlertEnabledRoute(userType === 'corporate' ? 'company' : 'personal');
-  const feedState = useAiEvents({ enabled: aiAlertsEnabled });
+  
+  const topic = facilityId 
+    ? `/topic/facility/${facilityId}/alerts` 
+    : '/topic/alerts';
+
+  const feedState = useAiEvents({ 
+    enabled: aiAlertsEnabled,
+    topic 
+  });
   const aiEvents = feedState.events;
   const connectionState = feedState.connectionState;
 
@@ -32,7 +41,11 @@ export function useAiAlertActions({ userType, username, liveCameras, focusHome }
   const [acknowledgedFingerprints, setAcknowledgedFingerprints] = useState<Set<string>>(() => new Set());
   const [focusedCameraId, setFocusedCameraId] = useState<string | null>(null);
 
-  const dangerAiEvents = useMemo(() => aiEvents.filter(isDangerAiEvent), [aiEvents]);
+  const dangerAiEvents = useMemo(() => {
+    return aiEvents
+      .filter(isDangerAiEvent)
+      .filter((event) => !!findCameraForAiEvent(liveCameras, event));
+  }, [aiEvents, liveCameras]);
 
   // Expire acknowledged fingerprints that are no longer in the active window
   useEffect(() => {

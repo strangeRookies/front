@@ -131,7 +131,11 @@ export function NurseDashboard({
   }, [registeredCameras]);
 
   // --- Real-time Camera Status from MQTT ---
-  const cameraStatusMap = useCameraStatusWebSocket();
+  const effectiveFacilityId = userType === 'individual' 
+    ? registeredCameras[0]?.facilityId 
+    : currentFacility?.facilityId;
+
+  const cameraStatusMap = useCameraStatusWebSocket(effectiveFacilityId);
 
   // --- Connection Statistics for Sidebar ---
   const connectionStats = useMemo(() => {
@@ -211,7 +215,13 @@ export function NurseDashboard({
     handleConfirmAiEvent,
     setFocusedCameraId,
     connectionState,
-  } = useAiAlertActions({ userType, username, liveCameras, focusHome });
+  } = useAiAlertActions({ 
+    userType, 
+    username, 
+    facilityId: effectiveFacilityId,
+    liveCameras, 
+    focusHome 
+  });
 
   const {
     alerts,
