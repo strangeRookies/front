@@ -143,11 +143,10 @@ export function CCTVRegistration({ onRegisterComplete, onCameraChanged, defaultC
       await registerAdminCamera(selectedCompanyId, {
         cameraName: newCameraName.trim(),
         cameraSerialNumber: newSerialNumber.trim(),
-        rtspUrl: newRtspUrl.trim(),
+        rtspUrl: undefined,
         locationDescription: newLocation.trim(),
         cameraLoginId: newUsername.trim(),
         password: newPassword.trim(),
-        sourceType: 'REAL_RTSP',
       });
       toast.success(`카메라 [${newCameraName}]가 등록되었습니다.`);
       setNewCameraName('');
@@ -466,11 +465,9 @@ export function CCTVRegistration({ onRegisterComplete, onCameraChanged, defaultC
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">RTSP 주소</label>
             <input
               type="text"
-              required
-              value={newRtspUrl}
-              onChange={(e) => setNewRtspUrl(e.target.value)}
-              placeholder="rtsp://192.168.0.x/live"
-              className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none transition-colors"
+              readOnly
+              value="자동 생성됨"
+              className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none transition-colors opacity-50 cursor-not-allowed"
             />
           </div>
         </div>

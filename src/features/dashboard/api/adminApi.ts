@@ -55,7 +55,6 @@ export interface AdminFacilityCameraResponse {
   locationDescription: string | null;
   connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
   status: 'ACTIVE' | 'INACTIVE';
-  sourceType: 'REAL_RTSP' | 'SIMULATED_RTSP';
   assignedVideoPath: string | null;
 }
 
@@ -87,11 +86,10 @@ export async function fetchAdminTodayAlertCount(): Promise<AdminTodayAlertCountR
 export interface CorporateCameraRequest {
   cameraName: string;
   cameraSerialNumber: string;
-  cameraLoginId: string;
+  cameraLoginId?: string;
   password?: string;
-  rtspUrl: string;
+  rtspUrl?: string;
   locationDescription?: string;
-  sourceType?: 'REAL_RTSP' | 'SIMULATED_RTSP';
   assignedVideoPath?: string;
 }
 
@@ -107,7 +105,6 @@ export interface CorporateCameraResponse {
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: string;
   updatedAt: string;
-  sourceType: 'REAL_RTSP' | 'SIMULATED_RTSP';
   assignedVideoPath: string | null;
   connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
   lastConnectionReportAt: string | null;
