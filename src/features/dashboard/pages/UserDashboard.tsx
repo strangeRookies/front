@@ -578,6 +578,7 @@ export function NurseDashboard({
           onClose={() => setSelectedIncident(null)}
           onPlaybackProgressChange={setPlaybackProgress}
           onTogglePlaying={() => setIsPlaying((prev) => !prev)}
+          cameraLoginId={selectedCameraObj?.cameraLoginId}
         />
       )}
     </div>

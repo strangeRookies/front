@@ -12,6 +12,7 @@ interface IncidentPlaybackModalProps {
   onClose: () => void;
   onPlaybackProgressChange: (value: number) => void;
   onTogglePlaying: () => void;
+  cameraLoginId?: string;
 }
 
 export function IncidentPlaybackModal({
@@ -23,6 +24,7 @@ export function IncidentPlaybackModal({
   onClose,
   onPlaybackProgressChange,
   onTogglePlaying,
+  cameraLoginId,
 }: IncidentPlaybackModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
@@ -43,6 +45,7 @@ export function IncidentPlaybackModal({
             streamKind={playbackStreamKind}
             title="incident playback stream"
             className="h-full w-full object-cover contrast-125 brightness-75"
+            cameraLoginId={cameraLoginId}
           />
           <div className="absolute left-1/3 top-1/3 flex h-1/3 w-1/3 flex-col justify-between rounded border-2 border-rose-500 bg-rose-500/5 p-2">
             <span className="self-start rounded bg-rose-600 px-1.5 text-[9px] font-bold uppercase text-white">{incident.type}</span>
