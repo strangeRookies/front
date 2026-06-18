@@ -19,7 +19,7 @@ import { CCTVRegistration } from '../components/CCTVRegistration';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
 import type { LiveCamera } from '../data/cameras';
-import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse } from '../api/adminApi';
+import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, updateAdminMember, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse } from '../api/adminApi';
 import { fetchAllInquiries, fetchMyInquiries, createInquiry, answerInquiry } from '../api/inquiryApi';
 import { logger } from '../../../shared/utils/logger';
 
@@ -70,7 +70,7 @@ interface Space {
 type MenuId     = 'home' | 'adminlist' | 'cctvReg' | 'qna' | 'test';
 type TestMenuId = 'home' | 'alerts' | 'history' | 'cameras' | 'mypage' | 'qna';
 type MypageTab  = 'profile' | 'password' | 'notifications' | 'account';
-type MemberStatus = '활성' | '비활성' | '대기';
+type MemberStatus = '활성' | '비활성';
 
 interface OrgMember {
   id: string; type: 'corporate';
@@ -87,9 +87,11 @@ interface IndividualMember {
 type AnyMember = OrgMember | IndividualMember;
 
 function statusToKorean(status: AdminUserResponse['status']): MemberStatus {
-  if (status === 'ACTIVE') return '활성';
-  if (status === 'PENDING_APPROVAL') return '대기';
-  return '비활성';
+  return status === 'ACTIVE' ? '활성' : '비활성';
+}
+
+function statusToApi(status: MemberStatus): 'ACTIVE' | 'SUSPENDED' {
+  return status === '활성' ? 'ACTIVE' : 'SUSPENDED';
 }
 
 function toOrgMember(u: AdminUserResponse): OrgMember {
@@ -123,7 +125,6 @@ function toIndividualMember(u: AdminUserResponse): IndividualMember {
 const STATUS_STYLE: Record<MemberStatus, string> = {
   '활성':   'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   '비활성': 'bg-slate-500/10 text-slate-400 border-slate-500/20',
-  '대기':   'bg-amber-500/10 text-amber-400 border-amber-500/20',
 };
 
 const MENU_ITEMS: { id: MenuId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -320,7 +321,12 @@ const [isPlaying, setIsPlaying] = useState(true);
   const [adminStatusFilter, setAdminStatusFilter] = useState<MemberStatus | '전체'>('전체');
   const [editingMember, setEditingMember]   = useState<AnyMember | null>(null);
   const [editStatus, setEditStatus]         = useState<MemberStatus>('활성');
+  const [editName, setEditName]             = useState('');
+  const [editRepresentative, setEditRepresentative] = useState('');
   const [editContact, setEditContact]       = useState('');
+  const [editRegion, setEditRegion]         = useState('');
+  const [editSaving, setEditSaving]         = useState(false);
+  const [editError, setEditError]           = useState<string | null>(null);
   const [orgList, setOrgList]               = useState<OrgMember[]>([]);
   const [indList, setIndList]               = useState<IndividualMember[]>([]);
   const [adminLoading, setAdminLoading]     = useState(false);
@@ -392,9 +398,9 @@ const [isPlaying, setIsPlaying] = useState(true);
       .catch((err: unknown) => console.error('[Stats] fetch failed:', err));
   }, []);
 
-  useEffect(() => {
+  const loadAdminUsers = useCallback(() => {
     setAdminLoading(true);
-    fetchAdminUsers()
+    return fetchAdminUsers()
       .then(page => {
         setOrgList(page.content.filter(u => u.role === 'CORPORATE').map(toOrgMember));
         setIndList(page.content.filter(u => u.role === 'INDIVIDUAL').map(toIndividualMember));
@@ -406,6 +412,10 @@ const [isPlaying, setIsPlaying] = useState(true);
       })
       .finally(() => setAdminLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadAdminUsers();
+  }, [loadAdminUsers]);
 
   useEffect(() => {
     fetchAllInquiries()
@@ -1371,20 +1381,37 @@ const handleSubmitReply = async () => {
                   (adminSearch === '' || m.name.includes(adminSearch) || m.region.includes(adminSearch) || m.contact.includes(adminSearch))
                 );
 
+            const gridColsClass = adminTab === 'corporate'
+              ? 'grid-cols-[1fr_1fr_1fr_1fr_1fr_auto_auto_auto]'
+              : 'grid-cols-[1fr_1fr_1fr_1fr_auto_auto_auto]';
+
             const openEdit = (member: AnyMember) => {
               setEditingMember(member);
               setEditStatus(member.status);
+              setEditName(member.type === 'corporate' ? member.orgName : member.name);
+              setEditRepresentative(member.type === 'corporate' ? member.representative : '');
               setEditContact(member.contact);
+              setEditRegion(member.region);
+              setEditError(null);
             };
 
             const saveEdit = () => {
               if (!editingMember) return;
-              if (editingMember.type === 'corporate') {
-                setOrgList(prev => prev.map(m => m.id === editingMember.id ? { ...m, status: editStatus, contact: editContact } : m));
-              } else {
-                setIndList(prev => prev.map(m => m.id === editingMember.id ? { ...m, status: editStatus, contact: editContact } : m));
-              }
-              setEditingMember(null);
+              setEditSaving(true);
+              setEditError(null);
+              updateAdminMember(Number(editingMember.id), {
+                name: editName,
+                representative: editingMember.type === 'corporate' ? editRepresentative : undefined,
+                contact: editContact,
+                region: editRegion,
+                status: statusToApi(editStatus),
+              })
+                .then(() => {
+                  setEditingMember(null);
+                  return loadAdminUsers();
+                })
+                .catch(() => setEditError('저장에 실패했습니다. 다시 시도해주세요.'))
+                .finally(() => setEditSaving(false));
             };
 
             return (
@@ -1412,15 +1439,16 @@ const handleSubmitReply = async () => {
                       <input value={adminSearch} onChange={e => setAdminSearch(e.target.value)} placeholder={adminTab === 'corporate' ? '기관명, 담당자, 지역…' : '이름, 연락처, 지역…'} className="w-full pl-8 pr-4 py-2 bg-[#071329] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none" />
                     </div>
                     <select value={adminStatusFilter} onChange={e => setAdminStatusFilter(e.target.value as any)} className="bg-[#071329] border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none cursor-pointer">
-                      {(['전체', '활성', '대기', '비활성'] as const).map(s => <option key={s} value={s}>{s}</option>)}
+                      {(['전체', '활성', '비활성'] as const).map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                 </div>
 
                 <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
-                  <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto_auto_auto] text-[10px] font-bold text-slate-500 uppercase tracking-wider px-4 py-2.5 border-b border-slate-800 bg-slate-900/30">
+                  <div className={`grid ${gridColsClass} text-[10px] font-bold text-slate-500 uppercase tracking-wider px-4 py-2.5 border-b border-slate-800 bg-slate-900/30`}>
                     <span>{adminTab === 'corporate' ? '기관명' : '이름'}</span>
-                    <span>{adminTab === 'corporate' ? '담당자' : '연락처'}</span>
+                    {adminTab === 'corporate' && <span>담당자</span>}
+                    <span>연락처</span>
                     <span>지역</span><span>등록일</span>
                     <span className="text-center w-14">카메라</span>
                     <span className="text-center w-16">상태</span>
@@ -1434,9 +1462,10 @@ const handleSubmitReply = async () => {
                         : list.length === 0
                           ? <div className="py-16 text-center text-xs text-slate-500">검색 결과가 없습니다.</div>
                           : list.map(member => (
-                        <div key={member.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto_auto_auto] px-4 py-3 items-center hover:bg-slate-800/20 text-xs">
+                        <div key={member.id} className={`grid ${gridColsClass} px-4 py-3 items-center hover:bg-slate-800/20 text-xs`}>
                           <span className="font-semibold text-white truncate pr-2">{member.type === 'corporate' ? member.orgName : member.name}</span>
-                          <span className="text-slate-400 truncate pr-2">{member.type === 'corporate' ? member.representative : member.contact}</span>
+                          {member.type === 'corporate' && <span className="text-slate-400 truncate pr-2">{member.representative}</span>}
+                          <span className="text-slate-400 truncate pr-2">{member.contact}</span>
                           <span className="text-slate-400 truncate pr-2">{member.region}</span>
                           <span className="text-slate-500 font-mono">{member.registeredAt}</span>
                           <span className="text-center text-slate-300 font-mono w-14">{member.cameraCount}대</span>
@@ -1461,18 +1490,33 @@ const handleSubmitReply = async () => {
                       </div>
                       <div className="p-5 space-y-4">
                         <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-400">{editingMember.type === 'corporate' ? '기관명' : '이름'}</label>
+                          <input value={editName} onChange={e => setEditName(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                        </div>
+                        {editingMember.type === 'corporate' && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-400">담당자</label>
+                            <input value={editRepresentative} onChange={e => setEditRepresentative(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                          </div>
+                        )}
+                        <div className="space-y-1.5">
                           <label className="text-xs font-semibold text-slate-400">연락처</label>
                           <input value={editContact} onChange={e => setEditContact(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
                         </div>
                         <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-400">지역</label>
+                          <input value={editRegion} onChange={e => setEditRegion(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                        </div>
+                        <div className="space-y-1.5">
                           <label className="text-xs font-semibold text-slate-400">상태</label>
                           <div className="flex gap-2">
-                            {(['활성', '대기', '비활성'] as MemberStatus[]).map(s => (
+                            {(['활성', '비활성'] as MemberStatus[]).map(s => (
                               <button key={s} onClick={() => setEditStatus(s)} className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all ${editStatus === s ? STATUS_STYLE[s] : 'border-slate-800 text-slate-500 hover:border-slate-600'}`}>{s}</button>
                             ))}
                           </div>
                         </div>
-                        <button onClick={saveEdit} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs cursor-pointer">저장</button>
+                        {editError && <p className="text-[11px] text-red-400">{editError}</p>}
+                        <button onClick={saveEdit} disabled={editSaving} className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs cursor-pointer">{editSaving ? '저장 중...' : '저장'}</button>
                       </div>
                     </div>
                   </div>

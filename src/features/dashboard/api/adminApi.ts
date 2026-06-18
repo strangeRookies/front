@@ -25,6 +25,24 @@ export async function fetchAdminUsers(page = 0, size = 100): Promise<PageRespons
   );
 }
 
+export interface AdminMemberUpdateRequest {
+  name: string;
+  representative?: string | null;
+  contact: string;
+  region?: string | null;
+  status: 'ACTIVE' | 'SUSPENDED';
+}
+
+export async function updateAdminMember(
+  userId: number,
+  payload: AdminMemberUpdateRequest,
+): Promise<void> {
+  return apiRequest<void>(`/api/users/admin/${userId}`, {
+    method: 'PATCH',
+    body: payload,
+  });
+}
+
 // ── 기업 관리 ──────────────────────────────────────────────
 
 export interface AdminCompanyResponse {
