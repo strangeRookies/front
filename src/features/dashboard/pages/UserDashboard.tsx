@@ -61,10 +61,7 @@ function toLiveCameraConnectionStatus(camera: CameraResponse): CameraConnectionS
 }
 
 function isVisibleLiveCamera(camera: CameraResponse) {
-  return camera.status === 'ACTIVE'
-    && camera.connectionStatus !== 'DISCONNECTED'
-    && camera.connectionStatus !== 'ERROR'
-    && camera.connectionStatus !== 'DISABLED';
+  return camera.status === 'ACTIVE';
 }
 
 function toLiveCameraStreamUrl(camera: CameraResponse) {
@@ -626,6 +623,7 @@ export function NurseDashboard({
           onClose={() => setSelectedIncident(null)}
           onPlaybackProgressChange={setPlaybackProgress}
           onTogglePlaying={() => setIsPlaying((prev) => !prev)}
+          cameraLoginId={selectedCameraObj?.cameraLoginId}
         />
       )}
     </div>

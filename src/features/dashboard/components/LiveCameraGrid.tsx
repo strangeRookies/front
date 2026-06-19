@@ -105,6 +105,7 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
         title={`${camera.name} live stream`}
         className="absolute inset-0 h-full w-full object-cover"
         dimmed={unavailable}
+        cameraLoginId={camera.cameraLoginId}
       />
       {unavailable && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030712]/90 text-slate-500">

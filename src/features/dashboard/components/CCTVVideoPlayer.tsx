@@ -10,6 +10,7 @@ interface CCTVVideoPlayerProps {
   status?: 'online' | 'offline' | 'connecting';
   eventStatus?: 'normal' | 'warning' | 'danger';
   onClose: () => void;
+  cameraLoginId?: string;
 }
 
 export function CCTVVideoPlayer({
@@ -20,6 +21,7 @@ export function CCTVVideoPlayer({
   status = 'online',
   eventStatus = 'normal',
   onClose,
+  cameraLoginId,
 }: CCTVVideoPlayerProps) {
   const isOffline = status === 'offline' || !streamUrl;
   const eventLabel = eventStatus === 'danger' ? '이상 상황' : eventStatus === 'warning' ? '주의 필요' : '정상 모니터링';
@@ -52,6 +54,7 @@ export function CCTVVideoPlayer({
             streamKind={streamKind}
             title={`${cameraName} live stream`}
             className="absolute inset-0 h-full w-full object-cover"
+            cameraLoginId={cameraLoginId}
           />
         )}
 

@@ -63,6 +63,7 @@ export function DashboardCameraManagementView({
                     title={camera.name}
                     className="h-full w-full object-cover brightness-75"
                     dimmed
+                    cameraLoginId={liveFeed?.cameraLoginId}
                   />
                   <div className="absolute left-2 top-2 flex items-center gap-1">
                     <span className={`h-1.5 w-1.5 rounded-full ${camera.status === 'INACTIVE' ? 'bg-slate-500' : 'animate-ping bg-rose-500'}`} />
