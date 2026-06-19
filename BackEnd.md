@@ -1,153 +1,72 @@
-프론트 측 전달 사항입니다.
+필수 수정은 아닙니다.
 
-**백엔드 인증 변경 사항**
-Refresh Token 전달 방식이 변경되었습니다.
+이번 변경은 기존 API와 WebSocket payload를 깨지 않도록 최소 변경으로 넣었기 때문에, 프론트가 기존 방식만 계속 써도 동작합니다.
 
-기존:
-```ts
-{
-  accessToken: "...",
-  refreshToken: "...",
-  expiresIn: 1800,
-  user: {...}
-}
+다만 **최근 알림을 더 빠르게 가져오고 싶다면 프론트에서 선택적으로 수정할 부분이 있습니다.**
+
+**프론트 수정이 필요 없는 부분**
+
+기존 알림 목록 API는 그대로 유지됩니다.
+
+```http
+GET /api/facilities/{facilityId}/alert-events
 ```
 
-변경 후:
-```ts
-{
-  accessToken: "...",
-  expiresIn: 1800,
-  user: {...}
-}
-```
-
-`refreshToken`은 더 이상 response body로 내려오지 않고, `HttpOnly Cookie`로 저장됩니다.
-
-**프론트 수정 필요 사항**
-
-1. `loginResponse.refreshToken` 사용 제거
-```ts
-saveAuthSession(loginResponse);
-```
-
-기존처럼 `refreshToken`을 인자로 넘기는 구조라면 제거해야 합니다.
-
-예상 변경:
-```ts
-authStore.setSession(loginResponse.accessToken, loginResponse.user);
-```
-
-2. `authStore`에서 `refreshToken` 제거
-현재 구조:
-```ts
-let session = {
-  accessToken: null,
-  refreshToken: null,
-  user: null,
-};
-```
-
-변경:
-```ts
-let session = {
-  accessToken: null,
-  user: null,
-};
-```
-
-3. `/api/auth/reissue` 호출 방식 변경
-기존:
-```ts
-export async function reissueToken(refreshToken: string) {
-  return apiRequest('/api/auth/reissue', {
-    method: 'POST',
-    body: { refreshToken },
-  });
-}
-```
-
-변경:
-```ts
-export async function reissueToken() {
-  return apiRequest('/api/auth/reissue', {
-    method: 'POST',
-  });
-}
-```
-
-4. `/api/auth/logout` 호출 방식 변경
-기존에 refreshToken을 body로 보내고 있었다면 제거해야 합니다.
-
-변경 후:
-```ts
-POST /api/auth/logout
-```
-
-body에 `refreshToken` 없음.
-
-5. `fetch`에 credentials 추가
-Refresh Token cookie를 주고받으려면 공통 API 요청에 아래 옵션이 필요합니다.
-
-```ts
-credentials: 'include'
-```
-
-예상 위치:
-```ts
-fetch(buildApiUrl(path), {
-  ...init,
-  credentials: 'include',
-  headers: {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  },
-  body: JSON.stringify(body),
-});
-```
-
-6. localStorage/sessionStorage에 refreshToken 저장 금지 유지
-앞으로도 refreshToken은 프론트 JS에서 직접 다루지 않습니다.
+기존 WebSocket도 그대로 유지됩니다.
 
 ```text
-refreshToken 저장 X
-refreshToken 읽기 X
-refreshToken request body 전송 X
+/topic/alerts
 ```
 
-7. 로그인 유지 기능을 만들 경우
-앱 시작 시 `/api/auth/reissue`를 호출해서 accessToken을 복원하면 됩니다.
+따라서 현재 프론트가 이 둘을 사용 중이면 바로 깨지는 부분은 없습니다.
 
-```text
-앱 시작
-→ POST /api/auth/reissue
-→ Cookie의 REFRESH_TOKEN으로 백엔드가 검증
-→ 새 accessToken 응답
-→ 프론트 메모리에 accessToken 저장
+**프론트에서 추가로 사용하면 좋은 부분**
+
+새로 추가된 최근 알림 API입니다.
+
+```http
+GET /api/facilities/{facilityId}/alert-events/recent
 ```
 
-**프론트에서 알아야 할 API 계약**
+이 API는 최근 10분 알림을 조회합니다.
+
+동작 방식:
+
 ```text
-POST /api/auth/login
-- request: 기존 동일
-- response body: accessToken만 포함
-- response header: Set-Cookie: REFRESH_TOKEN=...
-
-POST /api/auth/reissue
-- request body 없음
-- cookie 필요
-- response body: 새 accessToken
-- response header: 새 REFRESH_TOKEN cookie
-
-POST /api/auth/logout
-- request body 없음
-- cookie 필요
-- response header: REFRESH_TOKEN 만료 cookie
+Redis에 최근 알림 있음 → Redis에서 빠르게 반환
+Redis에 없음 → PostgreSQL에서 최근 10분 알림 조회
 ```
 
-핵심은 이겁니다.
+프론트에서는 이런 곳에 쓰면 좋습니다.
+
+- 대시보드 첫 진입 시 최근 알림 복구
+- 새로고침 후 최근 10분 알림 다시 표시
+- WebSocket 재연결 후 놓친 최근 알림 보정
+- 실시간 알림 패널 초기 데이터 로딩
+
+**추천 프론트 흐름**
 
 ```text
-프론트는 refreshToken을 더 이상 저장하거나 전달하지 않는다.
-백엔드가 HttpOnly Cookie로 관리한다.
-프론트는 모든 인증 요청에 credentials: 'include'를 적용한다.
+1. 대시보드 진입
+2. GET /api/facilities/{facilityId}/alert-events/recent 호출
+3. 최근 10분 알림 목록 표시
+4. WebSocket /topic/alerts 구독
+5. 이후 들어오는 알림은 WebSocket으로 추가
+```
+
+**기존 전체 이력 화면은 그대로**
+
+30일 알림 이력, 검색, 필터, 페이지네이션 화면은 기존 API를 계속 쓰면 됩니다.
+
+```http
+GET /api/facilities/{facilityId}/alert-events
+```
+
+정리하면:
+
+```text
+필수 프론트 수정: 없음
+권장 프론트 수정: 대시보드 최근 알림 초기 로딩에 recent API 사용
+기존 이력/검색 화면: 기존 API 유지
+WebSocket: 기존 /topic/alerts 유지
 ```

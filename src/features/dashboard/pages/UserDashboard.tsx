@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, LogOut, Shield, ShieldAlert, Loader2 } from 'lucide-react';
 import type { Inquiry } from '../../../shared/types/inquiry';
 import { fetchMyInquiries, createInquiry } from '../api/inquiryApi';
+import { fetchRecentAlertEvents, toIncidentAlertFromRecentEvent } from '../api/alertEventsApi';
 import { useAiAlertActions } from '../../../hooks/useAiAlertActions';
 import { useDashboardAlerts } from '../hooks/useDashboardAlerts';
 import type { MenuId, InquiryCategory, IncidentAlert } from '../types/dashboard';
@@ -130,6 +131,18 @@ export function NurseDashboard({
       }));
   }, [registeredCameras]);
 
+  const recentAlertFacilityIds = useMemo(() => {
+    if (currentFacility?.facilityId) {
+      return [currentFacility.facilityId];
+    }
+
+    const facilityIds = registeredCameras
+      .map((camera) => camera.facilityId)
+      .filter((facilityId) => Number.isFinite(facilityId));
+
+    return Array.from(new Set(facilityIds));
+  }, [currentFacility, registeredCameras]);
+
   // --- Real-time Camera Status from MQTT ---
   const cameraStatusMap = useCameraStatusWebSocket();
 
@@ -217,6 +230,7 @@ export function NurseDashboard({
     alerts,
     activeTenMinAlerts,
     getFilteredHistory,
+    mergeRecentAlerts,
     resolveAlert,
   } = useDashboardAlerts({
     acknowledgedAiEventIds,
@@ -224,6 +238,36 @@ export function NurseDashboard({
     liveCameras,
     onConfirmAiEvent: handleConfirmAiEvent,
   });
+
+  const loadRecentAlerts = useCallback(async () => {
+    if (recentAlertFacilityIds.length === 0) return;
+
+    try {
+      const responses = await Promise.all(recentAlertFacilityIds.map(fetchRecentAlertEvents));
+      const recentAlerts = responses
+        .flat()
+        .map((event) => toIncidentAlertFromRecentEvent(event, liveCameras))
+        .filter((event): event is IncidentAlert => !!event);
+      mergeRecentAlerts(recentAlerts);
+    } catch {
+      logger.error('Failed to load recent alert events.');
+    }
+  }, [liveCameras, mergeRecentAlerts, recentAlertFacilityIds]);
+
+  useEffect(() => {
+    void loadRecentAlerts();
+  }, [loadRecentAlerts]);
+
+  const previousConnectionStateRef = useRef(connectionState);
+
+  useEffect(() => {
+    const previousConnectionState = previousConnectionStateRef.current;
+    previousConnectionStateRef.current = connectionState;
+
+    if (previousConnectionState !== 'connected' && connectionState === 'connected') {
+      void loadRecentAlerts();
+    }
+  }, [connectionState, loadRecentAlerts]);
 
   const filteredHistory = useMemo(
     () => getFilteredHistory({ searchDate, searchCamera, searchKeyword }),

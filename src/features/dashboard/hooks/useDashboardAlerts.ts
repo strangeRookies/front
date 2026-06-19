@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import {
   aiEventFingerprint,
@@ -29,6 +29,25 @@ export function useDashboardAlerts({
   onConfirmAiEvent,
 }: UseDashboardAlertsParams) {
   const [alerts, setAlerts] = useState<IncidentAlert[]>([]);
+
+  const mergeRecentAlerts = useCallback((recentAlerts: readonly IncidentAlert[]) => {
+    if (recentAlerts.length === 0) return;
+
+    setAlerts((prev) => {
+      const merged = new Map(prev.map((alert) => [alert.id, alert]));
+      let changed = false;
+
+      for (const alert of recentAlerts) {
+        if (!merged.has(alert.id)) {
+          merged.set(alert.id, alert);
+          changed = true;
+        }
+      }
+
+      if (!changed) return prev;
+      return [...merged.values()].sort((a, b) => b.timestamp - a.timestamp);
+    });
+  }, []);
 
   useEffect(() => {
     if (dangerAiEvents.length === 0) return;
@@ -122,6 +141,7 @@ export function useDashboardAlerts({
     alerts,
     activeTenMinAlerts,
     getFilteredHistory,
+    mergeRecentAlerts,
     resolveAlert,
   };
 }
