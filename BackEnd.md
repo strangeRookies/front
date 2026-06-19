@@ -1,66 +1,72 @@
-프론트 측 전달 내용은 아래입니다.
+필수 수정은 아닙니다.
 
-**신규 API**
-1. SMS 발송
-`POST /api/auth/password-reset/verifications/sms`
+이번 변경은 기존 API와 WebSocket payload를 깨지 않도록 최소 변경으로 넣었기 때문에, 프론트가 기존 방식만 계속 써도 동작합니다.
 
-요청:
-```json
-{
-  "email": "user@example.com",
-  "phone": "010-1234-5678"
-}
+다만 **최근 알림을 더 빠르게 가져오고 싶다면 프론트에서 선택적으로 수정할 부분이 있습니다.**
+
+**프론트 수정이 필요 없는 부분**
+
+기존 알림 목록 API는 그대로 유지됩니다.
+
+```http
+GET /api/facilities/{facilityId}/alert-events
 ```
 
-성공 응답:
-```json
-{
-  "success": true,
-  "message": "비밀번호 재설정 인증번호가 발급되었습니다.",
-  "data": {
-    "verificationId": 1,
-    "expiresInSeconds": 300
-  }
-}
+기존 WebSocket도 그대로 유지됩니다.
+
+```text
+/topic/alerts
 ```
 
-2. 비밀번호 재설정
-`POST /api/auth/password-reset`
+따라서 현재 프론트가 이 둘을 사용 중이면 바로 깨지는 부분은 없습니다.
 
-요청:
-```json
-{
-  "email": "user@example.com",
-  "phone": "010-1234-5678",
-  "verificationToken": "confirm-api-response-token",
-  "newPassword": "NewPassword123!"
-}
+**프론트에서 추가로 사용하면 좋은 부분**
+
+새로 추가된 최근 알림 API입니다.
+
+```http
+GET /api/facilities/{facilityId}/alert-events/recent
 ```
 
-성공 응답:
-```json
-{
-  "success": true,
-  "message": "비밀번호가 재설정되었습니다.",
-  "data": null
-}
+이 API는 최근 10분 알림을 조회합니다.
+
+동작 방식:
+
+```text
+Redis에 최근 알림 있음 → Redis에서 빠르게 반환
+Redis에 없음 → PostgreSQL에서 최근 10분 알림 조회
 ```
 
-**프론트 플로우**
-1. 사용자가 이메일, 휴대폰 번호 입력
-2. `POST /api/auth/password-reset/verifications/sms` 호출
-3. 사용자가 SMS 인증번호 입력
-4. 기존 API `POST /api/auth/verifications/sms/confirm` 호출
-5. confirm 응답의 `verificationToken` 저장
-6. 새 비밀번호 입력 후 `POST /api/auth/password-reset` 호출
-7. 성공하면 로그인 화면으로 이동
+프론트에서는 이런 곳에 쓰면 좋습니다.
 
-**주의사항**
-- SMS confirm API는 기존 그대로 사용합니다.
-- 휴대폰 번호는 `010` 11자리만 허용됩니다.
-  - 허용: `01012345678`, `010-1234-5678`, `010 1234 5678`
-  - 실패: `011...`, `02...`, `010-123-4567`, 빈 값, 문자 포함
-- 새 비밀번호는 `8~100자`입니다.
-- 이메일과 휴대폰 번호가 기존 활성 계정과 일치하지 않으면 `USER_NOT_FOUND`가 내려옵니다.
-- 인증번호 오류, 만료, 목적이 다른 토큰 사용 시 `AUTH_INVALID_VERIFICATION`입니다.
-- 비밀번호 재설정 성공 후 기존 refresh token은 모두 만료되므로, 기존 로그인 세션은 재로그인이 필요합니다.
+- 대시보드 첫 진입 시 최근 알림 복구
+- 새로고침 후 최근 10분 알림 다시 표시
+- WebSocket 재연결 후 놓친 최근 알림 보정
+- 실시간 알림 패널 초기 데이터 로딩
+
+**추천 프론트 흐름**
+
+```text
+1. 대시보드 진입
+2. GET /api/facilities/{facilityId}/alert-events/recent 호출
+3. 최근 10분 알림 목록 표시
+4. WebSocket /topic/alerts 구독
+5. 이후 들어오는 알림은 WebSocket으로 추가
+```
+
+**기존 전체 이력 화면은 그대로**
+
+30일 알림 이력, 검색, 필터, 페이지네이션 화면은 기존 API를 계속 쓰면 됩니다.
+
+```http
+GET /api/facilities/{facilityId}/alert-events
+```
+
+정리하면:
+
+```text
+필수 프론트 수정: 없음
+권장 프론트 수정: 대시보드 최근 알림 초기 로딩에 recent API 사용
+기존 이력/검색 화면: 기존 API 유지
+WebSocket: 기존 /topic/alerts 유지
+```

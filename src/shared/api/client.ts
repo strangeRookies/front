@@ -1,6 +1,7 @@
 import { authStore } from './authStore';
 
 const API_BASE_URL = (import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+const BACKEND_WS_URL = (import.meta.env.VITE_BACKEND_WS_URL || '').replace(/\/$/, '');
 
 export function buildApiUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) {
@@ -11,6 +12,14 @@ export function buildApiUrl(path: string): string {
 }
 
 export function getBackendWsUrl(path = '/ws'): string {
+  if (BACKEND_WS_URL) {
+    if (path === '/ws') {
+      return BACKEND_WS_URL;
+    }
+
+    return `${BACKEND_WS_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
   return buildApiUrl(path).replace(/^http/i, 'ws');
 }
 
@@ -59,6 +68,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   
   const response = await fetch(buildApiUrl(path), {
     ...init,
+    credentials: 'include',
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -106,6 +116,7 @@ export async function rawApiRequest<T>(path: string, options: ApiRequestOptions 
 
   const response = await fetch(buildApiUrl(path), {
     ...init,
+    credentials: 'include',
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

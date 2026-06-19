@@ -112,21 +112,21 @@ export function AiAlertCard({
 
       <div className="relative z-10 space-y-3">
         {/* 헤더: 이벤트 유형 + 배지 */}
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className={`rounded-full p-1.5 flex-shrink-0 ${acknowledged ? 'bg-emerald-500/15 text-emerald-300' : `bg-red-500/20 ${style.textColor}`}`}>
               {acknowledged ? <Check className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
             </div>
             <div className="min-w-0">
-              <h4 className={`text-sm font-bold leading-tight truncate ${acknowledged ? 'text-slate-300' : style.textColor}`}>
+              <h4 className={`truncate text-sm font-bold leading-tight ${acknowledged ? 'text-slate-300' : style.textColor}`}>
                 {koreanLabel} 의심
               </h4>
               {!acknowledged && (
-                <p className="text-[10px] text-slate-400 mt-0.5">이상 상황이 감지되었습니다</p>
+                <p className="mt-0.5 truncate text-[10px] text-slate-400">이상 상황이 감지되었습니다</p>
               )}
             </div>
           </div>
-          <span className={`flex-shrink-0 rounded-md border px-2 py-1 font-mono text-[10px] ${style.badgeBg}`}>
+          <span className={`max-w-full self-start truncate rounded-md border px-2 py-1 font-mono text-[10px] ${style.badgeBg}`}>
             {formatAiEventLabel(event)}
           </span>
         </div>

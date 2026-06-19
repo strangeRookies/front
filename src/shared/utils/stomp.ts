@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 export interface StompConfig {
   url: string;
   topic: string;
@@ -35,11 +37,11 @@ export class SimpleStompClient {
       };
 
       this.socket.onerror = (error) => {
-        console.error('[STOMP] WebSocket error:', error);
+        logger.error('[STOMP] WebSocket error.');
       };
 
       this.socket.onclose = () => {
-        console.warn('[STOMP] WebSocket connection closed');
+        logger.warn('[STOMP] WebSocket connection closed.');
         this.isConnected = false;
         this.setStatus('disconnected');
 
@@ -47,8 +49,8 @@ export class SimpleStompClient {
           this.scheduleReconnect();
         }
       };
-    } catch (error) {
-      console.error('[STOMP] Failed to connect WebSocket:', error);
+    } catch {
+      logger.error('[STOMP] Failed to connect WebSocket.');
       this.setStatus('disconnected');
       this.scheduleReconnect();
     }
@@ -79,7 +81,7 @@ export class SimpleStompClient {
 
   private scheduleReconnect() {
     if (this.reconnectTimeout) return;
-    console.log('[STOMP] Scheduling reconnect in 3s...');
+    logger.info('[STOMP] Scheduling reconnect in 3s.');
     this.reconnectTimeout = window.setTimeout(() => {
       this.reconnectTimeout = null;
       if (this.shouldReconnect) {
@@ -116,7 +118,7 @@ export class SimpleStompClient {
     const command = headerLines[0].trim();
 
     if (command === 'CONNECTED') {
-      console.log('[STOMP] Connected to backend');
+      logger.info('[STOMP] Connected to backend.');
       this.isConnected = true;
       this.setStatus('connected');
 
@@ -132,8 +134,8 @@ export class SimpleStompClient {
       try {
         const json = JSON.parse(body);
         this.config.onMessage(json);
-      } catch (err) {
-        console.error('[STOMP] Failed to parse message body as JSON:', body, err);
+      } catch {
+        logger.error('[STOMP] Failed to parse message body as JSON.');
       }
     }
   }

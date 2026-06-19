@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, LogOut, Shield, ShieldAlert, Loader2 } from 'lucide-react';
 import type { Inquiry } from '../../../shared/types/inquiry';
 import { fetchMyInquiries, createInquiry } from '../api/inquiryApi';
+import { fetchRecentAlertEvents, toIncidentAlertFromRecentEvent } from '../api/alertEventsApi';
 import { useAiAlertActions } from '../../../hooks/useAiAlertActions';
 import { useDashboardAlerts } from '../hooks/useDashboardAlerts';
 import type { MenuId, InquiryCategory, IncidentAlert } from '../types/dashboard';
@@ -14,6 +15,7 @@ import {
   registerCamera,
   fetchCamerasByFacility,
   updateCamera,
+  deleteCamera,
   type CameraResponse
 } from '../../../app/api/cameraApi';
 import {
@@ -21,6 +23,7 @@ import {
   type FacilityResponse
 } from '../../../app/api/facilityApi';
 import { authStore } from '../../../shared/api/authStore';
+import { logger } from '../../../shared/utils/logger';
 import { DashboardAlertsView } from '../components/DashboardAlertsView';
 import { DashboardCameraManagementView } from '../components/DashboardCameraManagementView';
 import { DashboardHistoryView } from '../components/DashboardHistoryView';
@@ -58,17 +61,12 @@ function toLiveCameraConnectionStatus(camera: CameraResponse): CameraConnectionS
 }
 
 function isVisibleLiveCamera(camera: CameraResponse) {
-  return camera.status === 'ACTIVE'
-    && camera.connectionStatus !== 'DISCONNECTED'
-    && camera.connectionStatus !== 'ERROR'
-    && camera.connectionStatus !== 'DISABLED';
+  return camera.status === 'ACTIVE';
 }
 
 function toLiveCameraStreamUrl(camera: CameraResponse) {
   const cameraLoginId = cameraLoginIdFor(camera.cameraLoginId, camera.cameraId);
-  const url = getDynamicStreamUrl(cameraLoginId);
-  console.log(`[CCTV Stream URL] mode=${STREAM_MODE}, cameraLoginId=${cameraLoginId}, cameraId=${camera.cameraId} -> ${url}`);
-  return url;
+  return getDynamicStreamUrl(cameraLoginId);
 }
 
 export function NurseDashboard({
@@ -100,7 +98,6 @@ export function NurseDashboard({
   const [newCamRtspUrl, setNewCamRtspUrl] = useState('');
   const [newCamLocation, setNewCamLocation] = useState('');
   const [newCamPassword, setNewCamPassword] = useState('');
-  const [newCamSourceType, setNewCamSourceType] = useState<'REAL_RTSP' | 'SIMULATED_RTSP'>('REAL_RTSP');
   const [showNewCamPw, setShowNewCamPw] = useState(false);
   const [showCamPwId, setShowCamPwId] = useState<string | null>(null);
 
@@ -130,6 +127,40 @@ export function NurseDashboard({
       }));
   }, [registeredCameras]);
 
+  const recentAlertFacilityIds = useMemo(() => {
+    if (currentFacility?.facilityId) {
+      return [currentFacility.facilityId];
+    }
+
+    const facilityIds = registeredCameras
+      .map((camera) => camera.facilityId)
+      .filter((facilityId) => Number.isFinite(facilityId));
+
+    return Array.from(new Set(facilityIds));
+  }, [currentFacility, registeredCameras]);
+
+  // --- Real-time Camera Status from MQTT ---
+  const effectiveFacilityId = userType === 'individual' 
+    ? registeredCameras[0]?.facilityId 
+    : currentFacility?.facilityId;
+
+  const cameraStatusMap = useCameraStatusWebSocket(effectiveFacilityId);
+
+  // --- Connection Statistics for Sidebar ---
+  const connectionStats = useMemo(() => {
+    const activeCameras = registeredCameras.filter(cam => cam.status === 'ACTIVE');
+    const connectedCount = activeCameras.filter(cam => {
+      const realtime = cameraStatusMap.get(cam.cameraLoginId || '') || cameraStatusMap.get(cam.cameraId.toString());
+      const currentStatus = realtime ? realtime.status : cam.connectionStatus;
+      return currentStatus === 'CONNECTED';
+    }).length;
+
+    return {
+      connected: connectedCount,
+      total: activeCameras.length
+    };
+  }, [registeredCameras, cameraStatusMap]);
+
   // --- Facility Fetch Logic (Automatic) ---
   const loadInitialData = useCallback(async () => {
     if (userType === 'individual') {
@@ -147,8 +178,8 @@ export function NurseDashboard({
       if (userFacilities.length > 0) {
         setCurrentFacility(userFacilities[0]);
       }
-    } catch (error) {
-      console.error('Failed to load facilities:', error);
+    } catch {
+      logger.error('Failed to load facilities.');
     } finally {
       setIsLoading(false);
     }
@@ -166,8 +197,8 @@ export function NurseDashboard({
       const facilityId = userType === 'individual' ? undefined : currentFacility?.facilityId;
       const data = await fetchCamerasByFacility(facilityId);
       setRegisteredCameras(data);
-    } catch (error) {
-      console.error('Failed to fetch cameras:', error);
+    } catch {
+      logger.error('Failed to fetch cameras.');
     } finally {
       setIsLoadingCameras(false);
     }
@@ -180,7 +211,7 @@ export function NurseDashboard({
   useEffect(() => {
     fetchMyInquiries()
       .then(setInquiries)
-      .catch((err: unknown) => console.error('[QnA] fetch failed:', err));
+      .catch(() => logger.error('[QnA] fetch failed.'));
   }, []);
 
   // --- AI and Alerts Hooks ---
@@ -193,15 +224,19 @@ export function NurseDashboard({
     handleConfirmAiEvent,
     setFocusedCameraId,
     connectionState,
-  } = useAiAlertActions({ userType, username, liveCameras, focusHome });
-
-  // --- Real-time Camera Status from MQTT (23.md 1순위 UI/UX) ---
-  const cameraStatusMap = useCameraStatusWebSocket();
+  } = useAiAlertActions({ 
+    userType, 
+    username, 
+    facilityId: effectiveFacilityId,
+    liveCameras, 
+    focusHome 
+  });
 
   const {
     alerts,
     activeTenMinAlerts,
     getFilteredHistory,
+    mergeRecentAlerts,
     resolveAlert,
   } = useDashboardAlerts({
     acknowledgedAiEventIds,
@@ -209,6 +244,36 @@ export function NurseDashboard({
     liveCameras,
     onConfirmAiEvent: handleConfirmAiEvent,
   });
+
+  const loadRecentAlerts = useCallback(async () => {
+    if (recentAlertFacilityIds.length === 0) return;
+
+    try {
+      const responses = await Promise.all(recentAlertFacilityIds.map(fetchRecentAlertEvents));
+      const recentAlerts = responses
+        .flat()
+        .map((event) => toIncidentAlertFromRecentEvent(event, liveCameras))
+        .filter((event): event is IncidentAlert => !!event);
+      mergeRecentAlerts(recentAlerts);
+    } catch {
+      logger.error('Failed to load recent alert events.');
+    }
+  }, [liveCameras, mergeRecentAlerts, recentAlertFacilityIds]);
+
+  useEffect(() => {
+    void loadRecentAlerts();
+  }, [loadRecentAlerts]);
+
+  const previousConnectionStateRef = useRef(connectionState);
+
+  useEffect(() => {
+    const previousConnectionState = previousConnectionStateRef.current;
+    previousConnectionStateRef.current = connectionState;
+
+    if (previousConnectionState !== 'connected' && connectionState === 'connected') {
+      void loadRecentAlerts();
+    }
+  }, [connectionState, loadRecentAlerts]);
 
   const filteredHistory = useMemo(
     () => getFilteredHistory({ searchDate, searchCamera, searchKeyword }),
@@ -256,9 +321,8 @@ export function NurseDashboard({
         cameraSerialNumber: newCamSerialNumber.trim(),
         cameraLoginId: newCamLoginId.trim() || undefined,
         cameraPassword: newCamPassword.trim(),
-        rtspUrl: newCamSourceType === 'SIMULATED_RTSP' ? undefined : newCamRtspUrl.trim() || undefined,
+        rtspUrl: undefined, // Always undefined for auto-assignment (Simulation mode)
         locationDescription: newCamLocation.trim() || '미지정',
-        sourceType: newCamSourceType,
       });
       setNewCamName('');
       setNewCamSerialNumber('');
@@ -266,7 +330,6 @@ export function NurseDashboard({
       setNewCamRtspUrl('');
       setNewCamLocation('');
       setNewCamPassword('');
-      setNewCamSourceType('REAL_RTSP');
       setShowNewCamPw(false);
       setShowAddCamera(false);
       refreshCameras();
@@ -276,12 +339,12 @@ export function NurseDashboard({
   };
 
   const handleDeleteCamera = async (cameraId: string) => {
-    if (!window.confirm('정말로 이 카메라를 비활성화하시겠습니까?')) return;
+    if (!window.confirm('정말로 이 카메라를 삭제하시겠습니까?')) return;
     try {
-      await updateCamera(cameraId, { status: 'INACTIVE' });
+      await deleteCamera(cameraId);
       refreshCameras();
     } catch (error) {
-      alert('카메라 상태 변경에 실패했습니다.');
+      alert('카메라 삭제에 실패했습니다.');
     }
   };
 
@@ -291,8 +354,8 @@ export function NurseDashboard({
       await createInquiry(qnaCategory, qnaTitle.trim(), qnaContent.trim());
       const updated = await fetchMyInquiries();
       setInquiries(updated);
-    } catch (err) {
-      console.error('[QnA] create failed:', err);
+    } catch {
+      logger.error('[QnA] create failed.');
     }
     setQnaTitle('');
     setQnaContent('');
@@ -308,7 +371,6 @@ export function NurseDashboard({
       location: cam.locationDescription,
       status: cam.status,
       rtspUrl: cam.rtspUrl,
-      sourceType: cam.sourceType,
       assignedVideoPath: cam.assignedVideoPath,
       password: '****'
     }));
@@ -419,7 +481,7 @@ export function NurseDashboard({
                 <div className="flex items-end gap-1.5">
                   <Camera className="w-4 h-4 text-blue-400 mb-0.5" />
                   <span className="text-sm font-extrabold text-white">
-                    {liveCameras.filter((camera) => camera.connectionStatus === 'online').length}/{liveCameras.length}
+                    {connectionStats.connected}/{connectionStats.total}
                   </span>
                   <span className="text-[9px] text-slate-500 font-bold mb-0.5">대</span>
                 </div>
@@ -522,7 +584,6 @@ export function NurseDashboard({
           newCamSerialNumber={newCamSerialNumber}
           newCamPassword={newCamPassword}
           newCamRtspUrl={newCamRtspUrl}
-          newCamSourceType={newCamSourceType}
           showNewCamPw={showNewCamPw}
           onClose={() => {
             setShowAddCamera(false);
@@ -534,7 +595,6 @@ export function NurseDashboard({
           onSerialNumberChange={setNewCamSerialNumber}
           onPasswordChange={setNewCamPassword}
           onRtspUrlChange={setNewCamRtspUrl}
-          onSourceTypeChange={setNewCamSourceType}
           onSubmit={handleAddCamera}
           onTogglePassword={() => setShowNewCamPw((prev) => !prev)}
         />
@@ -563,6 +623,7 @@ export function NurseDashboard({
           onClose={() => setSelectedIncident(null)}
           onPlaybackProgressChange={setPlaybackProgress}
           onTogglePlaying={() => setIsPlaying((prev) => !prev)}
+          cameraLoginId={selectedCameraObj?.cameraLoginId}
         />
       )}
     </div>

@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { fetchUserProfile, updateUserProfile, updatePassword, withdrawAccount } from '../../../app/api/userDashboard';
 import { MOCK_LOGIN_HISTORY, getPasswordStrength } from '../utils/dashboardStatus';
 import type { MypageTab } from '../types/dashboard';
+import { logger } from '../../../shared/utils/logger';
 
 function Toggle({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) {
   return (
@@ -65,8 +66,8 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
           const dateOnly = profile.createdAt.split('T')[0];
           setProfileCreatedAt(dateOnly);
         }
-      } catch (error) {
-        console.error('Failed to load profile:', error);
+      } catch {
+        logger.error('Failed to load profile.');
       }
     };
     loadProfile();
@@ -80,8 +81,8 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
         phoneNumber: profilePhone.replace(/[^0-9]/g, ''),
       });
       toast.success('프로필 정보가 성공적으로 저장되었습니다.');
-    } catch (error) {
-      console.error('Failed to update profile:', error);
+    } catch {
+      logger.error('Failed to update profile.');
       toast.error('프로필 정보를 저장하는데 실패했습니다.');
     }
   };
@@ -106,8 +107,8 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
       setCurrentPw('');
       setNewPw('');
       setConfirmPw('');
-    } catch (error) {
-      console.error('Failed to change password:', error);
+    } catch {
+      logger.error('Failed to change password.');
       toast.error('비밀번호 변경에 실패했습니다. 현재 비밀번호를 다시 확인해 주세요.');
     }
   };
@@ -125,8 +126,8 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
       setTimeout(() => {
         onLogout();
       }, 1500);
-    } catch (error) {
-      console.error('Failed to withdraw account:', error);
+    } catch {
+      logger.error('Failed to withdraw account.');
       toast.error('회원 탈퇴 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     }
   };

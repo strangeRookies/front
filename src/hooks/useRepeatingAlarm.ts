@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { logger } from '../shared/utils/logger';
 
 interface UseRepeatingAlarmOptions {
   readonly enabled: boolean;
@@ -32,7 +33,7 @@ export function useRepeatingAlarm({ enabled, intervalMs = 2000 }: UseRepeatingAl
         });
       } catch (error) {
         if (error instanceof DOMException || error instanceof Error) {
-          console.warn('AI alarm sound was blocked or unavailable:', error.message);
+          logger.warn('AI alarm sound was blocked or unavailable.');
           return;
         }
         throw error;

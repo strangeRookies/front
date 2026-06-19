@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { getBackendWsUrl } from '../../../shared/api/client';
 import { SimpleStompClient } from '../../../shared/utils/stomp';
+import { logger } from '../../../shared/utils/logger';
 
 // 23.md Section 6 "카메라 상태 값 정의" 에 대응하는 실시간 연결 상태
 export type CameraConnectionStatus = 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
@@ -27,7 +29,7 @@ function parseCameraStatusEvent(raw: Record<string, unknown>): CameraStatusEvent
   const status = ((raw.status as string) ?? 'UNKNOWN').toUpperCase() as CameraConnectionStatus;
 
   if (!cameraLoginId && !cameraId) {
-    console.warn('[useCameraStatusWebSocket] Camera status event missing cameraLoginId/cameraId:', raw);
+    logger.warn('[useCameraStatusWebSocket] Camera status event missing cameraLoginId/cameraId.');
     return null;
   }
 
@@ -45,24 +47,29 @@ function parseCameraStatusEvent(raw: Record<string, unknown>): CameraStatusEvent
 }
 
 /**
- * WebSocket /topic/camera-status 구독 훅.
+ * WebSocket /topic/facility/{id}/camera-status 구독 훅.
  * Backend가 MQTT safety/cameras/status 를 수신 → WebSocket 브로드캐스트한 이벤트를 수신한다.
  *
  * 반환: cameraLoginId → CameraStatusEvent 맵
  */
-export function useCameraStatusWebSocket(): CameraStatusMap {
+export function useCameraStatusWebSocket(facilityId?: number | string): CameraStatusMap {
   const [statusMap, setStatusMap] = useState<CameraStatusMap>(new Map());
-  const backendBaseUrl = (import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
-  const wsUrl = backendBaseUrl.replace(/^http/, 'ws') + '/ws';
+  const wsUrl = getBackendWsUrl('/ws');
 
   // We keep a ref so the closure in the STOMP client doesn't capture stale state
   const statusMapRef = useRef<CameraStatusMap>(statusMap);
   statusMapRef.current = statusMap;
 
   useEffect(() => {
+    const topic = facilityId 
+      ? `/topic/facility/${facilityId}/camera-status` 
+      : '/topic/camera-status';
+
+    logger.info(`[useCameraStatusWebSocket] Connecting to topic: ${topic}`);
+
     const client = new SimpleStompClient({
       url: wsUrl,
-      topic: '/topic/camera-status',
+      topic,
       onMessage: (raw: Record<string, unknown>) => {
         const event = parseCameraStatusEvent(raw);
         if (!event) return;
@@ -76,7 +83,7 @@ export function useCameraStatusWebSocket(): CameraStatusMap {
         });
       },
       onStatusChange: (status: 'connecting' | 'connected' | 'disconnected') => {
-        console.log('[useCameraStatusWebSocket] STOMP status:', status);
+        logger.info(`[useCameraStatusWebSocket] STOMP status: ${status}`);
       },
     });
 
@@ -86,7 +93,7 @@ export function useCameraStatusWebSocket(): CameraStatusMap {
       client.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsUrl]);
+  }, [wsUrl, facilityId]);
 
   return statusMap;
 }

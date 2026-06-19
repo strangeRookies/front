@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import {
   aiEventFingerprint,
@@ -30,6 +30,25 @@ export function useDashboardAlerts({
 }: UseDashboardAlertsParams) {
   const [alerts, setAlerts] = useState<IncidentAlert[]>([]);
 
+  const mergeRecentAlerts = useCallback((recentAlerts: readonly IncidentAlert[]) => {
+    if (recentAlerts.length === 0) return;
+
+    setAlerts((prev) => {
+      const merged = new Map(prev.map((alert) => [alert.id, alert]));
+      let changed = false;
+
+      for (const alert of recentAlerts) {
+        if (!merged.has(alert.id)) {
+          merged.set(alert.id, alert);
+          changed = true;
+        }
+      }
+
+      if (!changed) return prev;
+      return [...merged.values()].sort((a, b) => b.timestamp - a.timestamp);
+    });
+  }, []);
+
   useEffect(() => {
     if (dangerAiEvents.length === 0) return;
 
@@ -43,10 +62,7 @@ export function useDashboardAlerts({
 
         if (!exists) {
           const cameraObj = findCameraForAiEvent(liveCameras, event);
-          if (!cameraObj) {
-            continue;
-          }
-          const cameraName = cameraObj.name;
+          const cameraName = cameraObj?.name || event.camera_login_id || event.camera_id || '-';
           const timeString = new Date(event.timestamp * 1000).toTimeString().split(' ')[0];
           const eventType = event.event_type.toUpperCase();
           const label = `${eventType} (${getEventTypeKorean(event.event_type)}) 감지`;
@@ -122,6 +138,7 @@ export function useDashboardAlerts({
     alerts,
     activeTenMinAlerts,
     getFilteredHistory,
+    mergeRecentAlerts,
     resolveAlert,
   };
 }

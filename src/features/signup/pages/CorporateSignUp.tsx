@@ -35,6 +35,14 @@ import {
   PHONE_RULE_MESSAGE,
   SIGNUP_PASSWORD_RULE_MESSAGE,
 } from '../utils/validation';
+import {
+  getAvailabilityCheckErrorMessage,
+  getJurisdictionErrorMessage,
+  getSignupSubmitErrorMessage,
+  getSmsConfirmErrorMessage,
+  getSmsRequestErrorMessage,
+  SMS_VERIFICATION_SENT_MESSAGE,
+} from '../utils/signupMessages';
 
 interface CorporateSignUpProps {
   onBackToLogin: () => void;
@@ -105,11 +113,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       setJurisdictionStatus('success');
     } catch (error) {
       setJurisdictionStatus('error');
-      if (error instanceof ApiError && error.code === 'EMERGENCY_JURISDICTION_NOT_FOUND') {
-        setJurisdictionError('해당 주소에 매칭되는 관할 119센터를 찾을 수 없습니다. 정확한 주소를 입력해주세요.');
-      } else {
-        setJurisdictionError(error instanceof Error ? error.message : '관할 정보를 찾을 수 없습니다. 주소를 다시 선택해주세요.');
-      }
+      setJurisdictionError(getJurisdictionErrorMessage(error));
     }
   };
 
@@ -163,19 +167,9 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       setVerificationToken('');
       setIsPhoneVerified(false);
       setIsCodeSent(true);
-      alert('인증번호를 발송했습니다. 개발 환경에서는 백엔드 서버 로그에서 인증번호를 확인해주세요.');
+      alert(SMS_VERIFICATION_SENT_MESSAGE);
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'SMS_RATE_LIMITED') {
-        alert('인증번호를 너무 자주 요청했습니다. 잠시 후 다시 시도해주세요.');
-      } else if (error instanceof ApiError && error.code === 'SMS_SEND_FAILED') {
-        alert('인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.');
-      } else if (error instanceof ApiError && error.code === 'COMMON_INVALID_INPUT') {
-        alert(PHONE_RULE_MESSAGE);
-      } else if (error instanceof ApiError && error.status >= 500) {
-        alert('인증번호 발송 처리 중 서버 오류가 발생했습니다. 백엔드 서버 로그에서 SMS 설정 또는 Mock 인증번호 생성 상태를 확인해주세요.');
-      } else {
-        alert(error instanceof Error ? error.message : '인증번호 발송에 실패했습니다.');
-      }
+      alert(getSmsRequestErrorMessage(error, PHONE_RULE_MESSAGE));
     } finally {
       setIsSubmitting(false);
     }
@@ -201,7 +195,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       setIsPhoneVerified(true);
       alert('휴대폰 본인 인증이 완료되었습니다.');
     } catch (error) {
-      alert(error instanceof Error ? error.message : '인증번호 확인에 실패했습니다.');
+      alert(getSmsConfirmErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -250,16 +244,17 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
         }
         setStep(2);
       } catch (error) {
-        alert(error instanceof Error ? error.message : '이메일 중복 확인에 실패했습니다.');
+        alert(getAvailabilityCheckErrorMessage(error, '이메일 중복 확인에 실패했습니다. 잠시 후 다시 시도해주세요.'));
       } finally {
         setIsSubmitting(false);
       }
     } else if (step === 2) {
-      if (!companyName.trim() || !businessNumber.trim() || !industry || !companySize || !address || !addressDetail.trim()) {
+      if (!companyName.trim() || !industry || !companySize || !address || !addressDetail.trim()) {
         alert('기업 필수 정보와 주소, 상세 주소를 모두 입력해주세요.');
         return;
       }
-      if (!isValidBusinessNumber(businessNumber)) {
+      const normalizedBusinessNumber = normalizeBusinessNumber(businessNumber);
+      if (businessNumber.trim() && !isValidBusinessNumber(businessNumber)) {
         alert('사업자등록번호는 숫자 10자리로 입력해주세요.');
         return;
       }
@@ -269,14 +264,16 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       }
       try {
         setIsSubmitting(true);
-        const isAvailable = await checkBusinessNumberAvailability(normalizeBusinessNumber(businessNumber));
-        if (!isAvailable) {
-          alert('이미 등록된 사업자등록번호입니다.');
-          return;
+        if (normalizedBusinessNumber) {
+          const isAvailable = await checkBusinessNumberAvailability(normalizedBusinessNumber);
+          if (!isAvailable) {
+            alert('이미 등록된 사업자등록번호입니다.');
+            return;
+          }
         }
         setStep(3);
       } catch (error) {
-        alert(error instanceof Error ? error.message : '사업자등록번호 중복 확인에 실패했습니다.');
+        alert(getAvailabilityCheckErrorMessage(error, '사업자등록번호 중복 확인에 실패했습니다. 잠시 후 다시 시도해주세요.'));
       } finally {
         setIsSubmitting(false);
       }
@@ -308,6 +305,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
       try {
         setIsSubmitting(true);
         const normalizedPhone = normalizeRepresentativePhoneNumber(managerPhone);
+        const normalizedBusinessNumber = normalizeBusinessNumber(businessNumber);
         await signupCorporate({
           email: email.trim(),
           password,
@@ -315,7 +313,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
           verificationToken,
           company: {
             name: companyName.trim(),
-            businessNumber: normalizeBusinessNumber(businessNumber),
+            ...(normalizedBusinessNumber ? { businessNumber: normalizedBusinessNumber } : {}),
             industry,
             size: companySize,
             postcode,
@@ -344,7 +342,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
           alert('선택하신 주소의 관할 정보를 백엔드에서 다시 계산하는 중 오류가 발생했습니다(관할 미매칭). 다른 주소를 시도해주세요.');
           setStep(2);
         } else {
-          alert(error instanceof Error ? error.message : '회원가입 요청에 실패했습니다.');
+          alert(getSignupSubmitErrorMessage(error));
         }
       } finally {
         setIsSubmitting(false);
@@ -522,12 +520,12 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">사업자등록번호</label>
+                  <label className="text-xs font-semibold text-slate-300">사업자등록번호 <span className="text-slate-500">(선택)</span></label>
                   <input
                     type="text"
                     value={businessNumber}
                     onChange={(e) => setBusinessNumber(e.target.value)}
-                    placeholder="숫자 10자리 (- 없이)"
+                    placeholder="입력 시 숫자 10자리"
                     className="w-full px-4 py-3 bg-[#070e1b] border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
                   />
                 </div>
@@ -544,6 +542,7 @@ export function CorporateSignUp({ onBackToLogin, onSignUpComplete }: CorporateSi
                     <option value="제조/공업">제조 / 화학 / 안전 빌딩</option>
                     <option value="IT/서비스">IT / 정보통신</option>
                     <option value="교육/연구">교육 / 공공 연구</option>
+                    <option value="공공시설">공공시설</option>
                   </select>
                 </div>
 

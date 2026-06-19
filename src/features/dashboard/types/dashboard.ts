@@ -19,7 +19,6 @@ export interface RegisteredCamera {
   password?: string;
   status?: string;
   rtspUrl?: string;
-  sourceType?: string;
   assignedVideoPath?: string;
 }
 

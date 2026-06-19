@@ -15,6 +15,7 @@ import {
   PHONE_RULE_MESSAGE,
   SIGNUP_PASSWORD_RULE_MESSAGE,
 } from '../../signup/utils/validation';
+import { SMS_VERIFICATION_SENT_MESSAGE } from '../../signup/utils/signupMessages';
 
 interface ForgotPasswordPageProps {
   onBackToLogin: () => void;
@@ -59,7 +60,7 @@ export function ForgotPasswordPage({ onBackToLogin, onResetComplete }: ForgotPas
       setVerificationToken('');
       setVerificationCode('');
       setStep('verify');
-      alert('인증번호를 발송했습니다. 개발 환경에서는 백엔드 서버 로그에서 인증번호를 확인해주세요.');
+      alert(SMS_VERIFICATION_SENT_MESSAGE);
     } catch (error) {
       handlePasswordResetError(error, '인증번호 발송에 실패했습니다.');
     } finally {
@@ -310,7 +311,7 @@ function ActionButton({
 
 function handlePasswordResetError(error: unknown, fallbackMessage: string) {
   if (error instanceof ApiError && error.code === 'USER_NOT_FOUND') {
-    alert('입력한 이메일과 휴대폰 번호에 해당하는 계정을 찾을 수 없습니다.');
+    alert('입력한 정보가 올바른 경우 인증 절차가 진행됩니다. 정보를 다시 확인해주세요.');
     return;
   }
   if (error instanceof ApiError && error.code === 'AUTH_INVALID_VERIFICATION') {
@@ -329,5 +330,5 @@ function handlePasswordResetError(error: unknown, fallbackMessage: string) {
     alert('인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.');
     return;
   }
-  alert(error instanceof Error ? error.message : fallbackMessage);
+  alert(fallbackMessage);
 }

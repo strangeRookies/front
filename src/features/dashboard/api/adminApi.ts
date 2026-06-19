@@ -25,6 +25,24 @@ export async function fetchAdminUsers(page = 0, size = 100): Promise<PageRespons
   );
 }
 
+export interface AdminMemberUpdateRequest {
+  name: string;
+  representative?: string | null;
+  contact: string;
+  region?: string | null;
+  status: 'ACTIVE' | 'SUSPENDED';
+}
+
+export async function updateAdminMember(
+  userId: number,
+  payload: AdminMemberUpdateRequest,
+): Promise<void> {
+  return apiRequest<void>(`/api/users/admin/${userId}`, {
+    method: 'PATCH',
+    body: payload,
+  });
+}
+
 // ── 기업 관리 ──────────────────────────────────────────────
 
 export interface AdminCompanyResponse {
@@ -36,16 +54,60 @@ export async function fetchAdminCompanies(): Promise<AdminCompanyResponse[]> {
   return apiRequest<AdminCompanyResponse[]>('/api/admin/company-profiles');
 }
 
+// ── 개인 시설 관리 ─────────────────────────────────────────
+
+export interface AdminIndividualFacilityResponse {
+  facilityId: number;
+  facilityName: string;
+}
+
+export async function fetchAdminIndividualFacilities(): Promise<AdminIndividualFacilityResponse[]> {
+  return apiRequest<AdminIndividualFacilityResponse[]>('/api/admin/individual-facilities');
+}
+
+export interface AdminFacilityCameraResponse {
+  cameraId: number;
+  cameraName: string;
+  cameraLoginId: string;
+  rtspUrl: string;
+  locationDescription: string | null;
+  connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
+  status: 'ACTIVE' | 'INACTIVE';
+  assignedVideoPath: string | null;
+}
+
+export async function fetchAdminFacilityCameras(facilityId: number): Promise<AdminFacilityCameraResponse[]> {
+  return apiRequest<AdminFacilityCameraResponse[]>(`/api/admin/facilities/${facilityId}/cameras`);
+}
+
+// ── 시스템 통계 ────────────────────────────────────────────
+
+export interface AdminCameraStatsResponse {
+  totalCount: number;
+  connectedCount: number;
+}
+
+export async function fetchAdminCameraStats(): Promise<AdminCameraStatsResponse> {
+  return apiRequest<AdminCameraStatsResponse>('/api/admin/cameras/stats');
+}
+
+export interface AdminTodayAlertCountResponse {
+  count: number;
+}
+
+export async function fetchAdminTodayAlertCount(): Promise<AdminTodayAlertCountResponse> {
+  return apiRequest<AdminTodayAlertCountResponse>('/api/admin/alert-events/today-count');
+}
+
 // ── 기업용 카메라 관리 ─────────────────────────────────────
 
 export interface CorporateCameraRequest {
   cameraName: string;
   cameraSerialNumber: string;
-  cameraLoginId: string;
+  cameraLoginId?: string;
   password?: string;
-  rtspUrl: string;
+  rtspUrl?: string;
   locationDescription?: string;
-  sourceType?: 'REAL_RTSP' | 'SIMULATED_RTSP';
   assignedVideoPath?: string;
 }
 
@@ -61,7 +123,6 @@ export interface CorporateCameraResponse {
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: string;
   updatedAt: string;
-  sourceType: 'REAL_RTSP' | 'SIMULATED_RTSP';
   assignedVideoPath: string | null;
   connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
   lastConnectionReportAt: string | null;
@@ -96,6 +157,7 @@ export async function bulkUploadCamerasForCompany(
     buildApiUrl(`/api/admin/corporate-cameras/company/${companyProfileId}/bulk`),
     {
       method: 'POST',
+      credentials: 'include',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
     },

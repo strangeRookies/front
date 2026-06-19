@@ -1,16 +1,18 @@
 import { useEffect, useRef } from 'react';
 import Hls from 'hls.js';
-import type { StreamRenderKind } from '../data/cameras';
+import { STREAM_MODE, type StreamRenderKind } from '../data/cameras';
+import { WebRtcCameraPlayer } from './WebRtcCameraPlayer';
 
-interface CameraStreamFrameProps {
+export interface CameraStreamFrameProps {
   readonly streamUrl?: string;
   readonly streamKind: StreamRenderKind;
   readonly title: string;
   readonly className?: string;
   readonly dimmed?: boolean;
+  readonly cameraLoginId?: string;
 }
 
-function HlsStream({ streamUrl, title, className = '', dimmed = false }: CameraStreamFrameProps) {
+export function HlsStream({ streamUrl, title, className = '', dimmed = false }: CameraStreamFrameProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -45,17 +47,53 @@ function HlsStream({ streamUrl, title, className = '', dimmed = false }: CameraS
   );
 }
 
+function extractCameraLoginId(urlStr?: string): string | undefined {
+  if (!urlStr) return undefined;
+  try {
+    const url = new URL(urlStr);
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    if (pathParts.length > 0) {
+      return pathParts[0]; // For /cam_01/index.m3u8 or /cam_01/whep
+    }
+  } catch {
+    const match = urlStr.match(/\/([^/]+)\/(index\.m3u8|whep)/);
+    if (match) return match[1];
+  }
+  return undefined;
+}
+
 export function CameraStreamFrame({
   streamUrl,
   streamKind,
   title,
   className = '',
   dimmed = false,
+  cameraLoginId,
 }: CameraStreamFrameProps) {
   if (!streamUrl) return null;
 
+  const derivedLoginId = cameraLoginId || extractCameraLoginId(streamUrl);
+
   if (streamKind === 'hls') {
-    return <HlsStream streamUrl={streamUrl} streamKind={streamKind} title={title} className={className} dimmed={dimmed} />;
+    if (STREAM_MODE === 'webrtc' && derivedLoginId) {
+      return (
+        <WebRtcCameraPlayer
+          cameraLoginId={derivedLoginId}
+          title={title}
+          className={className}
+          dimmed={dimmed}
+        />
+      );
+    }
+    return (
+      <HlsStream
+        streamUrl={streamUrl}
+        streamKind={streamKind}
+        title={title}
+        className={className}
+        dimmed={dimmed}
+      />
+    );
   }
 
   return (

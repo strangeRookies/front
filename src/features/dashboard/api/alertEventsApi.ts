@@ -1,0 +1,109 @@
+import { apiRequest } from '../../../shared/api/client';
+import type { LiveCamera } from '../data/cameras';
+import type { IncidentAlert } from '../types/dashboard';
+import { getEventTypeKorean, getSeverityTone } from '../../../shared/utils/aiAlerts';
+
+export type RecentAlertEventResponse = Record<string, unknown>;
+
+export async function fetchRecentAlertEvents(facilityId: number | string): Promise<RecentAlertEventResponse[]> {
+  const data = await apiRequest<unknown>(`/api/facilities/${facilityId}/alert-events/recent`, {
+    method: 'GET',
+  });
+
+  if (Array.isArray(data)) {
+    return data.filter(isRecord);
+  }
+
+  if (isRecord(data) && Array.isArray(data.content)) {
+    return data.content.filter(isRecord);
+  }
+
+  return [];
+}
+
+export function toIncidentAlertFromRecentEvent(
+  event: RecentAlertEventResponse,
+  liveCameras: readonly LiveCamera[],
+): IncidentAlert | null {
+  const timestamp = readTimestamp(event, ['occurredAt', 'eventTimestamp', 'detectedAt', 'createdAt', 'timestamp']);
+  if (!timestamp) {
+    return null;
+  }
+
+  const eventType = readString(event, ['eventType', 'event_type', 'type']) || 'UNKNOWN';
+  const normalizedEventType = eventType.toUpperCase();
+  const cameraKey = readString(event, ['cameraLoginId', 'camera_login_id', 'cameraId', 'camera_id']);
+  const cameraName = readString(event, ['cameraName', 'camera_name', 'camera', 'location']);
+  const matchedCamera = findLiveCamera(liveCameras, cameraKey, cameraName);
+  const severity = getSeverityTone(readString(event, ['severity', 'level']) || '');
+  const statusRaw = readString(event, ['status', 'state'])?.toUpperCase();
+  const acknowledged = readBoolean(event, ['acknowledged', 'acknowledgedYn', 'resolved'])
+    || statusRaw === 'ACKNOWLEDGED'
+    || statusRaw === 'RESOLVED'
+    || statusRaw === 'COMPLETED';
+
+  return {
+    id: readString(event, ['eventId', 'event_id', 'alertEventId', 'alert_event_id', 'incidentId', 'id'])
+      || `${cameraKey || cameraName || 'unknown'}:${normalizedEventType}:${timestamp}`,
+    time: new Date(timestamp).toTimeString().split(' ')[0],
+    timestamp,
+    camera: matchedCamera?.name || cameraName || cameraKey || '-',
+    type: normalizedEventType,
+    label: readString(event, ['message', 'label', 'description'])
+      || `${normalizedEventType} (${getEventTypeKorean(eventType)}) 감지`,
+    severity,
+    status: acknowledged ? 'resolved' : 'new',
+  };
+}
+
+function isRecord(value: unknown): value is RecentAlertEventResponse {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readString(record: RecentAlertEventResponse, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+  return '';
+}
+
+function readBoolean(record: RecentAlertEventResponse, keys: string[]) {
+  return keys.some((key) => record[key] === true || record[key] === 'true' || record[key] === 'Y');
+}
+
+function readTimestamp(record: RecentAlertEventResponse, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value > 1e12 ? value : value * 1000;
+    }
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Date.parse(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return 0;
+}
+
+function findLiveCamera(liveCameras: readonly LiveCamera[], cameraKey?: string, cameraName?: string) {
+  const normalizedKeys = new Set([cameraKey, cameraName].map(normalizeCameraToken).filter(Boolean));
+  return liveCameras.find((camera) => [
+    camera.cameraLoginId,
+    camera.cameraDbId,
+    camera.id,
+    camera.name,
+    camera.location,
+  ].some((value) => normalizedKeys.has(normalizeCameraToken(value))));
+}
+
+function normalizeCameraToken(value?: string) {
+  return value?.toLowerCase().replace(/[^a-z0-9가-힣]/g, '') || '';
+}

@@ -11,14 +11,17 @@ import {
   LogIn, KeyRound, Smartphone
 } from 'lucide-react';
 import { CCTVFloorPlan } from '../components/CCTVFloorPlan';
+import { CorporateFloorPlan } from '../components/CorporateFloorPlan';
 import { LiveCameraGrid } from '../components/LiveCameraGrid';
 import { useLiveCameras } from '../hooks/useLiveCameras';
 import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import { CCTVRegistration } from '../components/CCTVRegistration';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
-import { fetchAdminUsers, type AdminUserResponse } from '../api/adminApi';
+import type { LiveCamera } from '../data/cameras';
+import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, updateAdminMember, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse } from '../api/adminApi';
 import { fetchAllInquiries, fetchMyInquiries, createInquiry, answerInquiry } from '../api/inquiryApi';
+import { logger } from '../../../shared/utils/logger';
 
 interface IntegratedDashboardProps {
   onLogout: () => void;
@@ -56,42 +59,18 @@ const FLOOR_3_CAMERAS: CCTVCamera[] = [
   { id: 'CCTV-05', name: '장비실',      x: 540, y: 345, status: 'normal' },
 ];
 
-interface IncidentEvent {
+
+interface Space {
   id: string;
-  time: string;
-  camera: string;
-  type: string;
   label: string;
-  severity: 'critical' | 'warning' | 'info';
-  status: 'new' | 'resolved';
+  type: 'corporate' | 'individual';
+  floors: { id: string; label: string; alerts: number }[];
 }
-
-const INITIAL_EVENTS: IncidentEvent[] = [
-  { id: 'evt-101', time: '13:02:15', camera: '복도 A',    type: 'FALL',  label: 'FALL (낙상) 감지',  severity: 'critical', status: 'new'      },
-  { id: 'evt-102', time: '12:58:40', camera: '계단 통로', type: 'FAINT', label: 'FAINT (실신) 감지', severity: 'warning',  status: 'new'      },
-  { id: 'evt-103', time: '12:45:30', camera: '대기실',    type: 'CROWD', label: 'CROWD (혼잡) 감지', severity: 'info',     status: 'resolved' },
-  { id: 'evt-104', time: '12:30:10', camera: '수술실 복도', type: 'CROWD', label: 'CROWD (혼잡) 감지', severity: 'info',     status: 'resolved' },
-];
-
-const SPACES = [
-  {
-    id: 'seoul-hospital',
-    label: '서울 병원',
-    floors: [
-      { id: '1F', label: '1층', alerts: 1 },
-      { id: '2F', label: '2층', alerts: 1 },
-      { id: '3F', label: '3층', alerts: 0 },
-    ],
-  },
-  { id: 'namsan', label: '남산골 공원', floors: [] },
-  { id: 'nursing-hospital', label: '서울 요양병원', floors: [] },
-  { id: 'community-center', label: '중구 주민센터', floors: [] },
-];
 
 type MenuId     = 'home' | 'adminlist' | 'cctvReg' | 'qna' | 'test';
 type TestMenuId = 'home' | 'alerts' | 'history' | 'cameras' | 'mypage' | 'qna';
 type MypageTab  = 'profile' | 'password' | 'notifications' | 'account';
-type MemberStatus = '활성' | '비활성' | '대기';
+type MemberStatus = '활성' | '비활성';
 
 interface OrgMember {
   id: string; type: 'corporate';
@@ -108,9 +87,11 @@ interface IndividualMember {
 type AnyMember = OrgMember | IndividualMember;
 
 function statusToKorean(status: AdminUserResponse['status']): MemberStatus {
-  if (status === 'ACTIVE') return '활성';
-  if (status === 'PENDING_APPROVAL') return '대기';
-  return '비활성';
+  return status === 'ACTIVE' ? '활성' : '비활성';
+}
+
+function statusToApi(status: MemberStatus): 'ACTIVE' | 'SUSPENDED' {
+  return status === '활성' ? 'ACTIVE' : 'SUSPENDED';
 }
 
 function toOrgMember(u: AdminUserResponse): OrgMember {
@@ -144,7 +125,6 @@ function toIndividualMember(u: AdminUserResponse): IndividualMember {
 const STATUS_STYLE: Record<MemberStatus, string> = {
   '활성':   'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   '비활성': 'bg-slate-500/10 text-slate-400 border-slate-500/20',
-  '대기':   'bg-amber-500/10 text-amber-400 border-amber-500/20',
 };
 
 const MENU_ITEMS: { id: MenuId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -170,11 +150,6 @@ const CATEGORY_STYLES: Record<InquiryCategory, string> = {
   '기타':           'bg-slate-500/10 text-slate-400 border-slate-500/20',
 };
 
-function eventButtonStyle(severity: 'critical' | 'warning' | 'info') {
-  if (severity === 'critical') return 'bg-[#ef4444] hover:bg-red-400';
-  if (severity === 'warning')  return 'bg-[#f59e0b] hover:bg-amber-400';
-  return 'bg-[#334155] hover:bg-slate-500';
-}
 
 const TEST_CCTV_FEEDS = [
   { id: 'CCTV-01', name: '방 1',     style: 'brightness-90 contrast-100 hue-rotate-15' },
@@ -242,11 +217,20 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   const liveCameras = useLiveCameras();
   const [activeMenu, setActiveMenu] = useState<MenuId>('home');
   const [selectedFloor, setSelectedFloor] = useState<'1F' | '2F' | '3F'>('1F');
-  const [expandedSpace, setExpandedSpace] = useState<string>('seoul-hospital');
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [spacesLoading, setSpacesLoading] = useState(true);
+  const [selectedSpaceId, setSelectedSpaceId] = useState('');
+  const [corpGroupOpen, setCorpGroupOpen] = useState(false);
+  const [indGroupOpen, setIndGroupOpen] = useState(false);
+  const [spaceSearch, setSpaceSearch] = useState('');
+  const [cameraStats, setCameraStats] = useState<{ totalCount: number; connectedCount: number } | null>(null);
+  const [todayAlertCount, setTodayAlertCount] = useState(0);
+  const [spaceViewCameras, setSpaceViewCameras] = useState<CorporateCameraResponse[] | AdminFacilityCameraResponse[]>([]);
+  const [spaceViewLoading, setSpaceViewLoading] = useState(false);
+  const [spaceSelectedCameraId, setSpaceSelectedCameraId] = useState<string | null>(null);
   const [cameras, setCameras] = useState<CCTVCamera[]>(FLOOR_1_CAMERAS);
   const [selectedCamera, setSelectedCamera] = useState<CCTVCamera | null>(FLOOR_1_CAMERAS[1]);
-  const [events, setEvents] = useState<IncidentEvent[]>(INITIAL_EVENTS);
-  const [isPlaying, setIsPlaying] = useState(true);
+const [isPlaying, setIsPlaying] = useState(true);
   const [volume, setVolume] = useState(70);
 
   // Admin QnA state
@@ -325,8 +309,8 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
     try {
       await createInquiry(tQnaCategory, tQnaTitle.trim(), tQnaContent.trim());
       loadTestInquiries();
-    } catch (err) {
-      console.error('[TestQna] create failed:', err);
+    } catch {
+      logger.error('[TestQna] create failed.');
     }
     setTQnaTitle(''); setTQnaContent(''); setTQnaCategory('기타'); setTShowNewQnaModal(false);
   };
@@ -337,37 +321,112 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   const [adminStatusFilter, setAdminStatusFilter] = useState<MemberStatus | '전체'>('전체');
   const [editingMember, setEditingMember]   = useState<AnyMember | null>(null);
   const [editStatus, setEditStatus]         = useState<MemberStatus>('활성');
+  const [editName, setEditName]             = useState('');
+  const [editRepresentative, setEditRepresentative] = useState('');
   const [editContact, setEditContact]       = useState('');
+  const [editRegion, setEditRegion]         = useState('');
+  const [editSaving, setEditSaving]         = useState(false);
+  const [editError, setEditError]           = useState<string | null>(null);
   const [orgList, setOrgList]               = useState<OrgMember[]>([]);
   const [indList, setIndList]               = useState<IndividualMember[]>([]);
   const [adminLoading, setAdminLoading]     = useState(false);
   const [adminError, setAdminError]         = useState<string | null>(null);
 
   useEffect(() => {
+    setSpacesLoading(true);
+    Promise.all([fetchAdminCompanies(), fetchAdminIndividualFacilities()])
+      .then(([companies, facilities]) => {
+        const corpSpaces: Space[] = companies.map(c => ({
+          id: `corp-${c.companyProfileId}`,
+          label: c.companyName,
+          type: 'corporate',
+          floors: [],
+        }));
+        const indSpaces: Space[] = facilities.map(f => ({
+          id: `ind-${f.facilityId}`,
+          label: f.facilityName,
+          type: 'individual',
+          floors: [],
+        }));
+        const all = [...corpSpaces, ...indSpaces];
+        setSpaces(all);
+        if (all.length > 0) setSelectedSpaceId(all[0].id);
+      })
+      .catch((err: unknown) => console.error('[Spaces] fetch failed:', err))
+      .finally(() => setSpacesLoading(false));
+  }, []);
+
+  const refetchSpaceCameras = useCallback(() => {
+    if (!selectedSpaceId) return;
+    const space = spaces.find(s => s.id === selectedSpaceId);
+    if (!space) return;
+    const numericId = Number(space.id.split('-')[1]);
+    const fetcher = space.type === 'corporate'
+      ? fetchAdminCamerasByCompany(numericId)
+      : fetchAdminFacilityCameras(numericId);
+    fetcher
+      .then(cams => setSpaceViewCameras(cams as CorporateCameraResponse[] | AdminFacilityCameraResponse[]))
+      .catch((err: unknown) => console.error('[SpaceView] refetch failed:', err));
+  }, [selectedSpaceId, spaces]);
+
+  useEffect(() => {
+    if (!selectedSpaceId) return;
+    const space = spaces.find(s => s.id === selectedSpaceId);
+    if (!space) return;
+
+    setSpaceViewLoading(true);
+    setSpaceViewCameras([]);
+    setSpaceSelectedCameraId(null);
+
+    const numericId = Number(space.id.split('-')[1]);
+    const fetcher = space.type === 'corporate'
+      ? fetchAdminCamerasByCompany(numericId)
+      : fetchAdminFacilityCameras(numericId);
+
+    fetcher
+      .then(cams => setSpaceViewCameras(cams as CorporateCameraResponse[] | AdminFacilityCameraResponse[]))
+      .catch((err: unknown) => console.error('[SpaceView] fetch failed:', err))
+      .finally(() => setSpaceViewLoading(false));
+  }, [selectedSpaceId]);
+
+  useEffect(() => {
+    Promise.all([fetchAdminCameraStats(), fetchAdminTodayAlertCount()])
+      .then(([stats, alertData]) => {
+        setCameraStats(stats);
+        setTodayAlertCount(alertData.count);
+      })
+      .catch((err: unknown) => console.error('[Stats] fetch failed:', err));
+  }, []);
+
+  const loadAdminUsers = useCallback(() => {
     setAdminLoading(true);
-    fetchAdminUsers()
+    return fetchAdminUsers()
       .then(page => {
         setOrgList(page.content.filter(u => u.role === 'CORPORATE').map(toOrgMember));
         setIndList(page.content.filter(u => u.role === 'INDIVIDUAL').map(toIndividualMember));
         setAdminError(null);
       })
-      .catch((err: unknown) => {
-        console.error('[AdminList] fetch failed:', err);
+      .catch(() => {
+        logger.error('[AdminList] fetch failed.');
         setAdminError('회원 목록을 불러오지 못했습니다.');
       })
       .finally(() => setAdminLoading(false));
   }, []);
 
   useEffect(() => {
+    loadAdminUsers();
+  }, [loadAdminUsers]);
+
+  useEffect(() => {
     fetchAllInquiries()
       .then(setInquiries)
-      .catch((err: unknown) => console.error('[AdminQna] fetch failed:', err));
+      .catch(() => logger.error('[AdminQna] fetch failed.'));
   }, []);
 
   const loadTestInquiries = () => {
     fetchMyInquiries()
       .then(setTMyInquiries)
-      .catch((err: unknown) => console.error('[TestQna] fetch failed:', err));
+      .catch(() => logger.error('[TestQna] fetch failed.'));
   };
 
   const selectedAdminQna = inquiries.find(inq => inq.id === selectedAdminQnaId) ?? null;
@@ -382,17 +441,14 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
 
   const handleCameraClick = useCallback((cam: CCTVCamera) => setSelectedCamera(cam), []);
 
-  const handleResolveEvent = (id: string) =>
-    setEvents(prev => prev.map(e => e.id === id ? { ...e, status: 'resolved' as const } : e));
-
-  const handleSubmitReply = async () => {
+const handleSubmitReply = async () => {
     if (!adminReply.trim() || !selectedAdminQnaId) return;
     try {
       await answerInquiry(selectedAdminQnaId, adminReply.trim());
       const updated = await fetchAllInquiries();
       setInquiries(updated);
-    } catch (err) {
-      console.error('[AdminQna] answer failed:', err);
+    } catch {
+      logger.error('[AdminQna] answer failed.');
     }
     setAdminReply('');
   };
@@ -419,10 +475,12 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
               <X className="w-3.5 h-3.5" /> 테스트 종료
             </button>
           ) : (
-            <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-[#102035] border border-slate-700/50 text-[11px] font-medium text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              실시간 위협 모니터링 연동 중
-            </div>
+            <button
+              onClick={() => { setActiveMenu('test'); setTestSubMenu('home'); }}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1e3a8a] hover:bg-blue-700 border border-blue-500/20 text-[11px] font-bold text-white cursor-pointer"
+            >
+              <Beaker className="w-3.5 h-3.5" /> 테스트 모드
+            </button>
           )}
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-200">관</div>
@@ -442,52 +500,138 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
           <div className="p-4 space-y-6 flex-1">
 
             {/* 공간 선택 */}
-            <div className="space-y-2">
-              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">공간 선택</h3>
-              <div className="space-y-1">
-                {SPACES.map(space => (
-                  <div key={space.id}>
-                    <button
-                      onClick={() => setExpandedSpace(expandedSpace === space.id ? '' : space.id)}
-                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800/30 transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Folder className="w-3.5 h-3.5 text-blue-400" />
-                        <span>{space.label}</span>
-                      </div>
-                      {space.floors.length > 0 && (
-                        expandedSpace === space.id
-                          ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                          : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                      )}
-                    </button>
-                    {expandedSpace === space.id && space.floors.length > 0 && (
-                      <div className="ml-4 mt-0.5 space-y-0.5">
-                        {space.floors.map(floor => {
-                          const isSelected = selectedFloor === floor.id;
-                          return (
-                            <button
-                              key={floor.id}
-                              onClick={() => { setSelectedFloor(floor.id as any); if (activeMenu === 'test') setActiveMenu('home'); }}
-                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                isSelected ? 'bg-blue-600/15 border border-blue-500/20 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/25 border border-transparent'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-blue-500' : 'bg-slate-600'}`} />
-                                <span>{floor.label}</span>
-                              </div>
-                              {floor.alerts > 0 && (
-                                <span className="bg-rose-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{floor.alerts}</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
+            <div className="space-y-1.5">
+              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">공간 선택</h3>
+
+              {spacesLoading ? (
+                <div className="px-3 py-2 text-[10px] text-slate-500 animate-pulse">공간 목록 로딩 중…</div>
+              ) : (
+                <div className="space-y-1.5">
+
+                  {/* 통합 검색창 */}
+                  {spaces.length > 0 && (
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1.5 w-3 h-3 text-slate-500" />
+                      <input
+                        type="text"
+                        value={spaceSearch}
+                        onChange={e => setSpaceSearch(e.target.value)}
+                        placeholder="기업 · 시설 검색…"
+                        className="w-full pl-6 pr-2 py-1.5 bg-slate-900/50 border border-slate-800 rounded-lg text-[10px] text-slate-300 placeholder-slate-600 outline-none focus:border-slate-600"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+
+                    {/* 기업 공간 그룹 */}
+                    {(() => {
+                      const corpTotal = spaces.filter(s => s.type === 'corporate').length;
+                      const filteredCorp = spaces
+                        .filter(s => s.type === 'corporate')
+                        .filter(s => s.label.toLowerCase().includes(spaceSearch.toLowerCase()));
+                      if (spaceSearch && filteredCorp.length === 0) return null;
+                      return (
+                        <div>
+                          <button
+                            onClick={() => setCorpGroupOpen(o => !o)}
+                            className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px] font-bold text-blue-400 hover:bg-blue-500/5 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <Building2 className="w-3 h-3" />
+                              <span>단체 시설</span>
+                              <span className="bg-blue-500/15 px-1.5 py-0.5 rounded text-[9px]">
+                                {spaceSearch ? filteredCorp.length : corpTotal}
+                              </span>
+                            </div>
+                            {corpGroupOpen
+                              ? <ChevronDown className="w-3 h-3 text-slate-500" />
+                              : <ChevronRight className="w-3 h-3 text-slate-500" />
+                            }
+                          </button>
+
+                          {corpGroupOpen && (
+                            <div className="mt-0.5 space-y-0.5">
+                              {corpTotal === 0 ? (
+                                <div className="px-3 py-1.5 text-[10px] text-slate-600">등록된 기업이 없습니다.</div>
+                              ) : filteredCorp.map(space => (
+                                <button
+                                  key={space.id}
+                                  onClick={() => setSelectedSpaceId(space.id)}
+                                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer text-left ${
+                                    selectedSpaceId === space.id
+                                      ? 'bg-blue-600/15 border border-blue-500/20 text-white'
+                                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/25 border border-transparent'
+                                  }`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${selectedSpaceId === space.id ? 'bg-blue-500' : 'bg-slate-600'}`} />
+                                  <span className="truncate">{space.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* 개인 시설 그룹 */}
+                    {(() => {
+                      const indTotal = spaces.filter(s => s.type === 'individual').length;
+                      const filteredInd = spaces
+                        .filter(s => s.type === 'individual')
+                        .filter(s => s.label.toLowerCase().includes(spaceSearch.toLowerCase()));
+                      if (spaceSearch && filteredInd.length === 0) return null;
+                      return (
+                        <div>
+                          <button
+                            onClick={() => setIndGroupOpen(o => !o)}
+                            className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px] font-bold text-emerald-400 hover:bg-emerald-500/5 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <Folder className="w-3 h-3" />
+                              <span>개인 시설</span>
+                              <span className="bg-emerald-500/15 px-1.5 py-0.5 rounded text-[9px]">
+                                {spaceSearch ? filteredInd.length : indTotal}
+                              </span>
+                            </div>
+                            {indGroupOpen
+                              ? <ChevronDown className="w-3 h-3 text-slate-500" />
+                              : <ChevronRight className="w-3 h-3 text-slate-500" />
+                            }
+                          </button>
+
+                          {indGroupOpen && (
+                            <div className="mt-0.5 space-y-0.5">
+                              {indTotal === 0 ? (
+                                <div className="px-3 py-1.5 text-[10px] text-slate-600">등록된 개인 시설이 없습니다.</div>
+                              ) : filteredInd.map(space => (
+                                <button
+                                  key={space.id}
+                                  onClick={() => setSelectedSpaceId(space.id)}
+                                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer text-left ${
+                                    selectedSpaceId === space.id
+                                      ? 'bg-emerald-600/15 border border-emerald-500/20 text-white'
+                                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/25 border border-transparent'
+                                  }`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${selectedSpaceId === space.id ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+                                  <span className="truncate">{space.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* 검색 결과 없음 */}
+                    {spaceSearch && spaces.filter(s => s.label.toLowerCase().includes(spaceSearch.toLowerCase())).length === 0 && (
+                      <div className="px-3 py-2 text-[10px] text-slate-600">검색 결과 없음</div>
                     )}
+
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* 메뉴 탐색 */}
@@ -555,49 +699,172 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
         <main className="flex-1 flex flex-col overflow-hidden">
 
           {/* HOME view */}
-          {activeMenu === 'home' && (
-            <div className="flex-1 p-4 gap-4 overflow-y-auto flex flex-col">
-              <div className="h-[400px] min-h-[400px]">
-                <CCTVFloorPlan cameras={cameras} onCameraClick={handleCameraClick} selectedCameraId={selectedCamera?.id || null} />
-              </div>
-              <div className="bg-[#071329] border border-slate-800 rounded-xl overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between px-4 py-3 bg-[#061224] border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 font-semibold">보조 모니터링: </span>
-                    <h2 className="text-xs font-extrabold text-white">{selectedCamera ? `${selectedCamera.id} — ${selectedCamera.name}` : '선택된 CCTV 없음'}</h2>
-                    <div className="flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold border border-emerald-500/15">
-                      <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" /> 실시간 RTSP
-                    </div>
-                  </div>
-                  <Maximize2 className="w-4 h-4 text-slate-500 hover:text-white transition-colors cursor-pointer" />
-                </div>
-                <div className="relative bg-black overflow-hidden p-3">
-                  <LiveCameraGrid
-                    cameras={liveCameras.filter(camera => camera.name === selectedCamera?.id).slice(0, 1)}
-                    compact
-                  />
-                  <div className="absolute top-2 left-2 bg-slate-900/90 border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-300 font-mono">
-                    CH-0{selectedCamera ? selectedCamera.id.replace('CCTV-', '') : '2'}
-                  </div>
+          {activeMenu === 'home' && (() => {
+            const selectedSpace = spaces.find(s => s.id === selectedSpaceId);
 
-                  <div className="absolute bottom-0 left-0 right-0 h-10 bg-slate-950/70 backdrop-blur px-4 flex items-center justify-between text-slate-400">
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => setIsPlaying(!isPlaying)} className="hover:text-white transition-colors cursor-pointer">
-                        {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      </button>
-                      <div className="flex items-center gap-1.5">
-                        <Volume2 className="w-4 h-4" />
-                        <input type="range" min="0" max="100" value={volume} onChange={e => setVolume(Number(e.target.value))} className="w-16 h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-blue-500" />
+            // ── 기업 공간 뷰 ──────────────────────────────────────────
+            if (selectedSpace?.type === 'corporate') {
+              const corpCameras = spaceViewCameras as CorporateCameraResponse[];
+              const selectedCorp = corpCameras.find(c => String(c.cameraId) === spaceSelectedCameraId);
+              const corpStreamUrl = selectedCorp?.assignedVideoPath ?? selectedCorp?.rtspUrl ?? '';
+              const corpLiveCamera: LiveCamera | null = selectedCorp ? {
+                id: selectedCorp.cameraLoginId || String(selectedCorp.cameraId),
+                cameraLoginId: selectedCorp.cameraLoginId,
+                cameraDbId: String(selectedCorp.cameraId),
+                name: selectedCorp.cameraName,
+                location: selectedCorp.locationDescription ?? '',
+                streamUrl: corpStreamUrl,
+                streamMode: 'raw',
+                streamKind: 'hls',
+                connectionStatus: selectedCorp.connectionStatus === 'CONNECTED' ? 'online'
+                  : selectedCorp.connectionStatus === 'RECONNECTING' ? 'connecting' : 'offline',
+                eventStatus: 'normal',
+              } : null;
+
+              return (
+                <div className="flex-1 p-4 gap-4 overflow-y-auto flex flex-col">
+                  {spaceViewLoading ? (
+                    <div className="flex-1 flex items-center justify-center text-slate-500 text-sm animate-pulse">카메라 목록 로딩 중…</div>
+                  ) : (
+                    <>
+                      <div className="h-[380px] min-h-[380px]">
+                        <CorporateFloorPlan
+                          cameras={corpCameras}
+                          selectedCameraId={spaceSelectedCameraId}
+                          onCameraSelect={setSpaceSelectedCameraId}
+                          onRefresh={refetchSpaceCameras}
+                        />
+                      </div>
+                      <div className="bg-[#071329] border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between px-4 py-3 bg-[#061224] border-b border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 font-semibold">보조 모니터링: </span>
+                            <h2 className="text-xs font-extrabold text-white">
+                              {selectedCorp ? `${selectedCorp.cameraName}${selectedCorp.locationDescription ? ` — ${selectedCorp.locationDescription}` : ''}` : '도면에서 카메라를 선택하세요'}
+                            </h2>
+                            {selectedCorp && (
+                              <div className="flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold border border-emerald-500/15">
+                                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" /> 실시간 RTSP
+                              </div>
+                            )}
+                          </div>
+                          <Maximize2 className="w-4 h-4 text-slate-500 hover:text-white transition-colors cursor-pointer" />
+                        </div>
+                        <div className="relative bg-black overflow-hidden p-3 min-h-[160px]">
+                          {corpLiveCamera ? (
+                            <>
+                              <LiveCameraGrid cameras={[corpLiveCamera]} compact />
+                              <div className="absolute bottom-0 left-0 right-0 h-10 bg-slate-950/70 backdrop-blur px-4 flex items-center justify-between text-slate-400">
+                                <div className="flex items-center gap-3">
+                                  <button onClick={() => setIsPlaying(!isPlaying)} className="hover:text-white transition-colors cursor-pointer">
+                                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                  </button>
+                                  <div className="flex items-center gap-1.5">
+                                    <Volume2 className="w-4 h-4" />
+                                    <input type="range" min="0" max="100" value={volume} onChange={e => setVolume(Number(e.target.value))} className="w-16 h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-blue-500" />
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-[9px] text-rose-500 font-extrabold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                                  <span className="w-1 h-1 rounded-full bg-rose-500 animate-ping" /> LIVE
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center justify-center h-32 text-slate-600 text-sm">
+                              도면에서 카메라 아이콘을 클릭하면 영상이 표시됩니다
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            }
+
+            // ── 개인 시설 뷰 ──────────────────────────────────────────
+            if (selectedSpace?.type === 'individual') {
+              const indCameras = spaceViewCameras as AdminFacilityCameraResponse[];
+              const individualLiveCameras: LiveCamera[] = indCameras.map(cam => ({
+                id: cam.cameraLoginId || String(cam.cameraId),
+                cameraLoginId: cam.cameraLoginId,
+                cameraDbId: String(cam.cameraId),
+                name: cam.cameraName,
+                location: cam.locationDescription ?? '',
+                streamUrl: cam.assignedVideoPath ?? cam.rtspUrl,
+                streamMode: 'raw' as const,
+                streamKind: 'hls' as const,
+                connectionStatus: cam.connectionStatus === 'CONNECTED' ? 'online'
+                  : cam.connectionStatus === 'RECONNECTING' ? 'connecting' : 'offline',
+                eventStatus: 'normal' as const,
+              }));
+
+              return (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="px-4 pt-4 pb-2 flex items-center gap-2 flex-shrink-0">
+                    <h2 className="text-xs font-extrabold text-white flex items-center gap-2">
+                      <Video className="w-4 h-4 text-emerald-400" />
+                      {selectedSpace.label} — 카메라 모니터링
+                    </h2>
+                    <span className="text-[10px] text-slate-400 font-semibold">총 {indCameras.length}대</span>
+                  </div>
+                  {spaceViewLoading ? (
+                    <div className="flex-1 flex items-center justify-center text-slate-500 text-sm animate-pulse">카메라 목록 로딩 중…</div>
+                  ) : indCameras.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center text-slate-600 text-sm">등록된 카메라가 없습니다</div>
+                  ) : (
+                    <div className="flex-1 p-4 pt-2 overflow-hidden">
+                      <LiveCameraGrid cameras={individualLiveCameras} />
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // ── 공간 미선택 기본 화면 ──────────────────────────────────
+            return (
+              <div className="flex-1 p-4 gap-4 overflow-y-auto flex flex-col">
+                <div className="h-[400px] min-h-[400px]">
+                  <CCTVFloorPlan cameras={cameras} onCameraClick={handleCameraClick} selectedCameraId={selectedCamera?.id || null} />
+                </div>
+                <div className="bg-[#071329] border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between px-4 py-3 bg-[#061224] border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 font-semibold">보조 모니터링: </span>
+                      <h2 className="text-xs font-extrabold text-white">{selectedCamera ? `${selectedCamera.id} — ${selectedCamera.name}` : '선택된 CCTV 없음'}</h2>
+                      <div className="flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold border border-emerald-500/15">
+                        <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" /> 실시간 RTSP
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 text-[9px] text-rose-500 font-extrabold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                      <span className="w-1 h-1 rounded-full bg-rose-500 animate-ping" /> LIVE
+                    <Maximize2 className="w-4 h-4 text-slate-500 hover:text-white transition-colors cursor-pointer" />
+                  </div>
+                  <div className="relative bg-black overflow-hidden p-3">
+                    <LiveCameraGrid
+                      cameras={liveCameras.filter(camera => camera.name === selectedCamera?.id).slice(0, 1)}
+                      compact
+                    />
+                    <div className="absolute top-2 left-2 bg-slate-900/90 border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-300 font-mono">
+                      CH-0{selectedCamera ? selectedCamera.id.replace('CCTV-', '') : '2'}
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-10 bg-slate-950/70 backdrop-blur px-4 flex items-center justify-between text-slate-400">
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => setIsPlaying(!isPlaying)} className="hover:text-white transition-colors cursor-pointer">
+                          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <Volume2 className="w-4 h-4" />
+                          <input type="range" min="0" max="100" value={volume} onChange={e => setVolume(Number(e.target.value))} className="w-16 h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-blue-500" />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px] text-rose-500 font-extrabold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                        <span className="w-1 h-1 rounded-full bg-rose-500 animate-ping" /> LIVE
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ===== TEST MODE VIEWS ===== */}
           {/* TEST HOME */}
@@ -1114,20 +1381,37 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
                   (adminSearch === '' || m.name.includes(adminSearch) || m.region.includes(adminSearch) || m.contact.includes(adminSearch))
                 );
 
+            const gridColsClass = adminTab === 'corporate'
+              ? 'grid-cols-[1fr_1fr_1fr_1fr_1fr_auto_auto_auto]'
+              : 'grid-cols-[1fr_1fr_1fr_1fr_auto_auto_auto]';
+
             const openEdit = (member: AnyMember) => {
               setEditingMember(member);
               setEditStatus(member.status);
+              setEditName(member.type === 'corporate' ? member.orgName : member.name);
+              setEditRepresentative(member.type === 'corporate' ? member.representative : '');
               setEditContact(member.contact);
+              setEditRegion(member.region);
+              setEditError(null);
             };
 
             const saveEdit = () => {
               if (!editingMember) return;
-              if (editingMember.type === 'corporate') {
-                setOrgList(prev => prev.map(m => m.id === editingMember.id ? { ...m, status: editStatus, contact: editContact } : m));
-              } else {
-                setIndList(prev => prev.map(m => m.id === editingMember.id ? { ...m, status: editStatus, contact: editContact } : m));
-              }
-              setEditingMember(null);
+              setEditSaving(true);
+              setEditError(null);
+              updateAdminMember(Number(editingMember.id), {
+                name: editName,
+                representative: editingMember.type === 'corporate' ? editRepresentative : undefined,
+                contact: editContact,
+                region: editRegion,
+                status: statusToApi(editStatus),
+              })
+                .then(() => {
+                  setEditingMember(null);
+                  return loadAdminUsers();
+                })
+                .catch(() => setEditError('저장에 실패했습니다. 다시 시도해주세요.'))
+                .finally(() => setEditSaving(false));
             };
 
             return (
@@ -1155,15 +1439,16 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
                       <input value={adminSearch} onChange={e => setAdminSearch(e.target.value)} placeholder={adminTab === 'corporate' ? '기관명, 담당자, 지역…' : '이름, 연락처, 지역…'} className="w-full pl-8 pr-4 py-2 bg-[#071329] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none" />
                     </div>
                     <select value={adminStatusFilter} onChange={e => setAdminStatusFilter(e.target.value as any)} className="bg-[#071329] border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none cursor-pointer">
-                      {(['전체', '활성', '대기', '비활성'] as const).map(s => <option key={s} value={s}>{s}</option>)}
+                      {(['전체', '활성', '비활성'] as const).map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                 </div>
 
                 <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden">
-                  <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto_auto_auto] text-[10px] font-bold text-slate-500 uppercase tracking-wider px-4 py-2.5 border-b border-slate-800 bg-slate-900/30">
+                  <div className={`grid ${gridColsClass} text-[10px] font-bold text-slate-500 uppercase tracking-wider px-4 py-2.5 border-b border-slate-800 bg-slate-900/30`}>
                     <span>{adminTab === 'corporate' ? '기관명' : '이름'}</span>
-                    <span>{adminTab === 'corporate' ? '담당자' : '연락처'}</span>
+                    {adminTab === 'corporate' && <span>담당자</span>}
+                    <span>연락처</span>
                     <span>지역</span><span>등록일</span>
                     <span className="text-center w-14">카메라</span>
                     <span className="text-center w-16">상태</span>
@@ -1177,9 +1462,10 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
                         : list.length === 0
                           ? <div className="py-16 text-center text-xs text-slate-500">검색 결과가 없습니다.</div>
                           : list.map(member => (
-                        <div key={member.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto_auto_auto] px-4 py-3 items-center hover:bg-slate-800/20 text-xs">
+                        <div key={member.id} className={`grid ${gridColsClass} px-4 py-3 items-center hover:bg-slate-800/20 text-xs`}>
                           <span className="font-semibold text-white truncate pr-2">{member.type === 'corporate' ? member.orgName : member.name}</span>
-                          <span className="text-slate-400 truncate pr-2">{member.type === 'corporate' ? member.representative : member.contact}</span>
+                          {member.type === 'corporate' && <span className="text-slate-400 truncate pr-2">{member.representative}</span>}
+                          <span className="text-slate-400 truncate pr-2">{member.contact}</span>
                           <span className="text-slate-400 truncate pr-2">{member.region}</span>
                           <span className="text-slate-500 font-mono">{member.registeredAt}</span>
                           <span className="text-center text-slate-300 font-mono w-14">{member.cameraCount}대</span>
@@ -1204,18 +1490,33 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
                       </div>
                       <div className="p-5 space-y-4">
                         <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-400">{editingMember.type === 'corporate' ? '기관명' : '이름'}</label>
+                          <input value={editName} onChange={e => setEditName(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                        </div>
+                        {editingMember.type === 'corporate' && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-400">담당자</label>
+                            <input value={editRepresentative} onChange={e => setEditRepresentative(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                          </div>
+                        )}
+                        <div className="space-y-1.5">
                           <label className="text-xs font-semibold text-slate-400">연락처</label>
                           <input value={editContact} onChange={e => setEditContact(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
                         </div>
                         <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-400">지역</label>
+                          <input value={editRegion} onChange={e => setEditRegion(e.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+                        </div>
+                        <div className="space-y-1.5">
                           <label className="text-xs font-semibold text-slate-400">상태</label>
                           <div className="flex gap-2">
-                            {(['활성', '대기', '비활성'] as MemberStatus[]).map(s => (
+                            {(['활성', '비활성'] as MemberStatus[]).map(s => (
                               <button key={s} onClick={() => setEditStatus(s)} className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all ${editStatus === s ? STATUS_STYLE[s] : 'border-slate-800 text-slate-500 hover:border-slate-600'}`}>{s}</button>
                             ))}
                           </div>
                         </div>
-                        <button onClick={saveEdit} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs cursor-pointer">저장</button>
+                        {editError && <p className="text-[11px] text-red-400">{editError}</p>}
+                        <button onClick={saveEdit} disabled={editSaving} className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs cursor-pointer">{editSaving ? '저장 중...' : '저장'}</button>
                       </div>
                     </div>
                   </div>
@@ -1227,10 +1528,12 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
 
           {/* ===== CCTV REGISTRATION VIEW ===== */}
           {activeMenu === 'cctvReg' && (
-            <CCTVRegistration 
+            <CCTVRegistration
               onRegisterComplete={(count) => {
-                console.log(`Registered ${count} corporate cameras successfully.`);
+                logger.info(`Registered ${count} corporate cameras successfully.`);
               }}
+              onCameraChanged={refetchSpaceCameras}
+              defaultCompanyId={spaces.find(s => s.id === selectedSpaceId)?.type === 'corporate' ? Number(selectedSpaceId.split('-')[1]) : undefined}
             />
           )}
 
@@ -1396,54 +1699,6 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
 
         </main>
 
-        {/* ===== RIGHT PANEL ===== */}
-        {!isTestMode && <aside className="w-72 bg-[#020817] border-l border-slate-800/50 flex flex-col flex-shrink-0">
-          <div className="flex-1 bg-[#071329] m-3 mb-0 rounded-xl flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-slate-800/50">
-               <div className="flex items-center justify-between">
-                 <div>
-                   <h3 className="text-base font-bold text-white">실시간 AI 위험 탐지</h3>
-                   <p className="text-[10px] text-slate-400 mt-0.5">전 구역 안전 경보 리스트</p>
-                 </div>
-                 <div className="flex items-center gap-1 text-[9px] text-rose-500 font-extrabold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" /> AI 감시중
-                 </div>
-               </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {events.filter(e => e.status === 'new').length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-slate-500 opacity-50">
-                  <Shield className="w-8 h-8 mb-2" />
-                  <p className="text-xs font-semibold">특이사항 없음</p>
-                </div>
-              )}
-              {events.filter(e => e.status === 'new').map(evt => (
-                <div key={evt.id} className="bg-[#0f172a] rounded-xl p-3 flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#374151] rounded-lg flex-shrink-0 overflow-hidden">
-                    <div className="flex h-full w-full items-center justify-center bg-slate-900 text-[9px] font-bold text-slate-500">LIVE</div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-bold text-sm leading-tight truncate">{evt.type} 감지</p>
-                    <p className="text-[#cbd5e1] text-xs mt-0.5">{evt.time}</p>
-                  </div>
-                  <button onClick={() => handleResolveEvent(evt.id)} className={`${eventButtonStyle(evt.severity)} text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 cursor-pointer`}>확인</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={() => { setActiveMenu(isTestMode ? 'home' : 'test'); setTestSubMenu('home'); }}
-            className={`mx-3 my-3 py-4 font-extrabold rounded-xl text-sm flex items-center justify-center gap-2 transition-all cursor-pointer border ${
-              isTestMode
-                ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-300/30'
-                : 'bg-[#1e3a8a] hover:bg-blue-700 text-white border-blue-500/20'
-            }`}
-          >
-            <Beaker className="w-4 h-4" />
-            {isTestMode ? '테스트 종료' : '테스트 모드'}
-          </button>
-        </aside>}
 
       </div>
 
@@ -1544,9 +1799,9 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
       {!isTestMode && (
         <div className="fixed bottom-4 left-4 z-50 w-56">
           <CCTVStatsCards
-            activeFeedsCount={liveCameras.filter(c => c.connectionStatus === 'online').length}
-            totalFeedsCount={liveCameras.length}
-            alertsCount={events.filter(e => e.status === 'new').length}
+            activeFeedsCount={cameraStats?.connectedCount ?? 0}
+            totalFeedsCount={cameraStats?.totalCount ?? 0}
+            alertsCount={todayAlertCount}
           />
         </div>
       )}

@@ -16,9 +16,11 @@ import {
 
 interface CCTVRegistrationProps {
   onRegisterComplete?: (registeredCount: number) => void;
+  onCameraChanged?: () => void;
+  defaultCompanyId?: number;
 }
 
-export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) {
+export function CCTVRegistration({ onRegisterComplete, onCameraChanged, defaultCompanyId }: CCTVRegistrationProps) {
   const [companies, setCompanies] = useState<AdminCompanyResponse[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
@@ -47,7 +49,10 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
     fetchAdminCompanies()
       .then((data) => {
         setCompanies(data);
-        if (data.length > 0) setSelectedCompanyId(data[0].companyProfileId);
+        const preferred = defaultCompanyId
+          ? data.find(c => c.companyProfileId === defaultCompanyId)
+          : null;
+        setSelectedCompanyId((preferred ?? data[0])?.companyProfileId ?? null);
       })
       .catch(() => toast.error('기업 목록을 불러오는데 실패했습니다.'))
       .finally(() => setIsLoadingCompanies(false));
@@ -117,6 +122,7 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
       }
       loadCameras(selectedCompanyId);
       onRegisterComplete?.(result.successCount);
+      onCameraChanged?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : '업로드 중 오류가 발생했습니다.';
       toast.error(message, { id: 'bulk-upload' });
@@ -137,11 +143,10 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
       await registerAdminCamera(selectedCompanyId, {
         cameraName: newCameraName.trim(),
         cameraSerialNumber: newSerialNumber.trim(),
-        rtspUrl: newRtspUrl.trim(),
+        rtspUrl: undefined,
         locationDescription: newLocation.trim(),
         cameraLoginId: newUsername.trim(),
         password: newPassword.trim(),
-        sourceType: 'REAL_RTSP',
       });
       toast.success(`카메라 [${newCameraName}]가 등록되었습니다.`);
       setNewCameraName('');
@@ -152,6 +157,7 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
       setNewPassword('');
       loadCameras(selectedCompanyId);
       onRegisterComplete?.(1);
+      onCameraChanged?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : '등록 중 오류가 발생했습니다.';
       toast.error(message);
@@ -184,6 +190,7 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
       await deleteAdminCamera(cameraId);
       toast.success(`카메라 [${cameraName}]가 삭제되었습니다.`);
       if (selectedCompanyId) loadCameras(selectedCompanyId);
+      onCameraChanged?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : '삭제 중 오류가 발생했습니다.';
       toast.error(message);
@@ -200,6 +207,7 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
       await Promise.all([...selectedIds].map((id) => deleteAdminCamera(id)));
       toast.success(`${selectedIds.size}대의 카메라가 삭제되었습니다.`);
       if (selectedCompanyId) loadCameras(selectedCompanyId);
+      onCameraChanged?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : '일부 카메라 삭제 중 오류가 발생했습니다.';
       toast.error(message);
@@ -457,11 +465,9 @@ export function CCTVRegistration({ onRegisterComplete }: CCTVRegistrationProps) 
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">RTSP 주소</label>
             <input
               type="text"
-              required
-              value={newRtspUrl}
-              onChange={(e) => setNewRtspUrl(e.target.value)}
-              placeholder="rtsp://192.168.0.x/live"
-              className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none transition-colors"
+              readOnly
+              value="자동 생성됨"
+              className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white placeholder-slate-600 outline-none transition-colors opacity-50 cursor-not-allowed"
             />
           </div>
         </div>

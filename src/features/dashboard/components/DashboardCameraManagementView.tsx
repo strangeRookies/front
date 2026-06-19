@@ -63,6 +63,7 @@ export function DashboardCameraManagementView({
                     title={camera.name}
                     className="h-full w-full object-cover brightness-75"
                     dimmed
+                    cameraLoginId={liveFeed?.cameraLoginId}
                   />
                   <div className="absolute left-2 top-2 flex items-center gap-1">
                     <span className={`h-1.5 w-1.5 rounded-full ${camera.status === 'INACTIVE' ? 'bg-slate-500' : 'animate-ping bg-rose-500'}`} />
@@ -83,14 +84,6 @@ export function DashboardCameraManagementView({
                 <div className="space-y-1.5 p-3">
                   <p className="truncate text-sm font-bold text-white" title={camera.name}>{camera.name}</p>
                   <p className="truncate text-[10px] text-slate-400">{camera.location}</p>
-                  {camera.sourceType === 'SIMULATED_RTSP' && (
-                    <div className="mt-1 border-t border-slate-800 pt-1">
-                      <p className="text-[10px] font-bold text-blue-400">시뮬레이션 모드</p>
-                      <p className="truncate text-[9px] text-slate-500" title={camera.assignedVideoPath}>
-                        영상: {camera.assignedVideoPath ? camera.assignedVideoPath.split('/').pop() : '미배정'}
-                      </p>
-                    </div>
-                  )}
                   {camera.password && (
                     <div className="flex items-center gap-1.5 pt-0.5">
                       <KeyRound className="h-3 w-3 flex-shrink-0 text-slate-500" />

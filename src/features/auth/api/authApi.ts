@@ -6,10 +6,11 @@ export type BackendAccountType = 'INDIVIDUAL' | 'CORPORATE' | 'ADMIN';
 
 export const AUTH_STORAGE_KEYS = {
   accessToken: 'smartSafety.accessToken',
-  refreshToken: 'smartSafety.refreshToken',
   user: 'smartSafety.user',
   rememberedEmail: 'smartSafety.rememberedEmail',
 } as const;
+
+const LEGACY_REFRESH_TOKEN_STORAGE_KEY = 'smartSafety.refreshToken';
 
 export interface SmsVerificationRequestResponse {
   verificationId: number | string;
@@ -52,7 +53,7 @@ export interface LoginUser {
 
 export interface LoginResponse {
   accessToken: string;
-  refreshToken: string;
+  expiresIn: number;
   user: LoginUser;
 }
 
@@ -111,7 +112,7 @@ export interface CorporateSignupPayload {
   verificationToken: string;
   company: {
     name: string;
-    businessNumber: string;
+    businessNumber?: string | null;
     industry: string;
     size: string;
     postcode: string;
@@ -163,14 +164,14 @@ export function normalizeBusinessNumber(value: string): string {
 }
 
 export function saveAuthSession(loginResponse: LoginResponse) {
-  authStore.setSession(loginResponse.accessToken, loginResponse.refreshToken, loginResponse.user);
+  authStore.setSession(loginResponse.accessToken, loginResponse.user);
 }
 
 export function clearAuthSession() {
   authStore.clearSession();
   // 브라우저에 남아있을 수 있는 기존 토큰 정보들을 강제로 삭제하여 청소합니다.
   localStorage.removeItem(AUTH_STORAGE_KEYS.accessToken);
-  localStorage.removeItem(AUTH_STORAGE_KEYS.refreshToken);
+  localStorage.removeItem(LEGACY_REFRESH_TOKEN_STORAGE_KEY);
   localStorage.removeItem(AUTH_STORAGE_KEYS.user);
 }
 
@@ -219,14 +220,18 @@ export async function resetPassword(payload: PasswordResetRequestPayload) {
 }
 
 export async function checkEmailAvailability(email: string) {
-  const data = await apiRequest<unknown>(`/api/auth/email-availability?email=${encodeURIComponent(email)}`);
+  const data = await apiRequest<unknown>('/api/auth/email-availability', {
+    method: 'POST',
+    body: { email },
+  });
   return readAvailability(data);
 }
 
 export async function checkBusinessNumberAvailability(businessNumber: string) {
-  const data = await apiRequest<unknown>(
-    `/api/companies/business-number-availability?businessNumber=${encodeURIComponent(businessNumber)}`,
-  );
+  const data = await apiRequest<unknown>('/api/companies/business-number-availability', {
+    method: 'POST',
+    body: { businessNumber },
+  });
   return readAvailability(data);
 }
 
@@ -262,18 +267,16 @@ export async function login(email: string, password: string, accountType: Fronte
   });
 }
 
-export async function reissueToken(refreshToken: string) {
-  return apiRequest<Pick<LoginResponse, 'accessToken' | 'refreshToken'>>('/api/auth/reissue', {
+export async function reissueToken() {
+  return apiRequest<LoginResponse>('/api/auth/reissue', {
     method: 'POST',
-    body: { refreshToken },
   });
 }
 
-export async function logout(accessToken: string, refreshToken: string) {
+export async function logout(accessToken?: string | null) {
   return apiRequest<unknown>('/api/auth/logout', {
     method: 'POST',
-    accessToken,
-    body: { refreshToken },
+    ...(accessToken ? { accessToken } : {}),
   });
 }
 
