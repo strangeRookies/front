@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getBackendWsUrl } from '../../../shared/api/client';
 import { SimpleStompClient } from '../../../shared/utils/stomp';
 import { logger } from '../../../shared/utils/logger';
 
@@ -53,8 +54,7 @@ function parseCameraStatusEvent(raw: Record<string, unknown>): CameraStatusEvent
  */
 export function useCameraStatusWebSocket(facilityId?: number | string): CameraStatusMap {
   const [statusMap, setStatusMap] = useState<CameraStatusMap>(new Map());
-  const backendBaseUrl = (import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
-  const wsUrl = backendBaseUrl.replace(/^http/, 'ws') + '/ws';
+  const wsUrl = getBackendWsUrl('/ws');
 
   // We keep a ref so the closure in the STOMP client doesn't capture stale state
   const statusMapRef = useRef<CameraStatusMap>(statusMap);

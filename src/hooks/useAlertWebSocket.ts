@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Client, IMessage } from '@stomp/stompjs';
 import { toast } from 'sonner';
+import { getBackendWsUrl } from '../shared/api/client';
 import { logger } from '../shared/utils/logger';
 
 export interface SafetyEvent {
@@ -19,7 +20,7 @@ export function useAlertWebSocket(onEventReceived?: (event: SafetyEvent) => void
 
   useEffect(() => {
     const client = new Client({
-      brokerURL: 'ws://localhost:8080/ws',
+      brokerURL: getBackendWsUrl('/ws'),
       reconnectDelay: 5000,
       onConnect: () => {
         logger.info('Connected to WebSocket for alerts.');
