@@ -7,7 +7,6 @@ interface AddCameraModalProps {
   newCamSerialNumber: string;
   newCamPassword: string;
   newCamRtspUrl: string;
-  newCamSourceType: 'REAL_RTSP' | 'SIMULATED_RTSP';
   showNewCamPw: boolean;
   onClose: () => void;
   onIdChange: (value: string) => void;
@@ -16,7 +15,6 @@ interface AddCameraModalProps {
   onSerialNumberChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onRtspUrlChange: (value: string) => void;
-  onSourceTypeChange: (value: 'REAL_RTSP' | 'SIMULATED_RTSP') => void;
   onSubmit: () => void;
   onTogglePassword: () => void;
 }
@@ -29,7 +27,6 @@ export function AddCameraModal(props: AddCameraModalProps) {
     newCamSerialNumber,
     newCamPassword,
     newCamRtspUrl,
-    newCamSourceType,
     showNewCamPw,
     onClose,
     onIdChange,
@@ -38,7 +35,6 @@ export function AddCameraModal(props: AddCameraModalProps) {
     onSerialNumberChange,
     onPasswordChange,
     onRtspUrlChange,
-    onSourceTypeChange,
     onSubmit,
     onTogglePassword,
   } = props;
@@ -52,33 +48,6 @@ export function AddCameraModal(props: AddCameraModalProps) {
         </div>
         <div className="p-5 space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-400">카메라 유형</label>
-            <div className="flex gap-4 items-center">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="sourceType" 
-                  value="REAL_RTSP" 
-                  checked={newCamSourceType === 'REAL_RTSP'} 
-                  onChange={() => onSourceTypeChange('REAL_RTSP')} 
-                  className="accent-blue-500"
-                />
-                <span className="text-xs text-white">실제 CCTV</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="sourceType" 
-                  value="SIMULATED_RTSP" 
-                  checked={newCamSourceType === 'SIMULATED_RTSP'} 
-                  onChange={() => onSourceTypeChange('SIMULATED_RTSP')} 
-                  className="accent-blue-500"
-                />
-                <span className="text-xs text-white">시뮬레이션 (자동 배정)</span>
-              </label>
-            </div>
-          </div>
-          <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-400">카메라 이름</label>
             <input value={newCamName} onChange={(event) => onNameChange(event.target.value)} placeholder="예: 정문 출입구 카메라" className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
           </div>
@@ -89,11 +58,10 @@ export function AddCameraModal(props: AddCameraModalProps) {
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-400">RTSP 스트리밍 주소</label>
             <input 
-              value={newCamSourceType === 'SIMULATED_RTSP' ? '자동 생성됨' : newCamRtspUrl} 
-              disabled={newCamSourceType === 'SIMULATED_RTSP'}
-              onChange={(event) => onRtspUrlChange(event.target.value)} 
+              value="자동 생성됨" 
+              disabled
               placeholder="rtsp://192.168.0.x:554/stream" 
-              className={`w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none ${newCamSourceType === 'SIMULATED_RTSP' ? 'opacity-50 cursor-not-allowed' : ''}`} 
+              className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none opacity-50 cursor-not-allowed" 
             />
           </div>
           <div className="space-y-1.5">

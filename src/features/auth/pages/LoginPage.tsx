@@ -16,6 +16,7 @@ import {
   roleToFrontendAccountType,
   saveAuthSession,
 } from '../api/authApi';
+import { ApiError } from '../../../shared/api/client';
 
 interface LoginPageProps {
   onLogin: (role: 'individual' | 'corporate' | 'admin', username: string) => void;
@@ -63,8 +64,12 @@ export function LoginPage({ onLogin, onNavigateToSignUp, onNavigateToForgotPassw
       const role = roleToFrontendAccountType(loginResponse.user.role, loginType);
       const displayName = loginResponse.user.name || loginResponse.user.email || username.trim();
       onLogin(role, displayName);
-    } catch {
-      alert('아이디 또는 비밀번호를 확인해주세요.');
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'AUTH_ACCOUNT_SUSPENDED') {
+        alert('비활성화된 계정입니다. 계정 정보를 확인하세요.');
+      } else {
+        alert('아이디 또는 비밀번호를 확인해주세요.');
+      }
     } finally {
       setIsSubmitting(false);
     }

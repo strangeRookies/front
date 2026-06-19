@@ -25,6 +25,24 @@ export async function fetchAdminUsers(page = 0, size = 100): Promise<PageRespons
   );
 }
 
+export interface AdminMemberUpdateRequest {
+  name: string;
+  representative?: string | null;
+  contact: string;
+  region?: string | null;
+  status: 'ACTIVE' | 'SUSPENDED';
+}
+
+export async function updateAdminMember(
+  userId: number,
+  payload: AdminMemberUpdateRequest,
+): Promise<void> {
+  return apiRequest<void>(`/api/users/admin/${userId}`, {
+    method: 'PATCH',
+    body: payload,
+  });
+}
+
 // ── 기업 관리 ──────────────────────────────────────────────
 
 export interface AdminCompanyResponse {
@@ -55,7 +73,6 @@ export interface AdminFacilityCameraResponse {
   locationDescription: string | null;
   connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
   status: 'ACTIVE' | 'INACTIVE';
-  sourceType: 'REAL_RTSP' | 'SIMULATED_RTSP';
   assignedVideoPath: string | null;
 }
 
@@ -87,11 +104,10 @@ export async function fetchAdminTodayAlertCount(): Promise<AdminTodayAlertCountR
 export interface CorporateCameraRequest {
   cameraName: string;
   cameraSerialNumber: string;
-  cameraLoginId: string;
+  cameraLoginId?: string;
   password?: string;
-  rtspUrl: string;
+  rtspUrl?: string;
   locationDescription?: string;
-  sourceType?: 'REAL_RTSP' | 'SIMULATED_RTSP';
   assignedVideoPath?: string;
 }
 
@@ -107,7 +123,6 @@ export interface CorporateCameraResponse {
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: string;
   updatedAt: string;
-  sourceType: 'REAL_RTSP' | 'SIMULATED_RTSP';
   assignedVideoPath: string | null;
   connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
   lastConnectionReportAt: string | null;
