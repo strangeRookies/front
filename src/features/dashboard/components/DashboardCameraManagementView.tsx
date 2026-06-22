@@ -12,6 +12,7 @@ interface DashboardCameraManagementViewProps {
   onAddCamera: () => void;
   onDeleteCamera: (cameraId: string) => void;
   onTogglePassword: (cameraId: string) => void;
+  readOnly?: boolean;
 }
 
 function liveFeedFor(camera: RegisteredCamera, liveCameras: readonly LiveCamera[]) {
@@ -26,6 +27,7 @@ export function DashboardCameraManagementView({
   onAddCamera,
   onDeleteCamera,
   onTogglePassword,
+  readOnly = false,
 }: DashboardCameraManagementViewProps) {
   return (
     <div className="flex-1 space-y-6 overflow-y-auto p-6">
@@ -41,12 +43,14 @@ export function DashboardCameraManagementView({
           </h2>
           <p className="mt-1 text-xs text-slate-400">CCTV 연결 정보를 등록하고 관리합니다.</p>
         </div>
-        <button
-          onClick={onAddCamera}
-          className="flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500"
-        >
-          <Plus className="h-3.5 w-3.5" /> 카메라 추가
-        </button>
+        {!readOnly && (
+          <button
+            onClick={onAddCamera}
+            className="flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500"
+          >
+            <Plus className="h-3.5 w-3.5" /> 카메라 추가
+          </button>
+        )}
       </div>
 
       <div className="rounded-2xl border border-slate-800 bg-[#071329] p-5">
@@ -71,7 +75,7 @@ export function DashboardCameraManagementView({
                       {camera.status === 'INACTIVE' ? 'OFFLINE' : 'LIVE'}
                     </span>
                   </div>
-                  {camera.status !== 'INACTIVE' && (
+                  {!readOnly && camera.status !== 'INACTIVE' && (
                     <button
                       onClick={() => onDeleteCamera(camera.id)}
                       className="absolute right-2 top-2 cursor-pointer rounded bg-slate-900/80 p-1 text-slate-400 opacity-0 hover:bg-red-600 hover:text-white group-hover:opacity-100"
@@ -103,7 +107,7 @@ export function DashboardCameraManagementView({
             );
           })}
 
-          {Array.from({ length: Math.max(0, 6 - registeredCameras.length) }).map((_, index) => (
+          {!readOnly && Array.from({ length: Math.max(0, 6 - registeredCameras.length) }).map((_, index) => (
             <div
               key={`slot-${index}`}
               className="flex aspect-video cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-700 bg-[#111827] hover:border-slate-500 hover:bg-slate-800/30"

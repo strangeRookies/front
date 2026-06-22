@@ -16,12 +16,14 @@ import {
   fetchCamerasByFacility,
   updateCamera,
   deleteCamera,
+  fetchMyCorporateCameras,
   type CameraResponse
 } from '../../../app/api/cameraApi';
 import {
   fetchMyFacilities,
   type FacilityResponse
 } from '../../../app/api/facilityApi';
+import { fetchMyCompany, type AdminCompanyResponse } from '../../../app/api/companyApi';
 import { authStore } from '../../../shared/api/authStore';
 import { logger } from '../../../shared/utils/logger';
 import { DashboardAlertsView } from '../components/DashboardAlertsView';
@@ -74,9 +76,9 @@ export function NurseDashboard({
   userType,
   onLogout,
 }: NurseDashboardProps) {
-  // --- Data States ---
   const [facilities, setFacilities] = useState<FacilityResponse[]>([]);
   const [currentFacility, setCurrentFacility] = useState<FacilityResponse | null>(null);
+  const [currentCompany, setCurrentCompany] = useState<AdminCompanyResponse | null>(null);
   const [registeredCameras, setRegisteredCameras] = useState<CameraResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingCameras, setIsLoadingCameras] = useState(false);
@@ -128,8 +130,11 @@ export function NurseDashboard({
   }, [registeredCameras]);
 
   const recentAlertFacilityIds = useMemo(() => {
-    if (currentFacility?.facilityId) {
+    if (userType === 'individual' && currentFacility?.facilityId) {
       return [currentFacility.facilityId];
+    }
+    if (userType === 'corporate' && currentCompany?.companyProfileId) {
+      return [currentCompany.companyProfileId];
     }
 
     const facilityIds = registeredCameras
@@ -137,14 +142,14 @@ export function NurseDashboard({
       .filter((facilityId) => Number.isFinite(facilityId));
 
     return Array.from(new Set(facilityIds));
-  }, [currentFacility, registeredCameras]);
+  }, [currentFacility, currentCompany, registeredCameras, userType]);
 
   // --- Real-time Camera Status from MQTT ---
   const effectiveFacilityId = userType === 'individual' 
     ? registeredCameras[0]?.facilityId 
-    : currentFacility?.facilityId;
+    : currentCompany?.companyProfileId;
 
-  const cameraStatusMap = useCameraStatusWebSocket(effectiveFacilityId);
+  const cameraStatusMap = useCameraStatusWebSocket(effectiveFacilityId, userType);
 
   // --- Connection Statistics for Sidebar ---
   const connectionStats = useMemo(() => {
@@ -163,23 +168,20 @@ export function NurseDashboard({
 
   // --- Facility Fetch Logic (Automatic) ---
   const loadInitialData = useCallback(async () => {
-    if (userType === 'individual') {
-      setFacilities([]);
-      setCurrentFacility(null);
-      setRegisteredCameras([]);
-      setIsLoading(false);
-      return;
-    }
-
     try {
       setIsLoading(true);
-      const userFacilities = await fetchMyFacilities();
-      setFacilities(userFacilities);
-      if (userFacilities.length > 0) {
-        setCurrentFacility(userFacilities[0]);
+      if (userType === 'individual') {
+        const userFacilities = await fetchMyFacilities();
+        setFacilities(userFacilities);
+        if (userFacilities.length > 0) {
+          setCurrentFacility(userFacilities[0]);
+        }
+      } else {
+        const company = await fetchMyCompany();
+        setCurrentCompany(company);
       }
     } catch {
-      logger.error('Failed to load facilities.');
+      logger.error('Failed to load initial data.');
     } finally {
       setIsLoading(false);
     }
@@ -191,18 +193,20 @@ export function NurseDashboard({
 
   // --- Camera Fetch Logic ---
   const refreshCameras = useCallback(async () => {
-    if (userType === 'corporate' && !currentFacility) return;
+    if (userType === 'individual' && !currentFacility) return;
+    if (userType === 'corporate' && !currentCompany) return;
     try {
       setIsLoadingCameras(true);
-      const facilityId = userType === 'individual' ? undefined : currentFacility?.facilityId;
-      const data = await fetchCamerasByFacility(facilityId);
+      const data = userType === 'individual'
+        ? await fetchCamerasByFacility(currentFacility?.facilityId)
+        : await fetchMyCorporateCameras();
       setRegisteredCameras(data);
     } catch {
       logger.error('Failed to fetch cameras.');
     } finally {
       setIsLoadingCameras(false);
     }
-  }, [currentFacility, userType]);
+  }, [currentFacility, currentCompany, userType]);
 
   useEffect(() => {
     refreshCameras();
@@ -573,11 +577,12 @@ export function NurseDashboard({
                   liveCameras={liveCameras}
                   registeredCameras={mappedCamerasForMgmt}
                   showCamPwId={showCamPwId}
-                  facilityName={currentFacility?.facilityName}
-                  facilityId={currentFacility?.facilityId}
+                  facilityName={userType === 'individual' ? currentFacility?.facilityName : currentCompany?.companyName}
+                  facilityId={userType === 'individual' ? currentFacility?.facilityId : currentCompany?.companyProfileId}
                   onAddCamera={() => setShowAddCamera(true)}
                   onDeleteCamera={handleDeleteCamera}
                   onTogglePassword={(cameraId) => setShowCamPwId((prev) => (prev === cameraId ? null : cameraId))}
+                  readOnly={userType === 'corporate'}
                 />
               )}
             </div>

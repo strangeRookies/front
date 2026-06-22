@@ -27,7 +27,9 @@ export function useAiAlertActions({ userType, username, facilityId, liveCameras,
   const aiAlertsEnabled = isAiAlertEnabledRoute(userType === 'corporate' ? 'company' : 'personal');
   
   const topic = facilityId 
-    ? `/topic/facility/${facilityId}/alerts` 
+    ? userType === 'corporate'
+      ? `/topic/company/${facilityId}/alerts`
+      : `/topic/facility/${facilityId}/alerts`
     : '/topic/alerts';
 
   const feedState = useAiEvents({ 

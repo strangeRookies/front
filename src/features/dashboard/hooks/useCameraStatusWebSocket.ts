@@ -52,7 +52,7 @@ function parseCameraStatusEvent(raw: Record<string, unknown>): CameraStatusEvent
  *
  * 반환: cameraLoginId → CameraStatusEvent 맵
  */
-export function useCameraStatusWebSocket(facilityId?: number | string): CameraStatusMap {
+export function useCameraStatusWebSocket(facilityId?: number | string, userType?: 'individual' | 'corporate'): CameraStatusMap {
   const [statusMap, setStatusMap] = useState<CameraStatusMap>(new Map());
   const wsUrl = getBackendWsUrl('/ws');
 
@@ -62,7 +62,9 @@ export function useCameraStatusWebSocket(facilityId?: number | string): CameraSt
 
   useEffect(() => {
     const topic = facilityId 
-      ? `/topic/facility/${facilityId}/camera-status` 
+      ? userType === 'corporate'
+        ? `/topic/company/${facilityId}/camera-status`
+        : `/topic/facility/${facilityId}/camera-status`
       : '/topic/camera-status';
 
     logger.info(`[useCameraStatusWebSocket] Connecting to topic: ${topic}`);
@@ -93,7 +95,7 @@ export function useCameraStatusWebSocket(facilityId?: number | string): CameraSt
       client.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsUrl, facilityId]);
+  }, [wsUrl, facilityId, userType]);
 
   return statusMap;
 }

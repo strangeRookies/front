@@ -59,6 +59,16 @@ export async function fetchCamerasByFacility(facilityId?: number | string | null
   });
 }
 
+/**
+ * [GET] 기업 로그인 사용자의 전체 카메라 목록 조회
+ * URL: /api/corporate-cameras/my
+ */
+export async function fetchMyCorporateCameras(): Promise<CameraResponse[]> {
+  return apiRequest<CameraResponse[]>('/api/corporate-cameras/my', {
+    method: 'GET',
+  });
+}
+
 export async function fetchActiveCameras(): Promise<CameraResponse[]> {
   return apiRequest<CameraResponse[]>('/api/cameras/active', {
     method: 'GET',
