@@ -36,6 +36,18 @@ export interface UpdateCameraRequest {
   locationDescription?: string;
 }
 
+export type AiOverlayStatus = 'UNKNOWN' | 'STARTING' | 'RUNNING' | 'STOPPED' | 'ERROR';
+
+export interface AiOverlayResponse {
+  readonly cameraLoginId: string;
+  readonly rtspUrl?: string | null;
+  readonly overlayPort?: number | null;
+  readonly overlayUrl?: string | null;
+  readonly pid?: number | null;
+  readonly status: AiOverlayStatus;
+  readonly updatedAt?: string | null;
+}
+
 /**
  * [POST] 특정 사업장(Facility)에 새로운 카메라를 등록합니다.
  * URL: /api/facilities/{facilityId}/cameras
@@ -83,5 +95,23 @@ export async function updateCamera(cameraId: number | string, data: UpdateCamera
 export async function deleteCamera(cameraId: number | string): Promise<void> {
   return apiRequest<void>(`/api/cameras/${cameraId}`, {
     method: 'DELETE',
+  });
+}
+
+export async function fetchAiOverlay(cameraLoginId: string): Promise<AiOverlayResponse> {
+  return apiRequest<AiOverlayResponse>(`/api/cameras/${cameraLoginId}/ai-overlay`, {
+    method: 'GET',
+  });
+}
+
+export async function startAiOverlay(cameraLoginId: string): Promise<AiOverlayResponse> {
+  return apiRequest<AiOverlayResponse>(`/api/cameras/${cameraLoginId}/ai-overlay/start`, {
+    method: 'POST',
+  });
+}
+
+export async function stopAiOverlay(cameraLoginId: string): Promise<AiOverlayResponse> {
+  return apiRequest<AiOverlayResponse>(`/api/cameras/${cameraLoginId}/ai-overlay/stop`, {
+    method: 'POST',
   });
 }
