@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, LogOut, Shield, ShieldAlert, Loader2 } from 'lucide-react';
+import { Camera, LogOut, Shield, ShieldAlert, Loader2, Download } from 'lucide-react';
 import type { Inquiry } from '../../../shared/types/inquiry';
 import { fetchMyInquiries, createInquiry } from '../api/inquiryApi';
 import { fetchRecentAlertEvents, toIncidentAlertFromRecentEvent } from '../api/alertEventsApi';
@@ -231,7 +231,6 @@ export function NurseDashboard({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success('엑셀 등록 템플릿(CSV)이 다운로드되었습니다.');
   };
   const {
     acknowledgedAiEventIds,
