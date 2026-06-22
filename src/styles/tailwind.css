@@ -15,9 +15,11 @@
 
     --font-heading: var(--font-sans);
 
-    --font-sans: 'Satoshi', 'Switzer', 'Pretendard', 'Noto Sans KR', sans-serif;
+    --font-sans: 'SUIT Variable', 'SUIT', 'Pretendard', 'Noto Sans KR', sans-serif;
     
     --font-mono: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Consolas, 'Courier New', monospace;
+    
+    --font-data: 'Satoshi', 'Switzer', 'JetBrains Mono', monospace;
 
     --color-sidebar-ring: var(--sidebar-ring);
 
