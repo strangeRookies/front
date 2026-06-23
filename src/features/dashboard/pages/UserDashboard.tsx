@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, LogOut, Shield, ShieldAlert, Loader2 } from 'lucide-react';
+import { Camera, Download, LogOut, Shield, ShieldAlert, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Inquiry } from '../../../shared/types/inquiry';
 import { fetchMyInquiries, createInquiry } from '../api/inquiryApi';
 import { fetchRecentAlertEvents, toIncidentAlertFromRecentEvent } from '../api/alertEventsApi';
@@ -16,12 +17,14 @@ import {
   fetchCamerasByFacility,
   updateCamera,
   deleteCamera,
+  fetchMyCorporateCameras,
   type CameraResponse
 } from '../../../app/api/cameraApi';
 import {
   fetchMyFacilities,
   type FacilityResponse
 } from '../../../app/api/facilityApi';
+import { fetchMyCompany, type AdminCompanyResponse } from '../../../app/api/companyApi';
 import { authStore } from '../../../shared/api/authStore';
 import { logger } from '../../../shared/utils/logger';
 import { DashboardAlertsView } from '../components/DashboardAlertsView';
@@ -74,9 +77,9 @@ export function NurseDashboard({
   userType,
   onLogout,
 }: NurseDashboardProps) {
-  // --- Data States ---
   const [facilities, setFacilities] = useState<FacilityResponse[]>([]);
   const [currentFacility, setCurrentFacility] = useState<FacilityResponse | null>(null);
+  const [currentCompany, setCurrentCompany] = useState<AdminCompanyResponse | null>(null);
   const [registeredCameras, setRegisteredCameras] = useState<CameraResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingCameras, setIsLoadingCameras] = useState(false);
@@ -128,8 +131,11 @@ export function NurseDashboard({
   }, [registeredCameras]);
 
   const recentAlertFacilityIds = useMemo(() => {
-    if (currentFacility?.facilityId) {
+    if (userType === 'individual' && currentFacility?.facilityId) {
       return [currentFacility.facilityId];
+    }
+    if (userType === 'corporate' && currentCompany?.companyProfileId) {
+      return [currentCompany.companyProfileId];
     }
 
     const facilityIds = registeredCameras
@@ -137,14 +143,14 @@ export function NurseDashboard({
       .filter((facilityId) => Number.isFinite(facilityId));
 
     return Array.from(new Set(facilityIds));
-  }, [currentFacility, registeredCameras]);
+  }, [currentFacility, currentCompany, registeredCameras, userType]);
 
   // --- Real-time Camera Status from MQTT ---
   const effectiveFacilityId = userType === 'individual' 
     ? registeredCameras[0]?.facilityId 
-    : currentFacility?.facilityId;
+    : currentCompany?.companyProfileId;
 
-  const cameraStatusMap = useCameraStatusWebSocket(effectiveFacilityId);
+  const cameraStatusMap = useCameraStatusWebSocket(effectiveFacilityId, userType);
 
   // --- Connection Statistics for Sidebar ---
   const connectionStats = useMemo(() => {
@@ -163,23 +169,20 @@ export function NurseDashboard({
 
   // --- Facility Fetch Logic (Automatic) ---
   const loadInitialData = useCallback(async () => {
-    if (userType === 'individual') {
-      setFacilities([]);
-      setCurrentFacility(null);
-      setRegisteredCameras([]);
-      setIsLoading(false);
-      return;
-    }
-
     try {
       setIsLoading(true);
-      const userFacilities = await fetchMyFacilities();
-      setFacilities(userFacilities);
-      if (userFacilities.length > 0) {
-        setCurrentFacility(userFacilities[0]);
+      if (userType === 'individual') {
+        const userFacilities = await fetchMyFacilities();
+        setFacilities(userFacilities);
+        if (userFacilities.length > 0) {
+          setCurrentFacility(userFacilities[0]);
+        }
+      } else {
+        const company = await fetchMyCompany();
+        setCurrentCompany(company);
       }
     } catch {
-      logger.error('Failed to load facilities.');
+      logger.error('Failed to load initial data.');
     } finally {
       setIsLoading(false);
     }
@@ -191,18 +194,20 @@ export function NurseDashboard({
 
   // --- Camera Fetch Logic ---
   const refreshCameras = useCallback(async () => {
-    if (userType === 'corporate' && !currentFacility) return;
+    if (userType === 'individual' && !currentFacility) return;
+    if (userType === 'corporate' && !currentCompany) return;
     try {
       setIsLoadingCameras(true);
-      const facilityId = userType === 'individual' ? undefined : currentFacility?.facilityId;
-      const data = await fetchCamerasByFacility(facilityId);
+      const data = userType === 'individual'
+        ? await fetchCamerasByFacility(currentFacility?.facilityId)
+        : await fetchMyCorporateCameras();
       setRegisteredCameras(data);
     } catch {
       logger.error('Failed to fetch cameras.');
     } finally {
       setIsLoadingCameras(false);
     }
-  }, [currentFacility, userType]);
+  }, [currentFacility, currentCompany, userType]);
 
   useEffect(() => {
     refreshCameras();
@@ -216,6 +221,23 @@ export function NurseDashboard({
 
   // --- AI and Alerts Hooks ---
   const focusHome = useCallback(() => setActiveMenu('home'), []);
+
+  const handleDownloadTemplate = () => {
+    // 백엔드 엑셀 파싱 컬럼 순서와 일치: 카메라이름(0), 시리얼넘버(1), RTSP(2), 설치위치(3), 아이디(4), 비밀번호(5)
+    const headers = '카메라 이름,카메라 시리얼넘버,RTSP 주소,설치 위치,접속 아이디,비밀번호\n';
+    const sample =
+      '응급실 복도 카메라 1,CAM-001,rtsp://192.168.0.10/live,응급실 1층 복도 A,camera01,password01\n' +
+      '대기실 카메라 1,CAM-002,rtsp://192.168.0.11/live,응급실 1층 대기실,camera02,password02\n';
+    const blob = new Blob([headers + sample], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'cctv_registration_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('엑셀 등록 템플릿(CSV)이 다운로드되었습니다.');
+  };
   const {
     acknowledgedAiEventIds,
     dangerAiEvents,
@@ -469,6 +491,15 @@ export function NurseDashboard({
                   </button>
                 );
               })}
+              {userType === 'corporate' && (
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800/30 transition-all cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>템플릿 다운로드</span>
+                </button>
+              )}
             </nav>
 
             <div className="mt-8 pt-6 border-t border-slate-800/50 space-y-4 px-2">
@@ -548,11 +579,12 @@ export function NurseDashboard({
                   liveCameras={liveCameras}
                   registeredCameras={mappedCamerasForMgmt}
                   showCamPwId={showCamPwId}
-                  facilityName={currentFacility?.facilityName}
-                  facilityId={currentFacility?.facilityId}
+                  facilityName={userType === 'individual' ? currentFacility?.facilityName : currentCompany?.companyName}
+                  facilityId={userType === 'individual' ? currentFacility?.facilityId : currentCompany?.companyProfileId}
                   onAddCamera={() => setShowAddCamera(true)}
                   onDeleteCamera={handleDeleteCamera}
                   onTogglePassword={(cameraId) => setShowCamPwId((prev) => (prev === cameraId ? null : cameraId))}
+                  readOnly={userType === 'corporate'}
                 />
               )}
             </div>

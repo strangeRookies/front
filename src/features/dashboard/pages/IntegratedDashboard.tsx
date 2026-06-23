@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback, useEffect } from 'react';
+﻿import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Shield, Bell, ChevronDown, Folder, ChevronRight,
   Play, Pause, Volume2, Maximize2, Check,
@@ -20,6 +20,8 @@ import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
 import type { LiveCamera } from '../data/cameras';
 import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, updateAdminMember, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse } from '../api/adminApi';
+import { useAiEvents } from '../../../hooks/useAiEvents';
+import { isDangerAiEvent, getSeverityTone, getEventTypeKorean, aiEventFingerprint } from '../../../shared/utils/aiAlerts';
 import { fetchAllInquiries, fetchMyInquiries, createInquiry, answerInquiry } from '../api/inquiryApi';
 import { logger } from '../../../shared/utils/logger';
 
@@ -138,9 +140,6 @@ const TEST_MENU_ITEMS: { id: TestMenuId; label: string; icon: React.ComponentTyp
   { id: 'home',    label: '대시보드 홈', icon: Tv         },
   { id: 'alerts',  label: '이벤트 알림', icon: Bell       },
   { id: 'history', label: '이벤트 기록', icon: Calendar   },
-  { id: 'cameras', label: '카메라 등록', icon: Camera     },
-  { id: 'mypage',  label: '마이페이지',  icon: User       },
-  { id: 'qna',     label: '문의',       icon: HelpCircle },
 ];
 
 const CATEGORY_STYLES: Record<InquiryCategory, string> = {
@@ -166,13 +165,6 @@ interface TestIncidentAlert {
   camera: string; type: string; label: string;
   severity: 'critical' | 'warning' | 'info'; status: 'new' | 'resolved';
 }
-const INITIAL_TEST_ALERTS: TestIncidentAlert[] = [
-  { id: 't1', time: new Date(Date.now()-2*60000).toTimeString().split(' ')[0],        timestamp: Date.now()-2*60000,        camera:'복도 A',   type:'FALL',  label:'FALL (낙상) 감지',  severity:'critical', status:'new'      },
-  { id: 't2', time: new Date(Date.now()-6*60000).toTimeString().split(' ')[0],        timestamp: Date.now()-6*60000,        camera:'방 1',     type:'FAINT', label:'FAINT (실신) 감지', severity:'warning',  status:'new'      },
-  { id: 't3', time: new Date(Date.now()-15*60000).toTimeString().split(' ')[0],       timestamp: Date.now()-15*60000,       camera:'대기실 1', type:'CROWD', label:'CROWD (혼잡) 감지', severity:'info',     status:'resolved' },
-  { id: 't4', time: new Date(Date.now()-2*86400000).toTimeString().split(' ')[0],     timestamp: Date.now()-2*86400000,     camera:'출입구',   type:'CROWD', label:'CROWD (혼잡) 감지', severity:'info',     status:'resolved' },
-  { id: 't5', time: new Date(Date.now()-12*86400000).toTimeString().split(' ')[0],    timestamp: Date.now()-12*86400000,    camera:'후문',     type:'FIRE',  label:'FIRE (화재 연기) 감지', severity:'critical', status:'resolved' },
-];
 interface TestRegisteredCamera { id: string; name: string; location: string; password?: string; }
 const INITIAL_TEST_CAMERAS: TestRegisteredCamera[] = [
   { id: 'CCTV-01', name: '방 1',   location: '1층', password: 'cam1234'  },
@@ -242,7 +234,7 @@ const [isPlaying, setIsPlaying] = useState(true);
   // ── 테스트 모드 state ──────────────────────────────────────────────
   const [testSubMenu, setTestSubMenu]         = useState<TestMenuId>('home');
   // alerts / history
-  const [tAlerts, setTAlerts]                 = useState<TestIncidentAlert[]>(INITIAL_TEST_ALERTS);
+  const [resolvedTestAlertIds, setResolvedTestAlertIds] = useState<Set<string>>(() => new Set());
   const [tSearchDate, setTSearchDate]         = useState<'today'|'week'|'month'>('month');
   const [tSearchCamera, setTSearchCamera]     = useState('전체');
   const [tSearchKeyword, setTSearchKeyword]   = useState('');
@@ -283,6 +275,23 @@ const [isPlaying, setIsPlaying] = useState(true);
   const [tQnaCategory, setTQnaCategory]       = useState<InquiryCategory>('기타');
 
   const isTestMode = activeMenu === 'test';
+  const testAiFeed = useAiEvents({ enabled: activeMenu === 'test' });
+  const tAlerts: TestIncidentAlert[] = useMemo(() => testAiFeed.events
+    .filter(isDangerAiEvent)
+    .map(event => {
+      const fingerprint = aiEventFingerprint(event);
+      const eventType = event.event_type.toUpperCase();
+      return {
+        id: fingerprint,
+        time: new Date(event.timestamp * 1000).toTimeString().split(' ')[0],
+        timestamp: event.timestamp * 1000,
+        camera: event.camera_login_id ?? event.camera_id,
+        type: eventType,
+        label: `${eventType} (${getEventTypeKorean(event.event_type)}) 감지`,
+        severity: getSeverityTone(event.severity),
+        status: resolvedTestAlertIds.has(fingerprint) ? 'resolved' as const : 'new' as const,
+      };
+    }), [testAiFeed.events, resolvedTestAlertIds]);
   const tActiveTenMin = tAlerts.filter(a => Date.now() - a.timestamp <= 10*60*1000);
   const tFilteredHistory = tAlerts.filter(a => {
     if (tSearchKeyword && !a.label.toLowerCase().includes(tSearchKeyword.toLowerCase()) && !a.camera.includes(tSearchKeyword)) return false;
@@ -297,7 +306,7 @@ const [isPlaying, setIsPlaying] = useState(true);
   const tPwStrength  = getPasswordStrength(tNewPw);
 
   const handleTResolveAlert = (id: string) =>
-    setTAlerts(prev => prev.map(a => a.id === id ? {...a, status:'resolved' as const} : a));
+    setResolvedTestAlertIds(prev => new Set(prev).add(id));
   const handleTAddCamera = () => {
     if (!tNewCamName.trim() || !tNewCamId.trim()) return;
     setTCameras(prev => [...prev, { id: tNewCamId.trim(), name: tNewCamName.trim(), location: tNewCamLocation.trim()||'미지정', password: tNewCamPassword.trim()||undefined }]);
