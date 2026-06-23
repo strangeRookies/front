@@ -6,6 +6,7 @@ import {
   getEventTypeKorean,
   getSeverityTone,
 } from '../../../shared/utils/aiAlerts';
+import { acknowledgeAlertEvent } from '../api/alertEventsApi';
 import type { LiveCamera } from '../data/cameras';
 import type { IncidentAlert } from '../types/dashboard';
 
@@ -13,7 +14,7 @@ interface UseDashboardAlertsParams {
   acknowledgedAiEventIds: ReadonlySet<string>;
   dangerAiEvents: readonly AiEvent[];
   liveCameras: readonly LiveCamera[];
-  onConfirmAiEvent: (event: AiEvent) => void;
+  onAcknowledgeAiEventOnly: (event: AiEvent) => void;
 }
 
 interface HistoryFilters {
@@ -26,9 +27,10 @@ export function useDashboardAlerts({
   acknowledgedAiEventIds,
   dangerAiEvents,
   liveCameras,
-  onConfirmAiEvent,
+  onAcknowledgeAiEventOnly,
 }: UseDashboardAlertsParams) {
   const [alerts, setAlerts] = useState<IncidentAlert[]>([]);
+  const [tick, setTick] = useState(0);
 
   const mergeRecentAlerts = useCallback((recentAlerts: readonly IncidentAlert[]) => {
     if (recentAlerts.length === 0) return;
@@ -98,30 +100,36 @@ export function useDashboardAlerts({
     });
   }, [acknowledgedAiEventIds, dangerAiEvents, liveCameras]);
 
+  useEffect(() => {
+    const futureExpirations = alerts
+      .map((a) => a.timestamp + 10 * 60 * 1000)
+      .filter((t) => t > Date.now());
+
+    if (futureExpirations.length === 0) return;
+
+    const nextExpiration = Math.min(...futureExpirations);
+    const delay = nextExpiration - Date.now() + 100; // 100ms buffer
+
+    if (delay <= 0) {
+      setTick((t) => t + 1);
+      return;
+    }
+
+    const timerId = setTimeout(() => {
+      setTick((t) => t + 1);
+    }, delay);
+
+    return () => clearTimeout(timerId);
+  }, [alerts, tick]);
+
   const activeTenMinAlerts = useMemo(
     () => alerts.filter((alert) => Date.now() - alert.timestamp <= 10 * 60 * 1000),
-    [alerts],
+    [alerts, tick],
   );
 
-  const getFilteredHistory = useMemo(
-    () => (filters: HistoryFilters) => alerts.filter((alert) => {
-      if (
-        filters.searchKeyword
-        && !alert.label.toLowerCase().includes(filters.searchKeyword.toLowerCase())
-        && !alert.camera.includes(filters.searchKeyword)
-      ) {
-        return false;
-      }
-
-      if (filters.searchCamera !== '전체' && alert.camera !== filters.searchCamera) return false;
-
-      const age = Date.now() - alert.timestamp;
-      if (filters.searchDate === 'today' && age > 86400000) return false;
-      if (filters.searchDate === 'week' && age > 7 * 86400000) return false;
-      if (filters.searchDate === 'month' && age > 30 * 86400000) return false;
-      return true;
-    }),
-    [alerts],
+  const unresolvedTenMinAlertsCount = useMemo(
+    () => activeTenMinAlerts.filter((alert) => alert.status === 'new').length,
+    [activeTenMinAlerts],
   );
 
   const resolveAlert = (id: string) => {
@@ -129,15 +137,18 @@ export function useDashboardAlerts({
       alert.id === id ? { ...alert, status: 'resolved' as const } : alert
     )));
 
-    if (!id.includes(':')) return;
+    if (!id.includes(':')) {
+      void acknowledgeAlertEvent(id).catch(console.error);
+      return;
+    }
     const matchingEvent = dangerAiEvents.find((event) => aiEventFingerprint(event) === id);
-    if (matchingEvent) onConfirmAiEvent(matchingEvent);
+    if (matchingEvent) onAcknowledgeAiEventOnly(matchingEvent);
   };
 
   return {
     alerts,
     activeTenMinAlerts,
-    getFilteredHistory,
+    unresolvedTenMinAlertsCount,
     mergeRecentAlerts,
     resolveAlert,
   };

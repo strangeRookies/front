@@ -1,12 +1,22 @@
 import { Download, Search, Video } from 'lucide-react';
 import type { IncidentAlert } from '../types/dashboard';
 
+export interface HistoryFilters {
+  searchCamera: string;
+  searchDate: 'today' | 'week' | 'month';
+  searchKeyword: string;
+}
+
 interface DashboardHistoryViewProps {
   filteredHistory: readonly IncidentAlert[];
   searchCamera: string;
   searchDate: 'today' | 'week' | 'month';
   searchKeyword: string;
   cameraOptions: readonly { id: string; name: string }[];
+  totalHistoryElements: number;
+  isLoading?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
   onOpenIncident: (alert: IncidentAlert) => void;
   onSearchCameraChange: (value: string) => void;
   onSearchDateChange: (value: 'today' | 'week' | 'month') => void;
@@ -19,11 +29,18 @@ export function DashboardHistoryView({
   searchDate,
   searchKeyword,
   cameraOptions,
+  totalHistoryElements,
+  isLoading = false,
+  hasMore = false,
+  onLoadMore,
   onOpenIncident,
   onSearchCameraChange,
   onSearchDateChange,
   onSearchKeywordChange,
 }: DashboardHistoryViewProps) {
+  const isFiltering = searchCamera !== '전체' || searchKeyword.trim() !== '' || searchDate !== 'month';
+  const displayCount = isFiltering ? filteredHistory.length : totalHistoryElements;
+
   return (
     <div className="flex-1 p-6 space-y-6 overflow-y-auto max-w-5xl flex flex-col">
       <div>
@@ -65,7 +82,7 @@ export function DashboardHistoryView({
             >
               <option value="전체">전체 카메라</option>
               {cameraOptions.map((camera) => (
-                <option key={camera.id} value={camera.name}>
+                <option key={camera.id} value={camera.id}>
                   {camera.name}
                 </option>
               ))}
@@ -88,7 +105,7 @@ export function DashboardHistoryView({
       </div>
       <div className="flex-1 bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden flex flex-col">
         <div className="px-5 py-3 bg-slate-900/30 border-b border-slate-800 flex justify-between text-xs text-slate-400">
-          <span className="font-semibold">조회 결과 {filteredHistory.length}건</span>
+          <span className="font-semibold">조회 결과 {displayCount}건</span>
           <span className="text-[10px]">최근 이벤트 기록</span>
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-slate-800">
@@ -108,7 +125,7 @@ export function DashboardHistoryView({
                     <div className="flex items-center gap-2 text-[9px] text-slate-500 mt-1 font-mono">
                       <span>위치: {log.camera}</span>
                       <span>/</span>
-                      <span>2026-05-{log.timestamp % 2 === 0 ? '25' : '26'} {log.time}</span>
+                      <span>{new Date(log.timestamp).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.\s/g, '-').replace(/\./g, '')} {log.time}</span>
                     </div>
                   </div>
                 </div>
@@ -129,6 +146,18 @@ export function DashboardHistoryView({
                 </div>
               </div>
             ))
+          )}
+          
+          {hasMore && (
+            <div className="p-4 flex justify-center border-t border-slate-800">
+              <button
+                onClick={onLoadMore}
+                disabled={isLoading}
+                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-full transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {isLoading ? '불러오는 중...' : '더 보기'}
+              </button>
+            </div>
           )}
         </div>
       </div>
