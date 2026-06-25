@@ -29,12 +29,31 @@ export interface PaginatedAlertEventsResponse {
   number: number;
 }
 
+export interface AlertEventFilters {
+  cameraId?: string | number;
+  keyword?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
 export async function fetchFullAlertEventsHistory(
   facilityId: number | string,
   page: number = 0,
   size: number = 20,
+  filters?: AlertEventFilters,
 ): Promise<PaginatedAlertEventsResponse> {
-  const data = await apiRequest<unknown>(`/api/facilities/${facilityId}/alert-events?page=${page}&size=${size}&sort=detectedAt,desc`, {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    size: size.toString(),
+    sort: 'detectedAt,desc',
+  });
+
+  if (filters?.cameraId) params.append('cameraId', filters.cameraId.toString());
+  if (filters?.keyword) params.append('keyword', filters.keyword);
+  if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
+  if (filters?.dateTo) params.append('dateTo', filters.dateTo);
+
+  const data = await apiRequest<unknown>(`/api/facilities/${facilityId}/alert-events?${params.toString()}`, {
     method: 'GET',
   });
 

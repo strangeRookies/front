@@ -265,16 +265,18 @@ export function NurseDashboard({
   });
 
   const {
-    getFilteredHistory,
+    historyAlerts,
     isLoadingHistory,
-    hasMoreHistory,
-    loadMoreHistory,
+    currentPage,
+    totalPages,
+    goToPage,
     totalHistoryElements,
   } = useDashboardHistory({
     facilityIds: recentAlertFacilityIds,
     liveCameras,
     dangerAiEvents,
     acknowledgedAiEventIds,
+    filters: { searchDate, searchCamera, searchKeyword },
   });
 
   const loadRecentAlerts = useCallback(async () => {
@@ -307,10 +309,7 @@ export function NurseDashboard({
     }
   }, [connectionState, loadRecentAlerts]);
 
-  const filteredHistory = useMemo(
-    () => getFilteredHistory({ searchDate, searchCamera, searchKeyword }),
-    [getFilteredHistory, searchCamera, searchDate, searchKeyword],
-  );
+  // filtering is now done on the backend via useDashboardHistory.
 
   // --- Handlers ---
   const handleOpenIncident = (alert: IncidentAlert) => {
@@ -567,15 +566,16 @@ export function NurseDashboard({
           )}
           {activeMenu === 'history' && (
             <DashboardHistoryView
-              filteredHistory={filteredHistory}
+              historyAlerts={historyAlerts}
               totalHistoryElements={totalHistoryElements}
               searchCamera={searchCamera}
               searchDate={searchDate}
               searchKeyword={searchKeyword}
               cameraOptions={mappedCamerasForMgmt}
               isLoading={isLoadingHistory}
-              hasMore={hasMoreHistory}
-              onLoadMore={loadMoreHistory}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onGoToPage={goToPage}
               onOpenIncident={handleOpenIncident}
               onSearchCameraChange={setSearchCamera}
               onSearchDateChange={setSearchDate}
