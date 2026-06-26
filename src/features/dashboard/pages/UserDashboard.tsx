@@ -17,18 +17,21 @@ import {
   fetchCamerasByFacility,
   updateCamera,
   deleteCamera,
+  fetchMyCorporateCameras,
   type CameraResponse
 } from '../../../app/api/cameraApi';
 import {
   fetchMyFacilities,
   type FacilityResponse
 } from '../../../app/api/facilityApi';
+import { fetchMyCompany, type AdminCompanyResponse } from '../../../app/api/companyApi';
 import { authStore } from '../../../shared/api/authStore';
 import { logger } from '../../../shared/utils/logger';
 import { DashboardAlertsView } from '../components/DashboardAlertsView';
 import { DashboardCameraManagementView } from '../components/DashboardCameraManagementView';
 import { DashboardHistoryView } from '../components/DashboardHistoryView';
 import { DashboardHomeView } from '../components/DashboardHomeView';
+import { useDashboardHistory } from '../hooks/useDashboardHistory';
 import { DashboardMyPageView } from '../components/DashboardMyPageView';
 import { DashboardQnaView } from '../components/DashboardQnaView';
 import { AddCameraModal } from '../modals/AddCameraModal';
@@ -75,9 +78,9 @@ export function NurseDashboard({
   userType,
   onLogout,
 }: NurseDashboardProps) {
-  // --- Data States ---
   const [facilities, setFacilities] = useState<FacilityResponse[]>([]);
   const [currentFacility, setCurrentFacility] = useState<FacilityResponse | null>(null);
+  const [currentCompany, setCurrentCompany] = useState<AdminCompanyResponse | null>(null);
   const [registeredCameras, setRegisteredCameras] = useState<CameraResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingCameras, setIsLoadingCameras] = useState(false);
@@ -129,23 +132,21 @@ export function NurseDashboard({
   }, [registeredCameras]);
 
   const recentAlertFacilityIds = useMemo(() => {
-    if (currentFacility?.facilityId) {
+    if (userType === 'individual' && currentFacility?.facilityId) {
       return [currentFacility.facilityId];
     }
-
-    const facilityIds = registeredCameras
-      .map((camera) => camera.facilityId)
-      .filter((facilityId) => Number.isFinite(facilityId));
-
-    return Array.from(new Set(facilityIds));
-  }, [currentFacility, registeredCameras]);
+    if (userType === 'corporate' && currentCompany?.companyProfileId) {
+      return [currentCompany.companyProfileId];
+    }
+    return [];
+  }, [currentFacility, currentCompany, userType]);
 
   // --- Real-time Camera Status from MQTT ---
   const effectiveFacilityId = userType === 'individual' 
     ? registeredCameras[0]?.facilityId 
-    : currentFacility?.facilityId;
+    : currentCompany?.companyProfileId;
 
-  const cameraStatusMap = useCameraStatusWebSocket(effectiveFacilityId);
+  const cameraStatusMap = useCameraStatusWebSocket(effectiveFacilityId, userType);
 
   // --- Connection Statistics for Sidebar ---
   const connectionStats = useMemo(() => {
@@ -164,23 +165,20 @@ export function NurseDashboard({
 
   // --- Facility Fetch Logic (Automatic) ---
   const loadInitialData = useCallback(async () => {
-    if (userType === 'individual') {
-      setFacilities([]);
-      setCurrentFacility(null);
-      setRegisteredCameras([]);
-      setIsLoading(false);
-      return;
-    }
-
     try {
       setIsLoading(true);
-      const userFacilities = await fetchMyFacilities();
-      setFacilities(userFacilities);
-      if (userFacilities.length > 0) {
-        setCurrentFacility(userFacilities[0]);
+      if (userType === 'individual') {
+        const userFacilities = await fetchMyFacilities();
+        setFacilities(userFacilities);
+        if (userFacilities.length > 0) {
+          setCurrentFacility(userFacilities[0]);
+        }
+      } else {
+        const company = await fetchMyCompany();
+        setCurrentCompany(company);
       }
     } catch {
-      logger.error('Failed to load facilities.');
+      logger.error('Failed to load initial data.');
     } finally {
       setIsLoading(false);
     }
@@ -192,18 +190,20 @@ export function NurseDashboard({
 
   // --- Camera Fetch Logic ---
   const refreshCameras = useCallback(async () => {
-    if (userType === 'corporate' && !currentFacility) return;
+    if (userType === 'individual' && !currentFacility) return;
+    if (userType === 'corporate' && !currentCompany) return;
     try {
       setIsLoadingCameras(true);
-      const facilityId = userType === 'individual' ? undefined : currentFacility?.facilityId;
-      const data = await fetchCamerasByFacility(facilityId);
+      const data = userType === 'individual'
+        ? await fetchCamerasByFacility(currentFacility?.facilityId)
+        : await fetchMyCorporateCameras();
       setRegisteredCameras(data);
     } catch {
       logger.error('Failed to fetch cameras.');
     } finally {
       setIsLoadingCameras(false);
     }
-  }, [currentFacility, userType]);
+  }, [currentFacility, currentCompany, userType]);
 
   useEffect(() => {
     refreshCameras();
@@ -240,6 +240,7 @@ export function NurseDashboard({
     focusedLiveCameras,
     focusAiEventCamera,
     handleConfirmAiEvent,
+    handleAcknowledgeAiEventOnly,
     setFocusedCameraId,
     connectionState,
   } = useAiAlertActions({ 
@@ -253,14 +254,27 @@ export function NurseDashboard({
   const {
     alerts,
     activeTenMinAlerts,
-    getFilteredHistory,
+    unresolvedTenMinAlertsCount,
     mergeRecentAlerts,
     resolveAlert,
   } = useDashboardAlerts({
     acknowledgedAiEventIds,
     dangerAiEvents,
     liveCameras,
-    onConfirmAiEvent: handleConfirmAiEvent,
+    onAcknowledgeAiEventOnly: handleAcknowledgeAiEventOnly,
+  });
+
+  const {
+    getFilteredHistory,
+    isLoadingHistory,
+    hasMoreHistory,
+    loadMoreHistory,
+    totalHistoryElements,
+  } = useDashboardHistory({
+    facilityIds: recentAlertFacilityIds,
+    liveCameras,
+    dangerAiEvents,
+    acknowledgedAiEventIds,
   });
 
   const loadRecentAlerts = useCallback(async () => {
@@ -426,7 +440,7 @@ export function NurseDashboard({
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 px-3 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-            <span className="text-[10px] font-bold text-rose-400">확인 대기 이벤트 {activeTenMinAlerts.length}건</span>
+            <span className="text-[10px] font-bold text-rose-400">확인 대기 이벤트 {unresolvedTenMinAlertsCount}건</span>
           </div>
           <div
             className="flex items-center gap-2 ml-2 px-2 py-0.5 rounded text-[10px] font-bold"
@@ -463,7 +477,7 @@ export function NurseDashboard({
             <nav className="space-y-0.5">
               {ALL_MENU_ITEMS.filter((item) => !item.individualOnly || userType === 'individual').map(({ id, label, icon: Icon }) => {
                 const isActive = activeMenu === id;
-                const badge = id === 'alerts' ? activeTenMinAlerts.length : undefined;
+                const badge = id === 'alerts' ? unresolvedTenMinAlertsCount : undefined;
                 return (
                   <button
                     key={id}
@@ -516,13 +530,13 @@ export function NurseDashboard({
               <div className="bg-[#0f172a] rounded-xl p-3 border border-slate-800/50">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[9px] font-bold text-slate-400 uppercase">확인 대기 이벤트</span>
-                  {activeTenMinAlerts.length > 0 && (
+                  {unresolvedTenMinAlertsCount > 0 && (
                     <span className="text-[8px] font-bold bg-rose-500 text-white px-1 rounded-sm animate-bounce">NEW</span>
                   )}
                 </div>
                 <div className="flex items-end gap-1.5">
                   <ShieldAlert className="w-4 h-4 text-rose-500 mb-0.5" />
-                  <span className="text-sm font-extrabold text-white">{activeTenMinAlerts.length}</span>
+                  <span className="text-sm font-extrabold text-white">{unresolvedTenMinAlertsCount}</span>
                   <span className="text-[9px] text-slate-500 font-bold mb-0.5">건</span>
                 </div>
               </div>
@@ -546,6 +560,7 @@ export function NurseDashboard({
           {activeMenu === 'alerts' && (
             <DashboardAlertsView
               alerts={activeTenMinAlerts}
+              unresolvedCount={unresolvedTenMinAlertsCount}
               onOpenIncident={handleOpenIncident}
               onResolveAlert={resolveAlert}
             />
@@ -553,10 +568,14 @@ export function NurseDashboard({
           {activeMenu === 'history' && (
             <DashboardHistoryView
               filteredHistory={filteredHistory}
+              totalHistoryElements={totalHistoryElements}
               searchCamera={searchCamera}
               searchDate={searchDate}
               searchKeyword={searchKeyword}
               cameraOptions={mappedCamerasForMgmt}
+              isLoading={isLoadingHistory}
+              hasMore={hasMoreHistory}
+              onLoadMore={loadMoreHistory}
               onOpenIncident={handleOpenIncident}
               onSearchCameraChange={setSearchCamera}
               onSearchDateChange={setSearchDate}
@@ -575,11 +594,12 @@ export function NurseDashboard({
                   liveCameras={liveCameras}
                   registeredCameras={mappedCamerasForMgmt}
                   showCamPwId={showCamPwId}
-                  facilityName={currentFacility?.facilityName}
-                  facilityId={currentFacility?.facilityId}
+                  facilityName={userType === 'individual' ? currentFacility?.facilityName : currentCompany?.companyName}
+                  facilityId={userType === 'individual' ? currentFacility?.facilityId : currentCompany?.companyProfileId}
                   onAddCamera={() => setShowAddCamera(true)}
                   onDeleteCamera={handleDeleteCamera}
                   onTogglePassword={(cameraId) => setShowCamPwId((prev) => (prev === cameraId ? null : cameraId))}
+                  readOnly={userType === 'corporate'}
                 />
               )}
             </div>

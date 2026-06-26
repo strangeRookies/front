@@ -1,17 +1,27 @@
+import { useEffect, useState } from 'react';
 import { AlertTriangle, Bell, Clock } from 'lucide-react';
 import type { IncidentAlert } from '../types/dashboard';
 
 interface DashboardAlertsViewProps {
   alerts: readonly IncidentAlert[];
+  unresolvedCount: number;
   onOpenIncident: (alert: IncidentAlert) => void;
   onResolveAlert: (id: string) => void;
 }
 
 export function DashboardAlertsView({
   alerts,
+  unresolvedCount,
   onOpenIncident,
   onResolveAlert,
 }: DashboardAlertsViewProps) {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <div className="flex-1 p-6 space-y-6 overflow-y-auto max-w-4xl">
       <div className="flex justify-between items-center border-b border-slate-800 pb-4">
@@ -22,7 +32,7 @@ export function DashboardAlertsView({
           </p>
         </div>
         <span className="px-3 py-1 bg-rose-500/10 border border-rose-500/25 text-rose-400 font-extrabold rounded-full text-xs">
-          확인 대기 {alerts.length}건
+          확인 대기 {unresolvedCount}건
         </span>
       </div>
 
