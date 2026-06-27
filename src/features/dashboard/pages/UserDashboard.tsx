@@ -38,6 +38,7 @@ import { AddCameraModal } from '../modals/AddCameraModal';
 import { IncidentPlaybackModal } from '../modals/IncidentPlaybackModal';
 import { NewInquiryModal } from '../modals/NewInquiryModal';
 import { useCameraStatusWebSocket } from '../hooks/useCameraStatusWebSocket';
+import { useCameraOverlays } from '../overlays/useCameraOverlays';
 
 
 interface NurseDashboardProps {
@@ -147,6 +148,7 @@ export function NurseDashboard({
     : currentCompany?.companyProfileId;
 
   const cameraStatusMap = useCameraStatusWebSocket(effectiveFacilityId, userType);
+  useCameraOverlays(effectiveFacilityId, userType);
 
   // --- Connection Statistics for Sidebar ---
   const connectionStats = useMemo(() => {
