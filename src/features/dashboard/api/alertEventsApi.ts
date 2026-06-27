@@ -5,8 +5,14 @@ import { getEventTypeKorean, getSeverityTone } from '../../../shared/utils/aiAle
 
 export type RecentAlertEventResponse = Record<string, unknown>;
 
-export async function fetchRecentAlertEvents(facilityId: number | string): Promise<RecentAlertEventResponse[]> {
-  const data = await apiRequest<unknown>(`/api/facilities/${facilityId}/alert-events/recent`, {
+export async function fetchRecentAlertEvents(
+  facilityId: number | string,
+  userType: 'individual' | 'corporate' = 'individual'
+): Promise<RecentAlertEventResponse[]> {
+  const url = userType === 'corporate' 
+    ? `/api/companies/${facilityId}/alert-events/recent` 
+    : `/api/facilities/${facilityId}/alert-events/recent`;
+  const data = await apiRequest<unknown>(url, {
     method: 'GET',
   });
 
@@ -41,6 +47,7 @@ export async function fetchFullAlertEventsHistory(
   page: number = 0,
   size: number = 20,
   filters?: AlertEventFilters,
+  userType: 'individual' | 'corporate' = 'individual'
 ): Promise<PaginatedAlertEventsResponse> {
   const params = new URLSearchParams({
     page: page.toString(),
@@ -53,7 +60,10 @@ export async function fetchFullAlertEventsHistory(
   if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
   if (filters?.dateTo) params.append('dateTo', filters.dateTo);
 
-  const data = await apiRequest<unknown>(`/api/facilities/${facilityId}/alert-events?${params.toString()}`, {
+  const url = userType === 'corporate'
+    ? `/api/companies/${facilityId}/alert-events?${params.toString()}`
+    : `/api/facilities/${facilityId}/alert-events?${params.toString()}`;
+  const data = await apiRequest<unknown>(url, {
     method: 'GET',
   });
 
@@ -90,6 +100,12 @@ export function toIncidentAlertFromRecentEvent(
   const cameraKey = readString(event, ['cameraLoginId', 'camera_login_id', 'cameraId', 'camera_id']);
   const cameraName = readString(event, ['cameraName', 'camera_name', 'camera', 'location']);
   const matchedCamera = findLiveCamera(liveCameras, cameraKey, cameraName);
+
+  // 현재 회원의 카메라 목록(liveCameras)에 없는 남의 카메라 이벤트는 필터링(무시)
+  if (!matchedCamera) {
+    return null;
+  }
+
   const severity = getSeverityTone(readString(event, ['severity', 'level']) || '');
   const statusRaw = readString(event, ['status', 'state'])?.toUpperCase();
   const acknowledged = readBoolean(event, ['acknowledged', 'acknowledgedYn', 'resolved'])
@@ -106,7 +122,7 @@ export function toIncidentAlertFromRecentEvent(
     camera: matchedCamera?.name || cameraName || cameraKey || '-',
     type: normalizedEventType,
     label: readString(event, ['message', 'label', 'description'])
-      || `${normalizedEventType} (${getEventTypeKorean(eventType)}) 감지`,
+      || `${normalizedEventType} 감지`,
     severity,
     status: acknowledged ? 'resolved' : 'new',
   };

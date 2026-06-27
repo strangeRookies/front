@@ -11,6 +11,7 @@ interface UseDashboardHistoryParams {
   dangerAiEvents: any[];
   acknowledgedAiEventIds: Set<string>;
   filters: HistoryFilters;
+  userType: 'individual' | 'corporate';
 }
 
 export function useDashboardHistory({
@@ -19,6 +20,7 @@ export function useDashboardHistory({
   dangerAiEvents,
   acknowledgedAiEventIds,
   filters,
+  userType,
 }: UseDashboardHistoryParams) {
   const [historyAlerts, setHistoryAlerts] = useState<IncidentAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,11 +62,13 @@ export function useDashboardHistory({
 
       const keyword = debouncedKeyword?.trim() || undefined;
 
-      const response = await fetchFullAlertEventsHistory(facilityId, pageNumber, 50, {
-        cameraId,
-        keyword,
-        dateFrom,
-      });
+      const response = await fetchFullAlertEventsHistory(
+        facilityId, 
+        pageNumber, 
+        50, 
+        { cameraId, keyword, dateFrom },
+        userType
+      );
       
       const newAlerts = response.content
         .map((event) => toIncidentAlertFromRecentEvent(event, liveCameras))
@@ -80,7 +84,7 @@ export function useDashboardHistory({
     } finally {
       setIsLoading(false);
     }
-  }, [facilityIds, liveCameras, searchCamera, searchDate, debouncedKeyword]);
+  }, [facilityIds, liveCameras, searchCamera, searchDate, debouncedKeyword, userType]);
 
   // Initial load or filter change -> go to page 0
   useEffect(() => {
@@ -122,7 +126,7 @@ export function useDashboardHistory({
           }
           const type = rawType.toLowerCase();
           const normalizedEventType = rawType.toUpperCase();
-          const label = event.message || event.label || event.description || `${normalizedEventType} (${getEventTypeKorean(normalizedEventType)}) 감지`;
+          const label = event.message || event.label || event.description || `${normalizedEventType} 감지`;
           
           // Semantic deduplication against DB events (to avoid duplicate from real-time and DB)
           const isDuplicate = updated.some((existing) => 
