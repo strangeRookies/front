@@ -277,13 +277,16 @@ export function NurseDashboard({
     dangerAiEvents,
     acknowledgedAiEventIds,
     filters: { searchDate, searchCamera, searchKeyword },
+    userType,
   });
 
   const loadRecentAlerts = useCallback(async () => {
     if (recentAlertFacilityIds.length === 0) return;
 
     try {
-      const responses = await Promise.all(recentAlertFacilityIds.map(fetchRecentAlertEvents));
+      const responses = await Promise.all(
+        recentAlertFacilityIds.map((id) => fetchRecentAlertEvents(id, userType))
+      );
       const recentAlerts = responses
         .flat()
         .map((event) => toIncidentAlertFromRecentEvent(event, liveCameras))
@@ -292,7 +295,7 @@ export function NurseDashboard({
     } catch {
       logger.error('Failed to load recent alert events.');
     }
-  }, [liveCameras, mergeRecentAlerts, recentAlertFacilityIds]);
+  }, [liveCameras, mergeRecentAlerts, recentAlertFacilityIds, userType]);
 
   useEffect(() => {
     void loadRecentAlerts();
