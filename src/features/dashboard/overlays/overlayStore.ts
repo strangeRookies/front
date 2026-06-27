@@ -4,13 +4,21 @@ import type { OverlayMessage } from './overlayTypes';
 
 interface CameraOverlayState {
   readonly overlays: Map<string, OverlayMessage>;
+  readonly frameSyncBuffers: Map<string, OverlayMessage[]>;
+  readonly overlaySyncBuffers: Map<string, OverlayMessage[]>;
   readonly setOverlay: (message: OverlayMessage) => void;
+  readonly addFrameSync: (message: OverlayMessage) => void;
+  readonly addOverlaySync: (message: OverlayMessage) => void;
   readonly clearOverlay: (cameraLoginId: string) => void;
   readonly clearAllOverlays: () => void;
 }
 
+const MAX_BUFFER_SIZE = 100;
+
 export const useCameraOverlayStore = create<CameraOverlayState>((set) => ({
   overlays: new Map(),
+  frameSyncBuffers: new Map(),
+  overlaySyncBuffers: new Map(),
   setOverlay: (message) => {
     set((state) => {
       const overlays = new Map(state.overlays);
@@ -18,22 +26,49 @@ export const useCameraOverlayStore = create<CameraOverlayState>((set) => ({
       return { overlays };
     });
   },
+  addFrameSync: (message) => {
+    set((state) => {
+      const frameSyncBuffers = new Map(state.frameSyncBuffers);
+      const list = [...(frameSyncBuffers.get(message.cameraLoginId) || [])];
+      list.push(message);
+      if (list.length > MAX_BUFFER_SIZE) {
+        list.shift();
+      }
+      frameSyncBuffers.set(message.cameraLoginId, list);
+      return { frameSyncBuffers };
+    });
+  },
+  addOverlaySync: (message) => {
+    set((state) => {
+      const overlaySyncBuffers = new Map(state.overlaySyncBuffers);
+      const list = [...(overlaySyncBuffers.get(message.cameraLoginId) || [])];
+      list.push(message);
+      if (list.length > MAX_BUFFER_SIZE) {
+        list.shift();
+      }
+      overlaySyncBuffers.set(message.cameraLoginId, list);
+      return { overlaySyncBuffers };
+    });
+  },
   clearOverlay: (cameraLoginId) => {
     set((state) => {
-      if (!state.overlays.has(cameraLoginId)) {
-        return state;
-      }
       const overlays = new Map(state.overlays);
       overlays.delete(cameraLoginId);
-      return { overlays };
+      
+      const frameSyncBuffers = new Map(state.frameSyncBuffers);
+      frameSyncBuffers.delete(cameraLoginId);
+      
+      const overlaySyncBuffers = new Map(state.overlaySyncBuffers);
+      overlaySyncBuffers.delete(cameraLoginId);
+      
+      return { overlays, frameSyncBuffers, overlaySyncBuffers };
     });
   },
   clearAllOverlays: () => {
-    set((state) => {
-      if (state.overlays.size === 0) {
-        return state;
-      }
-      return { overlays: new Map() };
+    set({
+      overlays: new Map(),
+      frameSyncBuffers: new Map(),
+      overlaySyncBuffers: new Map()
     });
   },
 }));
@@ -46,4 +81,12 @@ export function useCameraOverlay(camera: LiveCamera): OverlayMessage | undefined
     ?? state.overlays.get(camera.name)
     ?? undefined
   ));
+}
+
+export function useCameraFrameSyncBuffer(cameraLoginId: string): OverlayMessage[] {
+  return useCameraOverlayStore((state) => state.frameSyncBuffers.get(cameraLoginId) || []);
+}
+
+export function useCameraOverlaySyncBuffer(cameraLoginId: string): OverlayMessage[] {
+  return useCameraOverlayStore((state) => state.overlaySyncBuffers.get(cameraLoginId) || []);
 }

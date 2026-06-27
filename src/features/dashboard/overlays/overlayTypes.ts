@@ -14,12 +14,18 @@ export interface OverlayEvent {
 
 export interface OverlayMessage {
   readonly schemaVersion: string;
-  readonly messageType: 'overlay';
+  readonly messageType: 'overlay' | 'frame_sync';
   readonly timestampMs: number;
   readonly cameraLoginId: string;
   readonly frameWidth: number;
   readonly frameHeight: number;
   readonly events: readonly OverlayEvent[];
+  readonly frameId?: number;
+  readonly capturedAtMs?: number;
+  readonly processedAtMs?: number;
+  readonly publishedAtMs?: number;
+  readonly queueLagMs?: number;
+  readonly droppedFrameCount?: number;
 }
 
 function readString(value: unknown): string | null {
@@ -72,41 +78,40 @@ export function parseOverlayMessage(raw: unknown): OverlayMessage | null {
   }
 
   const record = raw as Record<string, unknown>;
-  if (record.messageType !== 'overlay') {
+  const messageType = record.messageType;
+  if (messageType !== 'overlay' && messageType !== 'frame_sync') {
     return null;
   }
 
   const cameraLoginId = readString(record.cameraLoginId) ?? readString(record.streamId);
-  const frameWidth = readNumber(record.frameWidth);
-  const frameHeight = readNumber(record.frameHeight);
+  const frameWidth = readNumber(record.frameWidth) ?? 0;
+  const frameHeight = readNumber(record.frameHeight) ?? 0;
   const timestampMs = readNumber(record.timestampMs) ?? Date.now();
   const eventsRaw = record.events;
 
-  if (!cameraLoginId || frameWidth === null || frameHeight === null || !Array.isArray(eventsRaw)) {
-    return null;
-  }
-  if (frameWidth <= 0 || frameHeight <= 0) {
+  if (!cameraLoginId) {
     return null;
   }
 
-  const events = eventsRaw
-    .map((eventRaw): OverlayEvent | null => {
+  const events: OverlayEvent[] = [];
+  if (Array.isArray(eventsRaw)) {
+    eventsRaw.forEach((eventRaw) => {
       if (!eventRaw || typeof eventRaw !== 'object' || Array.isArray(eventRaw)) {
-        return null;
+        return;
       }
 
       const event = eventRaw as Record<string, unknown>;
       const box = readBox(event.bbox) ?? readBox(event.boundingBox);
       if (!box) {
-        return null;
+        return;
       }
 
-      const clampedBox = clampBox(box, frameWidth, frameHeight);
+      const clampedBox = clampBox(box, frameWidth || 1920, frameHeight || 1080);
       if (!clampedBox) {
-        return null;
+        return;
       }
 
-      return {
+      events.push({
         type: readString(event.type) ?? 'unknown',
         confidence: readNumber(event.confidence),
         trackingId:
@@ -114,21 +119,23 @@ export function parseOverlayMessage(raw: unknown): OverlayMessage | null {
             ? event.trackingId
             : null,
         bbox: clampedBox,
-      };
-    })
-    .filter((event): event is OverlayEvent => event !== null);
-
-  if (eventsRaw.length > 0 && events.length === 0) {
-    return null;
+      });
+    });
   }
 
   return {
     schemaVersion: readString(record.schemaVersion) ?? '1.0',
-    messageType: 'overlay',
+    messageType: messageType as 'overlay' | 'frame_sync',
     timestampMs,
     cameraLoginId,
     frameWidth,
     frameHeight,
     events,
+    frameId: readNumber(record.frameId) ?? undefined,
+    capturedAtMs: readNumber(record.capturedAtMs) ?? undefined,
+    processedAtMs: readNumber(record.processedAtMs) ?? undefined,
+    publishedAtMs: readNumber(record.publishedAtMs) ?? undefined,
+    queueLagMs: readNumber(record.queueLagMs) ?? undefined,
+    droppedFrameCount: readNumber(record.droppedFrameCount) ?? undefined,
   };
 }

@@ -166,7 +166,7 @@ export function CameraStreamFrame({
           className="h-full w-full object-cover"
           dimmed={dimmed}
         />
-        <CameraAiOverlay event={overlayEvent} />
+        <CameraAiOverlay cameraLoginId={derivedLoginId} event={overlayEvent} />
       </div>
     );
   }
@@ -189,7 +189,7 @@ export function CameraStreamFrame({
         alt={title}
         className={`h-full w-full object-cover ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''}`}
       />
-      <CameraAiOverlay event={overlayEvent} />
+      <CameraAiOverlay cameraLoginId={derivedLoginId} event={overlayEvent} />
     </div>
   );
 }
