@@ -19,7 +19,7 @@ export const STALE_EVENT_WINDOW_MS = 15_000;
 
 export function eventTimestampMs(event: AiEvent): number {
   // timestamp가 Unix epoch (초) 단위인 경우 ms 변환
-  return event.timestamp > 1e10 ? event.timestamp : event.timestamp * 1000;
+  return event.capturedAtMs ?? event.receivedAtMs ?? (event.timestamp > 1e10 ? event.timestamp : event.timestamp * 1000);
 }
 
 function pruneExpiredAiEvents(events: readonly AiEvent[], nowMs: number): AiEvent[] {

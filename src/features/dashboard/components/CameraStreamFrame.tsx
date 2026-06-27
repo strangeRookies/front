@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { STREAM_MODE, type StreamRenderKind } from '../data/cameras';
+import type { AiEvent } from '../../../hooks/useAiEvents';
+import { CameraAiOverlay } from './CameraAiOverlay';
 import { WebRtcCameraPlayer } from './WebRtcCameraPlayer';
 import { fetchAiOverlay, startAiOverlay, type AiOverlayResponse, type AiOverlayStatus } from '../../../app/api/cameraApi';
 
@@ -11,6 +13,7 @@ export interface CameraStreamFrameProps {
   readonly className?: string;
   readonly dimmed?: boolean;
   readonly cameraLoginId?: string;
+  readonly overlayEvent?: AiEvent;
 }
 
 export function HlsStream({ streamUrl, title, className = '', dimmed = false }: CameraStreamFrameProps) {
@@ -70,6 +73,7 @@ export function CameraStreamFrame({
   className = '',
   dimmed = false,
   cameraLoginId,
+  overlayEvent,
 }: CameraStreamFrameProps) {
   const derivedLoginId = cameraLoginId || extractCameraLoginId(streamUrl);
   const shouldResolveOverlay = streamKind === 'mjpeg' && STREAM_MODE === 'overlay' && !!derivedLoginId;
@@ -149,17 +153,21 @@ export function CameraStreamFrame({
           title={title}
           className={className}
           dimmed={dimmed}
+          overlayEvent={overlayEvent}
         />
       );
     }
     return (
-      <HlsStream
-        streamUrl={streamUrl}
-        streamKind={streamKind}
-        title={title}
-        className={className}
-        dimmed={dimmed}
-      />
+      <div className={className}>
+        <HlsStream
+          streamUrl={streamUrl}
+          streamKind={streamKind}
+          title={title}
+          className="h-full w-full object-cover"
+          dimmed={dimmed}
+        />
+        <CameraAiOverlay event={overlayEvent} />
+      </div>
     );
   }
 
@@ -175,10 +183,13 @@ export function CameraStreamFrame({
   }
 
   return (
-    <img
-      src={resolvedStreamUrl}
-      alt={title}
-      className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''}`}
-    />
+    <div className={className}>
+      <img
+        src={resolvedStreamUrl}
+        alt={title}
+        className={`h-full w-full object-cover ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''}`}
+      />
+      <CameraAiOverlay event={overlayEvent} />
+    </div>
   );
 }

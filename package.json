@@ -6,7 +6,9 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "test:ai-ack": "node scripts/verify-ai-acknowledge-contract.mjs"
+    "typecheck": "tsc --noEmit",
+    "test:ai-ack": "node scripts/verify-ai-acknowledge-contract.mjs",
+    "test:overlay-sync": "node scripts/verify-overlay-sync-contract.mjs && node scripts/verify-overlay-sync-behavior.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

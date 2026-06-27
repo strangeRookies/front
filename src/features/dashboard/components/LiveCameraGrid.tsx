@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { AlertCircle, AlertTriangle, Expand, EyeOff, RefreshCw, Signal, SignalZero, Video, WifiOff } from 'lucide-react';
+import type { AiEvent } from '../../../hooks/useAiEvents';
+import { findCameraForAiEvent } from '../../../shared/utils/aiAlerts';
 import type { LiveCamera } from '../data/cameras';
 import { useFullscreenCamera } from '../hooks/useFullscreenCamera';
 import type { CameraConnectionStatus, CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
@@ -13,6 +15,7 @@ interface LiveCameraGridProps {
   compact?: boolean;
   onCameraClick?: (camera: LiveCamera) => void;
   cameraStatusMap?: CameraStatusMap;
+  overlayEvents?: readonly AiEvent[];
 }
 
 function realtimeStatusIcon(status: CameraConnectionStatus) {
@@ -94,7 +97,7 @@ function gridClass(count: number) {
   return 'grid-cols-1 md:grid-cols-2';
 }
 
-function CameraStream({ camera }: { camera: LiveCamera }) {
+function CameraStream({ camera, overlayEvent }: { camera: LiveCamera; overlayEvent?: AiEvent }) {
   const unavailable = camera.connectionStatus === 'offline';
 
   return (
@@ -106,6 +109,7 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
         className="absolute inset-0 h-full w-full object-cover"
         dimmed={unavailable}
         cameraLoginId={camera.cameraLoginId}
+        overlayEvent={overlayEvent}
       />
       {unavailable && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030712]/90 text-slate-500">
@@ -118,7 +122,7 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
   );
 }
 
-export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick, cameraStatusMap }: LiveCameraGridProps) {
+export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick, cameraStatusMap, overlayEvents = [] }: LiveCameraGridProps) {
   const { activeFullscreenCameraId, requestCameraFullscreen, setCameraCardRef } = useFullscreenCamera();
   const handleFullscreen = useCallback((cameraId: string, event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -141,6 +145,7 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
           ?? undefined;
         const style = statusStyle(camera, realtimeCameraStatus?.status);
         const StatusIcon = style.icon;
+        const overlayEvent = overlayEvents.find((event) => findCameraForAiEvent(cameras, event)?.id === camera.id);
         return (
           <div
             ref={(element) => setCameraCardRef(camera.id, element)}
@@ -152,7 +157,7 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
             onKeyDown={(event) => handleCameraKeyDown(camera, event)}
           >
             <div className={`relative bg-black ${compact ? 'aspect-video' : cameras.length === 1 ? 'aspect-[16/8]' : 'aspect-video'}`}>
-              <CameraStream camera={camera} />
+              <CameraStream camera={camera} overlayEvent={overlayEvent} />
 
               <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded bg-black/75 px-2 py-1 text-[10px] font-extrabold text-rose-300 backdrop-blur">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />

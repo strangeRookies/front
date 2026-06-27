@@ -8,6 +8,7 @@ import type { CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
 interface DashboardHomeViewProps {
   acknowledgedAiEventIds: ReadonlySet<string>;
   dangerAiEvents: readonly AiEvent[];
+  overlayEvents: readonly AiEvent[];
   focusedLiveCameras: readonly LiveCamera[];
   onCameraSelect: (camera: LiveCamera) => void;
   onConfirmAiEvent: (event: AiEvent) => void;
@@ -20,6 +21,7 @@ interface DashboardHomeViewProps {
 export function DashboardHomeView({
   acknowledgedAiEventIds,
   dangerAiEvents,
+  overlayEvents,
   focusedLiveCameras,
   onCameraSelect,
   onConfirmAiEvent,
@@ -44,6 +46,7 @@ export function DashboardHomeView({
           cameras={[...focusedLiveCameras]}
           onCameraClick={onCameraSelect}
           cameraStatusMap={cameraStatusMap}
+          overlayEvents={overlayEvents}
         />
       </div>
 

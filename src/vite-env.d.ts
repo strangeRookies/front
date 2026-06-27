@@ -10,6 +10,11 @@ interface ImportMetaEnv {
   readonly VITE_BACKEND_BASE_URL?: string;
   readonly VITE_BACKEND_WS_URL?: string;
   readonly VITE_STREAM_FALLBACK_ENABLED?: string;
+  readonly VITE_FRONT_OVERLAY_SYNC_DEBUG?: string;
+  readonly VITE_FRONT_OVERLAY_DELAY_MS?: string;
+  readonly VITE_FRONT_OVERLAY_MAX_BUFFER_AGE_MS?: string;
+  readonly VITE_FRONT_OVERLAY_MAX_BUFFER_SIZE?: string;
+  readonly VITE_FRONT_OVERLAY_MATCH_THRESHOLD_MS?: string;
 }
 
 interface ImportMeta {

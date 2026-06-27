@@ -17,13 +17,12 @@ export function aiEventKey(event: AiEvent) {
   return `${cameraKey}:${event.event_type}:${event.timestamp}:${trackId}`;
 }
 
-// Re-export stable fingerprint from aiEventFeed so callers can import from one place
 export { aiEventFingerprint } from './aiEventFeed';
 
 export function formatAiEventLabel(event: AiEvent): string {
   const upper = event.event_type.trim().toUpperCase();
   const korean = getEventTypeKorean(event.event_type);
-  return `${upper} (${korean}) 감지`;
+  return `${upper} (${korean}) 감지${formatOverlayDebugSuffix(event)}`;
 }
 
 export function getSeverityTone(severity: string): 'critical' | 'warning' | 'info' {
@@ -33,13 +32,12 @@ export function getSeverityTone(severity: string): 'critical' | 'warning' | 'inf
   return 'info';
 }
 
-
 export function findCameraForAiEvent(cameras: readonly LiveCamera[], event: AiEvent) {
   const eventTokens = [
     ...cameraIdTokens(event.camera_login_id),
     ...cameraIdTokens(event.camera_id),
   ].filter(Boolean);
-  return cameras.find(camera => {
+  return cameras.find((camera) => {
     const cameraTokens = new Set([
       normalizeCameraToken(camera.cameraLoginId),
       normalizeCameraToken(camera.cameraDbId),
@@ -50,7 +48,7 @@ export function findCameraForAiEvent(cameras: readonly LiveCamera[], event: AiEv
       ...cameraIdTokens(camera.id),
       ...cameraIdTokens(camera.name),
     ].filter(Boolean));
-    return eventTokens.some(token => cameraTokens.has(token));
+    return eventTokens.some((token) => cameraTokens.has(token));
   });
 }
 
@@ -60,14 +58,14 @@ export function getEventTypeKorean(type: string): string {
   if (upper.includes('FAINT')) return '실신';
   if (upper.includes('COLLAPSE')) return '쓰러짐';
   if (upper.includes('VIOLENCE') || upper.includes('FIGHT')) return '폭력';
-  if (upper.includes('CROWD')) return '혼잡';
+  if (upper.includes('CROWD')) return '군중';
   if (upper.includes('FIRE')) return '화재';
   return type;
 }
 
 export function markAiDangerCameras(cameras: readonly LiveCamera[], events: readonly AiEvent[]) {
-  return cameras.map(camera => {
-    const matchingEvent = events.find(event => {
+  return cameras.map((camera) => {
+    const matchingEvent = events.find((event) => {
       if (!isDangerAiEvent(event)) return false;
       const cameraObj = findCameraForAiEvent(cameras, event);
       return cameraObj?.id === camera.id;
@@ -77,12 +75,10 @@ export function markAiDangerCameras(cameras: readonly LiveCamera[], events: read
       return camera;
     }
 
-    const typeUpper = matchingEvent.event_type.toUpperCase();
-    const koreanLabel = getEventTypeKorean(matchingEvent.event_type);
     return {
       ...camera,
       eventStatus: 'danger' as const,
-      eventLabel: `${typeUpper} (${koreanLabel}) 감지`,
+      eventLabel: formatAiEventLabel(matchingEvent),
     };
   });
 }
@@ -91,11 +87,38 @@ export function focusCameraFirst(cameras: readonly LiveCamera[], focusedCameraId
   if (!focusedCameraId) {
     return [...cameras];
   }
-  const focused = cameras.find(camera => camera.id === focusedCameraId);
+  const focused = cameras.find((camera) => camera.id === focusedCameraId);
   if (!focused) {
     return [...cameras];
   }
-  return [focused, ...cameras.filter(camera => camera.id !== focusedCameraId)];
+  return [focused, ...cameras.filter((camera) => camera.id !== focusedCameraId)];
+}
+
+function formatOverlayDebugSuffix(event: AiEvent): string {
+  if (import.meta.env.VITE_FRONT_OVERLAY_SYNC_DEBUG !== 'true') {
+    return '';
+  }
+  const parts = [
+    event.frameId !== undefined ? `frame ${event.frameId}` : undefined,
+    event.overlayTimestampDeltaMs !== undefined ? `delta ${Math.round(event.overlayTimestampDeltaMs)}ms` : undefined,
+    event.endToEndLatencyMs !== undefined ? `e2e ${Math.round(event.endToEndLatencyMs)}ms` : undefined,
+    formatSequenceRange(event),
+  ].filter(Boolean);
+  return parts.length === 0 ? '' : ` · ${parts.join(' · ')}`;
+}
+
+function formatSequenceRange(event: AiEvent): string | undefined {
+  const sequence = event.sequence;
+  if (!sequence) {
+    return undefined;
+  }
+  if (sequence.sequenceStartFrameId !== undefined || sequence.sequenceEndFrameId !== undefined) {
+    return `seq ${sequence.sequenceStartFrameId ?? '?'}-${sequence.sequenceEndFrameId ?? '?'}`;
+  }
+  if (sequence.sequenceStartAtMs !== undefined || sequence.sequenceEndAtMs !== undefined) {
+    return `seq ${sequence.sequenceStartAtMs ?? '?'}-${sequence.sequenceEndAtMs ?? '?'}ms`;
+  }
+  return undefined;
 }
 
 function cameraIdTokens(value?: string) {
