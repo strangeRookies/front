@@ -38,6 +38,7 @@ import { AddCameraModal } from '../modals/AddCameraModal';
 import { IncidentPlaybackModal } from '../modals/IncidentPlaybackModal';
 import { NewInquiryModal } from '../modals/NewInquiryModal';
 import { useCameraStatusWebSocket } from '../hooks/useCameraStatusWebSocket';
+import { useCameraOverlays } from '../overlays/useCameraOverlays';
 
 
 interface NurseDashboardProps {
@@ -147,6 +148,7 @@ export function NurseDashboard({
     : currentCompany?.companyProfileId;
 
   const cameraStatusMap = useCameraStatusWebSocket(effectiveFacilityId, userType);
+  useCameraOverlays(effectiveFacilityId, userType);
 
   // --- Connection Statistics for Sidebar ---
   const connectionStats = useMemo(() => {
@@ -266,16 +268,18 @@ export function NurseDashboard({
   });
 
   const {
-    getFilteredHistory,
+    historyAlerts,
     isLoadingHistory,
-    hasMoreHistory,
-    loadMoreHistory,
+    currentPage,
+    totalPages,
+    goToPage,
     totalHistoryElements,
   } = useDashboardHistory({
     facilityIds: recentAlertFacilityIds,
     liveCameras,
     dangerAiEvents,
     acknowledgedAiEventIds,
+    filters: { searchDate, searchCamera, searchKeyword },
   });
 
   const loadRecentAlerts = useCallback(async () => {
@@ -308,10 +312,7 @@ export function NurseDashboard({
     }
   }, [connectionState, loadRecentAlerts]);
 
-  const filteredHistory = useMemo(
-    () => getFilteredHistory({ searchDate, searchCamera, searchKeyword }),
-    [getFilteredHistory, searchCamera, searchDate, searchKeyword],
-  );
+  // filtering is now done on the backend via useDashboardHistory.
 
   // --- Handlers ---
   const handleOpenIncident = (alert: IncidentAlert) => {
@@ -569,15 +570,16 @@ export function NurseDashboard({
           )}
           {activeMenu === 'history' && (
             <DashboardHistoryView
-              filteredHistory={filteredHistory}
+              historyAlerts={historyAlerts}
               totalHistoryElements={totalHistoryElements}
               searchCamera={searchCamera}
               searchDate={searchDate}
               searchKeyword={searchKeyword}
               cameraOptions={mappedCamerasForMgmt}
               isLoading={isLoadingHistory}
-              hasMore={hasMoreHistory}
-              onLoadMore={loadMoreHistory}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onGoToPage={goToPage}
               onOpenIncident={handleOpenIncident}
               onSearchCameraChange={setSearchCamera}
               onSearchDateChange={setSearchDate}

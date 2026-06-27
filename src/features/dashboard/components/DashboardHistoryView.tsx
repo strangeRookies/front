@@ -8,15 +8,16 @@ export interface HistoryFilters {
 }
 
 interface DashboardHistoryViewProps {
-  filteredHistory: readonly IncidentAlert[];
+  historyAlerts: readonly IncidentAlert[];
   searchCamera: string;
   searchDate: 'today' | 'week' | 'month';
   searchKeyword: string;
   cameraOptions: readonly { id: string; name: string }[];
   totalHistoryElements: number;
   isLoading?: boolean;
-  hasMore?: boolean;
-  onLoadMore?: () => void;
+  currentPage: number;
+  totalPages: number;
+  onGoToPage: (page: number) => void;
   onOpenIncident: (alert: IncidentAlert) => void;
   onSearchCameraChange: (value: string) => void;
   onSearchDateChange: (value: 'today' | 'week' | 'month') => void;
@@ -24,22 +25,28 @@ interface DashboardHistoryViewProps {
 }
 
 export function DashboardHistoryView({
-  filteredHistory,
+  historyAlerts,
   searchCamera,
   searchDate,
   searchKeyword,
   cameraOptions,
   totalHistoryElements,
   isLoading = false,
-  hasMore = false,
-  onLoadMore,
+  currentPage,
+  totalPages,
+  onGoToPage,
   onOpenIncident,
   onSearchCameraChange,
   onSearchDateChange,
   onSearchKeywordChange,
 }: DashboardHistoryViewProps) {
-  const isFiltering = searchCamera !== '전체' || searchKeyword.trim() !== '' || searchDate !== 'month';
-  const displayCount = isFiltering ? filteredHistory.length : totalHistoryElements;
+  const displayCount = totalHistoryElements;
+
+  // Pagination logic to display fixed blocks of 5 page buttons (e.g., 1~5, 6~10)
+  const currentChunk = Math.floor(currentPage / 5);
+  const startPage = currentChunk * 5;
+  const endPage = Math.min(totalPages, startPage + 5);
+  const visiblePages = Array.from({ length: endPage - startPage }, (_, i) => startPage + i);
 
   return (
     <div className="flex-1 p-6 space-y-6 overflow-y-auto max-w-5xl flex flex-col">
@@ -109,12 +116,12 @@ export function DashboardHistoryView({
           <span className="text-[10px]">최근 이벤트 기록</span>
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-slate-800">
-          {filteredHistory.length === 0 ? (
+          {historyAlerts.length === 0 ? (
             <div className="py-20 text-center">
               <p className="text-xs text-slate-500">조건에 맞는 이벤트 기록이 없습니다.</p>
             </div>
           ) : (
-            filteredHistory.map((log) => (
+            historyAlerts.map((log) => (
               <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-800/10">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400">
@@ -122,7 +129,7 @@ export function DashboardHistoryView({
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-white">{log.label}</h4>
-                    <div className="flex items-center gap-2 text-[9px] text-slate-500 mt-1 font-mono">
+                    <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-1 font-mono">
                       <span>위치: {log.camera}</span>
                       <span>/</span>
                       <span>{new Date(log.timestamp).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.\s/g, '-').replace(/\./g, '')} {log.time}</span>
@@ -148,14 +155,36 @@ export function DashboardHistoryView({
             ))
           )}
           
-          {hasMore && (
-            <div className="p-4 flex justify-center border-t border-slate-800">
+          {totalPages > 1 && (
+            <div className="p-4 flex justify-center items-center gap-2 border-t border-slate-800 bg-[#071329]">
               <button
-                onClick={onLoadMore}
-                disabled={isLoading}
-                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-full transition-colors disabled:opacity-50 cursor-pointer"
+                onClick={() => onGoToPage(Math.max(0, currentPage - 1))}
+                disabled={currentPage === 0}
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 transition-colors"
               >
-                {isLoading ? '불러오는 중...' : '더 보기'}
+                &lt;
+              </button>
+              
+              {visiblePages.map(page => (
+                <button
+                  key={page}
+                  onClick={() => onGoToPage(page)}
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg border text-xs font-bold transition-colors ${
+                    currentPage === page 
+                      ? 'bg-blue-600 border-blue-500 text-white' 
+                      : 'border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  {page + 1}
+                </button>
+              ))}
+
+              <button
+                onClick={() => onGoToPage(Math.min(totalPages - 1, currentPage + 1))}
+                disabled={currentPage >= totalPages - 1}
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 transition-colors"
+              >
+                &gt;
               </button>
             </div>
           )}

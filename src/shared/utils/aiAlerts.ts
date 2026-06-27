@@ -55,11 +55,12 @@ export function findCameraForAiEvent(cameras: readonly LiveCamera[], event: AiEv
 export function getEventTypeKorean(type: string): string {
   const upper = type.toUpperCase();
   if (upper.includes('FALL')) return '낙상';
-  if (upper.includes('FAINT')) return '실신';
+  if (upper.includes('FAINT') || upper.includes('SYNCOPE') || upper.includes('UNCONSCIOUS')) return '실신';
   if (upper.includes('COLLAPSE')) return '쓰러짐';
   if (upper.includes('VIOLENCE') || upper.includes('FIGHT')) return '폭력';
   if (upper.includes('CROWD')) return '군중';
   if (upper.includes('FIRE')) return '화재';
+  if (upper.includes('UNAUTHORIZED_EXIT')) return '무단 이탈';
   return type;
 }
 

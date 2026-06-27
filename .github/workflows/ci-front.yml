@@ -1,0 +1,47 @@
+name: React CI (Front)
+
+on:
+  push:
+    branches: [ "test-frontend" ]
+  pull_request:
+    branches: [ "test-frontend" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install
+
+    # 1. 빌드 직전 환경 변수(.env) 파일 생성 및 주입
+    - name: Create .env file
+      run: |
+        echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" >> .env
+        echo "VITE_HLS_STREAM_URL=${{ secrets.VITE_HLS_STREAM_URL }}" >> .env
+        echo "VITE_WEBRTC_STREAM_URL=${{ secrets.VITE_WEBRTC_STREAM_URL }}" >> .env
+
+    # 2. 리액트 프로젝트 빌드 (Vite 기준)
+    - name: Build
+      run: npm run build
+
+    # 3. AWS 인증 정보 설정 (새로 발급받은 IAM 키 사용)
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-2
+
+    # 4. 빌드된 결과물(dist)을 S3 버킷에 동기화 (기존 파일 덮어쓰기/삭제)
+    - name: Deploy to S3
+      run: |
+        aws s3 sync dist s3://${{ secrets.S3_BUCKET_NAME }} --delete
+        echo "==== 프론트엔드 S3 배포 완료! ===="
