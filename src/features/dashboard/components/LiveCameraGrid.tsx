@@ -5,6 +5,8 @@ import type { LiveCamera } from '../data/cameras';
 import { useFullscreenCamera } from '../hooks/useFullscreenCamera';
 import type { CameraConnectionStatus, CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
 import { toCameraConnectionStatusDisplay } from '../hooks/useCameraStatusWebSocket';
+import { DetectionOverlayCanvas } from '../overlays/DetectionOverlayCanvas';
+import { useCameraOverlay } from '../overlays/overlayStore';
 import { CameraStreamFrame } from './CameraStreamFrame';
 
 interface LiveCameraGridProps {
@@ -96,6 +98,7 @@ function gridClass(count: number) {
 
 function CameraStream({ camera }: { camera: LiveCamera }) {
   const unavailable = camera.connectionStatus === 'offline';
+  const overlayMessage = useCameraOverlay(camera);
 
   return (
     <>
@@ -107,6 +110,9 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
         dimmed={unavailable}
         cameraLoginId={camera.cameraLoginId}
       />
+      {!unavailable && overlayMessage && (
+        <DetectionOverlayCanvas message={overlayMessage} />
+      )}
       {unavailable && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030712]/90 text-slate-500">
           <SignalZero className="mb-3 h-10 w-10 text-slate-600" />
@@ -115,6 +121,22 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
         </div>
       )}
     </>
+  );
+}
+
+function CameraDangerFallback({ camera }: { camera: LiveCamera }) {
+  const overlayMessage = useCameraOverlay(camera);
+
+  if (camera.eventStatus !== 'danger' || camera.connectionStatus === 'offline' || overlayMessage) {
+    return null;
+  }
+
+  return (
+    <div className="absolute inset-0 border-2 border-rose-500 bg-rose-600/10">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-rose-600 px-3 py-1 text-xs font-extrabold text-white shadow-lg">
+        {camera.eventLabel || '?댁긽 ?곹솴'}
+      </div>
+    </div>
   );
 }
 
@@ -154,23 +176,17 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
             <div className={`relative bg-black ${compact ? 'aspect-video' : cameras.length === 1 ? 'aspect-[16/8]' : 'aspect-video'}`}>
               <CameraStream camera={camera} />
 
-              <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded bg-black/75 px-2 py-1 text-[10px] font-extrabold text-rose-300 backdrop-blur">
+              <div className="absolute left-2 top-2 z-20 flex items-center gap-1.5 rounded bg-black/75 px-2 py-1 text-[10px] font-extrabold text-rose-300 backdrop-blur">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
                 실시간
               </div>
 
-              <div className={`absolute right-2 top-2 flex items-center gap-1.5 rounded border px-2 py-1 text-[10px] font-extrabold backdrop-blur ${style.badge}`}>
+              <div className={`absolute right-2 top-2 z-20 flex items-center gap-1.5 rounded border px-2 py-1 text-[10px] font-extrabold backdrop-blur ${style.badge}`}>
                 <StatusIcon className="h-3 w-3" />
                 {style.label}
               </div>
 
-              {camera.eventStatus === 'danger' && camera.connectionStatus !== 'offline' && (
-                <div className="absolute inset-0 border-2 border-rose-500 bg-rose-600/10">
-                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-rose-600 px-3 py-1 text-xs font-extrabold text-white shadow-lg">
-                    {camera.eventLabel || '이상 상황'}
-                  </div>
-                </div>
-              )}
+              <CameraDangerFallback camera={camera} />
             </div>
 
             <div className="flex items-center justify-between gap-3 px-3 py-2.5">
