@@ -11,7 +11,7 @@ function getEventTypeStyle(eventType: string): {
   badgeBg: string;
 } {
   const upper = eventType.toUpperCase();
-  if (upper.includes('FAINT') || upper.includes('SYNCOPE')) {
+  if (upper.includes('FAINT') || upper.includes('SYNCOPE') || upper.includes('UNCONSCIOUS')) {
     return {
       border: 'border-red-500/60',
       bg: 'bg-red-900/25',
