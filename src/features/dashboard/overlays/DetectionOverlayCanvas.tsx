@@ -18,6 +18,7 @@ function drawLabel(
   x: number,
   y: number,
   maxWidth: number,
+  bgColor: string,
 ) {
   context.font = '700 12px sans-serif';
   const metrics = context.measureText(label);
@@ -27,7 +28,7 @@ function drawLabel(
   const labelX = Math.max(0, Math.min(x, maxWidth - labelWidth));
   const labelY = Math.max(0, y - labelHeight - 4);
 
-  context.fillStyle = 'rgba(225, 29, 72, 0.92)';
+  context.fillStyle = bgColor;
   context.fillRect(labelX, labelY, labelWidth, labelHeight);
   context.fillStyle = '#ffffff';
   context.fillText(label, labelX + paddingX, labelY + 16, labelWidth - paddingX * 2);
@@ -67,23 +68,28 @@ export function DetectionOverlayCanvas({ message }: DetectionOverlayCanvasProps)
       const offsetY = (height - renderedHeight) / 2;
 
       for (const event of message.events) {
+        const isDanger = !!event.eventTriggered;
+        const strokeColor = isDanger ? '#fb7185' : '#10b981'; // 빨강 vs 초록
+        const shadowColor = isDanger ? 'rgba(251, 113, 133, 0.7)' : 'rgba(16, 185, 129, 0.5)';
+        const fillColor = isDanger ? 'rgba(251, 113, 133, 0.12)' : 'rgba(16, 185, 129, 0.08)';
+        const labelBgColor = isDanger ? 'rgba(225, 29, 72, 0.92)' : 'rgba(16, 185, 129, 0.92)';
         const left = offsetX + event.bbox.x * scale;
         const top = offsetY + event.bbox.y * scale;
         const boxWidth = event.bbox.width * scale;
         const boxHeight = event.bbox.height * scale;
 
         context.lineWidth = 3;
-        context.strokeStyle = '#fb7185';
-        context.shadowColor = 'rgba(251, 113, 133, 0.7)';
+        context.strokeStyle = strokeColor;
+        context.shadowColor = shadowColor;
         context.shadowBlur = 12;
         context.strokeRect(left, top, boxWidth, boxHeight);
         context.shadowBlur = 0;
 
-        context.fillStyle = 'rgba(251, 113, 133, 0.12)';
+        context.fillStyle = fillColor;
         context.fillRect(left, top, boxWidth, boxHeight);
 
         const confidence = event.confidence === null ? '' : ` ${Math.round(event.confidence * 100)}%`;
-        drawLabel(context, `${formatType(event.type)}${confidence}`, left, top, width);
+        drawLabel(context, `${formatType(event.type)}${confidence}`, left, top, width, labelBgColor);
       }
     };
 

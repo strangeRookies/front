@@ -10,6 +10,7 @@ export interface OverlayEvent {
   readonly confidence: number | null;
   readonly trackingId: string | number | null;
   readonly bbox: OverlayBox;
+  readonly eventTriggered?: boolean;
 }
 
 export interface OverlayMessage {
@@ -114,6 +115,7 @@ export function parseOverlayMessage(raw: unknown): OverlayMessage | null {
             ? event.trackingId
             : null,
         bbox: clampedBox,
+        eventTriggered: typeof event.eventTriggered === 'boolean' ? event.eventTriggered : false,
       };
     })
     .filter((event): event is OverlayEvent => event !== null);
