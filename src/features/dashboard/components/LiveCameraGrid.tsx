@@ -110,7 +110,7 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
         dimmed={unavailable}
         cameraLoginId={camera.cameraLoginId}
       />
-      {!unavailable && overlayMessage && (
+      {!unavailable && overlayMessage && camera.eventStatus !== 'danger' && (
         <DetectionOverlayCanvas message={overlayMessage} />
       )}
       {unavailable && (
@@ -125,9 +125,7 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
 }
 
 function CameraDangerFallback({ camera }: { camera: LiveCamera }) {
-  const overlayMessage = useCameraOverlay(camera);
-
-  if (camera.eventStatus !== 'danger' || camera.connectionStatus === 'offline' || overlayMessage) {
+  if (camera.eventStatus !== 'danger' || camera.connectionStatus === 'offline') {
     return null;
   }
 
