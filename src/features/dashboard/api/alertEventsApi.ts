@@ -21,6 +21,61 @@ export async function fetchRecentAlertEvents(facilityId: number | string): Promi
   return [];
 }
 
+export interface PaginatedAlertEventsResponse {
+  content: RecentAlertEventResponse[];
+  totalPages: number;
+  totalElements: number;
+  last: boolean;
+  number: number;
+}
+
+export interface AlertEventFilters {
+  cameraId?: string | number;
+  keyword?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export async function fetchFullAlertEventsHistory(
+  facilityId: number | string,
+  page: number = 0,
+  size: number = 20,
+  filters?: AlertEventFilters,
+): Promise<PaginatedAlertEventsResponse> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    size: size.toString(),
+    sort: 'detectedAt,desc',
+  });
+
+  if (filters?.cameraId) params.append('cameraId', filters.cameraId.toString());
+  if (filters?.keyword) params.append('keyword', filters.keyword);
+  if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
+  if (filters?.dateTo) params.append('dateTo', filters.dateTo);
+
+  const data = await apiRequest<unknown>(`/api/facilities/${facilityId}/alert-events?${params.toString()}`, {
+    method: 'GET',
+  });
+
+  if (isRecord(data) && Array.isArray(data.content)) {
+    return {
+      content: data.content.filter(isRecord),
+      totalPages: typeof data.totalPages === 'number' ? data.totalPages : 1,
+      totalElements: typeof data.totalElements === 'number' ? data.totalElements : data.content.length,
+      last: typeof data.last === 'boolean' ? data.last : true,
+      number: typeof data.number === 'number' ? data.number : 0,
+    };
+  }
+
+  return {
+    content: [],
+    totalPages: 0,
+    totalElements: 0,
+    last: true,
+    number: 0,
+  };
+}
+
 export function toIncidentAlertFromRecentEvent(
   event: RecentAlertEventResponse,
   liveCameras: readonly LiveCamera[],
@@ -30,7 +85,7 @@ export function toIncidentAlertFromRecentEvent(
     return null;
   }
 
-  const eventType = readString(event, ['eventType', 'event_type', 'type']) || 'UNKNOWN';
+  const eventType = readString(event, ['scenarioType', 'scenario_type', 'eventType', 'event_type', 'type']) || 'UNKNOWN';
   const normalizedEventType = eventType.toUpperCase();
   const cameraKey = readString(event, ['cameraLoginId', 'camera_login_id', 'cameraId', 'camera_id']);
   const cameraName = readString(event, ['cameraName', 'camera_name', 'camera', 'location']);
@@ -40,7 +95,8 @@ export function toIncidentAlertFromRecentEvent(
   const acknowledged = readBoolean(event, ['acknowledged', 'acknowledgedYn', 'resolved'])
     || statusRaw === 'ACKNOWLEDGED'
     || statusRaw === 'RESOLVED'
-    || statusRaw === 'COMPLETED';
+    || statusRaw === 'COMPLETED'
+    || statusRaw === 'CONFIRMED';
 
   return {
     id: readString(event, ['eventId', 'event_id', 'alertEventId', 'alert_event_id', 'incidentId', 'id'])
@@ -84,7 +140,12 @@ function readTimestamp(record: RecentAlertEventResponse, keys: string[]) {
       return value > 1e12 ? value : value * 1000;
     }
     if (typeof value === 'string' && value.trim()) {
-      const parsed = Date.parse(value);
+      let dateStr = value.trim();
+      // Append Z to treat as UTC if it lacks a timezone offset
+      if (/T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(dateStr)) {
+        dateStr += 'Z';
+      }
+      const parsed = Date.parse(dateStr);
       if (Number.isFinite(parsed)) {
         return parsed;
       }
@@ -106,4 +167,8 @@ function findLiveCamera(liveCameras: readonly LiveCamera[], cameraKey?: string, 
 
 function normalizeCameraToken(value?: string) {
   return value?.toLowerCase().replace(/[^a-z0-9가-힣]/g, '') || '';
+}
+
+export async function acknowledgeAlertEvent(alertEventId: string | number): Promise<void> {
+  await apiRequest(`/api/alert-events/${alertEventId}/acknowledge`, { method: 'PATCH' });
 }

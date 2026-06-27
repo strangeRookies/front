@@ -31,6 +31,7 @@ import { DashboardAlertsView } from '../components/DashboardAlertsView';
 import { DashboardCameraManagementView } from '../components/DashboardCameraManagementView';
 import { DashboardHistoryView } from '../components/DashboardHistoryView';
 import { DashboardHomeView } from '../components/DashboardHomeView';
+import { useDashboardHistory } from '../hooks/useDashboardHistory';
 import { DashboardMyPageView } from '../components/DashboardMyPageView';
 import { DashboardQnaView } from '../components/DashboardQnaView';
 import { AddCameraModal } from '../modals/AddCameraModal';
@@ -138,13 +139,8 @@ export function NurseDashboard({
     if (userType === 'corporate' && currentCompany?.companyProfileId) {
       return [currentCompany.companyProfileId];
     }
-
-    const facilityIds = registeredCameras
-      .map((camera) => camera.facilityId)
-      .filter((facilityId) => Number.isFinite(facilityId));
-
-    return Array.from(new Set(facilityIds));
-  }, [currentFacility, currentCompany, registeredCameras, userType]);
+    return [];
+  }, [currentFacility, currentCompany, userType]);
 
   // --- Real-time Camera Status from MQTT ---
   const effectiveFacilityId = userType === 'individual' 
@@ -246,6 +242,7 @@ export function NurseDashboard({
     focusedLiveCameras,
     focusAiEventCamera,
     handleConfirmAiEvent,
+    handleAcknowledgeAiEventOnly,
     setFocusedCameraId,
     connectionState,
   } = useAiAlertActions({ 
@@ -259,14 +256,29 @@ export function NurseDashboard({
   const {
     alerts,
     activeTenMinAlerts,
-    getFilteredHistory,
+    unresolvedTenMinAlertsCount,
     mergeRecentAlerts,
     resolveAlert,
   } = useDashboardAlerts({
     acknowledgedAiEventIds,
     dangerAiEvents,
     liveCameras,
-    onConfirmAiEvent: handleConfirmAiEvent,
+    onAcknowledgeAiEventOnly: handleAcknowledgeAiEventOnly,
+  });
+
+  const {
+    historyAlerts,
+    isLoadingHistory,
+    currentPage,
+    totalPages,
+    goToPage,
+    totalHistoryElements,
+  } = useDashboardHistory({
+    facilityIds: recentAlertFacilityIds,
+    liveCameras,
+    dangerAiEvents,
+    acknowledgedAiEventIds,
+    filters: { searchDate, searchCamera, searchKeyword },
   });
 
   const loadRecentAlerts = useCallback(async () => {
@@ -299,10 +311,7 @@ export function NurseDashboard({
     }
   }, [connectionState, loadRecentAlerts]);
 
-  const filteredHistory = useMemo(
-    () => getFilteredHistory({ searchDate, searchCamera, searchKeyword }),
-    [getFilteredHistory, searchCamera, searchDate, searchKeyword],
-  );
+  // filtering is now done on the backend via useDashboardHistory.
 
   // --- Handlers ---
   const handleOpenIncident = (alert: IncidentAlert) => {
@@ -432,7 +441,7 @@ export function NurseDashboard({
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 px-3 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-            <span className="text-[10px] font-bold text-rose-400">확인 대기 이벤트 {activeTenMinAlerts.length}건</span>
+            <span className="text-[10px] font-bold text-rose-400">확인 대기 이벤트 {unresolvedTenMinAlertsCount}건</span>
           </div>
           <div
             className="flex items-center gap-2 ml-2 px-2 py-0.5 rounded text-[10px] font-bold"
@@ -469,7 +478,7 @@ export function NurseDashboard({
             <nav className="space-y-0.5">
               {ALL_MENU_ITEMS.filter((item) => !item.individualOnly || userType === 'individual').map(({ id, label, icon: Icon }) => {
                 const isActive = activeMenu === id;
-                const badge = id === 'alerts' ? activeTenMinAlerts.length : undefined;
+                const badge = id === 'alerts' ? unresolvedTenMinAlertsCount : undefined;
                 return (
                   <button
                     key={id}
@@ -522,13 +531,13 @@ export function NurseDashboard({
               <div className="bg-[#0f172a] rounded-xl p-3 border border-slate-800/50">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[9px] font-bold text-slate-400 uppercase">확인 대기 이벤트</span>
-                  {activeTenMinAlerts.length > 0 && (
+                  {unresolvedTenMinAlertsCount > 0 && (
                     <span className="text-[8px] font-bold bg-rose-500 text-white px-1 rounded-sm animate-bounce">NEW</span>
                   )}
                 </div>
                 <div className="flex items-end gap-1.5">
                   <ShieldAlert className="w-4 h-4 text-rose-500 mb-0.5" />
-                  <span className="text-sm font-extrabold text-white">{activeTenMinAlerts.length}</span>
+                  <span className="text-sm font-extrabold text-white">{unresolvedTenMinAlertsCount}</span>
                   <span className="text-[9px] text-slate-500 font-bold mb-0.5">건</span>
                 </div>
               </div>
@@ -552,17 +561,23 @@ export function NurseDashboard({
           {activeMenu === 'alerts' && (
             <DashboardAlertsView
               alerts={activeTenMinAlerts}
+              unresolvedCount={unresolvedTenMinAlertsCount}
               onOpenIncident={handleOpenIncident}
               onResolveAlert={resolveAlert}
             />
           )}
           {activeMenu === 'history' && (
             <DashboardHistoryView
-              filteredHistory={filteredHistory}
+              historyAlerts={historyAlerts}
+              totalHistoryElements={totalHistoryElements}
               searchCamera={searchCamera}
               searchDate={searchDate}
               searchKeyword={searchKeyword}
               cameraOptions={mappedCamerasForMgmt}
+              isLoading={isLoadingHistory}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onGoToPage={goToPage}
               onOpenIncident={handleOpenIncident}
               onSearchCameraChange={setSearchCamera}
               onSearchDateChange={setSearchDate}

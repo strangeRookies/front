@@ -78,9 +78,8 @@ export function useAiAlertActions({ userType, username, facilityId, liveCameras,
     [focusHome, liveCameras],
   );
 
-  const handleConfirmAiEvent = useCallback(
+  const handleAcknowledgeAiEventOnly = useCallback(
     (event: AiEvent) => {
-      focusAiEventCamera(event);
       const fp = aiEventFingerprint(event);
       setAcknowledgedFingerprints((prev) => {
         const next = new Set(prev);
@@ -97,7 +96,15 @@ export function useAiAlertActions({ userType, username, facilityId, liveCameras,
         throw error;
       });
     },
-    [focusAiEventCamera, username],
+    [username],
+  );
+
+  const handleConfirmAiEvent = useCallback(
+    (event: AiEvent) => {
+      focusAiEventCamera(event);
+      handleAcknowledgeAiEventOnly(event);
+    },
+    [focusAiEventCamera, handleAcknowledgeAiEventOnly],
   );
 
   return {
@@ -107,6 +114,7 @@ export function useAiAlertActions({ userType, username, facilityId, liveCameras,
     focusedLiveCameras,
     focusAiEventCamera,
     handleConfirmAiEvent,
+    handleAcknowledgeAiEventOnly,
     setFocusedCameraId,
     connectionState,
   };
