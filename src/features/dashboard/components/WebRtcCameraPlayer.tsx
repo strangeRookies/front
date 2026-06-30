@@ -203,7 +203,7 @@ export function WebRtcCameraPlayer({
           dimmed={dimmed}
         />
         {/* <CameraAiOverlay event={overlayEvent} /> */}
-        <CameraAiOverlay cameraLoginId={cameraLoginId} videoFrameClock={videoFrameClock} event={overlayEvent} />
+        <CameraAiOverlay cameraLoginId={cameraLoginId} videoFrameClock={videoFrameClock} event={overlayEvent} videoRef={videoRef} />
         {STREAM_FALLBACK_ENABLED && (
           <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1.5 rounded bg-amber-600/95 px-2.5 py-1 text-[9px] font-bold text-white backdrop-blur shadow leading-normal whitespace-normal z-10 animate-fade-in">
             <span className="h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-amber-200" />
@@ -232,7 +232,7 @@ export function WebRtcCameraPlayer({
         videoFrameClock={videoFrameClock}
       />
       {/* <CameraAiOverlay event={overlayEvent} /> */}
-      <CameraAiOverlay cameraLoginId={cameraLoginId} videoFrameClock={videoFrameClock} event={overlayEvent} />
+      <CameraAiOverlay cameraLoginId={cameraLoginId} videoFrameClock={videoFrameClock} event={overlayEvent} videoRef={videoRef} />
     </div>
   );
 }

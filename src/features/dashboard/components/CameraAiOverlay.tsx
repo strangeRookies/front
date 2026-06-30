@@ -1,14 +1,18 @@
 import { useCameraOverlaySyncBuffer, useCameraFrameSyncBuffer } from '../overlays/overlayStore';
 import type { VideoFrameClock } from '../hooks/useVideoFrameClock';
 import type { AiEvent } from '../../../hooks/useAiEvents';
-import { overlayBoxes, parseOverlayBox, type OverlayBox } from '../utils/overlayGeometry';
+import { overlayBoxes, parseOverlayBox, type OverlayBox, resolveOverlayBoxDisplay } from '../utils/overlayGeometry';
 import type { OverlayMessage } from '../overlays/overlayTypes';
+import { overlayMetrics } from '../utils/overlayMetrics';
+
 
 interface CameraAiOverlayProps {
   readonly cameraLoginId?: string;
   readonly videoFrameClock?: VideoFrameClock | null;
   readonly event?: AiEvent;
+  readonly videoRef?: React.RefObject<HTMLVideoElement | null>;
 }
+
 
 const PLAYBACK_LATENCY_OFFSET_MS = 350;
 
@@ -80,29 +84,63 @@ export function CameraAiOverlay({ cameraLoginId, videoFrameClock, event: propEve
     return null;
   }
 
+  const now = Date.now();
+
   const boxes = matchedOverlay
     ? matchedOverlay.events
-        .map((e) => parseOverlayBox(e.bbox, matchedOverlay!.frameWidth, matchedOverlay!.frameHeight))
-        .filter((box): box is OverlayBox => box !== undefined)
+        .map((e, idx) => {
+          const geometry = parseOverlayBox(e.bbox, matchedOverlay!.frameWidth, matchedOverlay!.frameHeight);
+          if (!geometry) return undefined;
+          const display = resolveOverlayBoxDisplay(e, idx);
+          return { ...geometry, label: display.label, isEvent: display.variant === 'event', fallbackIdUsed: display.fallbackIdUsed };
+        })
+        .filter((b): b is OverlayBox & { label: string; isEvent: boolean; fallbackIdUsed: boolean } => b !== undefined)
         .slice(0, 8)
-    : overlayBoxes(propEvent!).slice(0, 8);
+    : overlayBoxes(propEvent!).map((b, idx) => ({
+        ...b,
+        label: `ID_${idx + 1}`,
+        isEvent: false,
+        fallbackIdUsed: true,
+      }));
 
   const activeFrameId = matchedOverlay ? matchedOverlay.frameId : (propEvent ? propEvent.frameId : undefined);
-  const activeTimestamp = matchedOverlay ? matchedOverlay.timestampMs : (propEvent ? propEvent.timestamp : Date.now());
+  const activeTimestamp = matchedOverlay ? matchedOverlay.timestampMs : (propEvent ? propEvent.timestamp : now);
+
+  // Quantitative metrics record
+  const _fallbackIdCount = boxes.filter(b => b.fallbackIdUsed).length;
+  const _eventBboxCount = boxes.filter(b => b.isEvent).length;
+  const _overlayAge = matchedOverlay ? now - (matchedOverlay.capturedAtMs ?? now) : 0;
+  overlayMetrics.record({
+    cameraLoginId: cameraLoginId ?? 'unknown',
+    selectedFrameId: activeFrameId,
+    selectedTimestampMs: activeTimestamp,
+    sourcePath: matchedOverlay ? 'matchedOverlay' : propEvent ? 'propEvent' : 'none',
+    bboxCount: boxes.length,
+    fallbackIdCount: _fallbackIdCount,
+    eventBboxCount: _eventBboxCount,
+    selectedDeltaMs: matchedOverlay?.capturedAtMs ? now - matchedOverlay.capturedAtMs : 0,
+    overlayAgeMs: _overlayAge,
+    wasStaleSkipped: !activeEvent,
+  });
+
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
       {boxes.map((box, index) => (
         <div
           key={`${activeFrameId ?? activeTimestamp}-${index}`}
-          className="absolute rounded-sm border-2 border-rose-400 shadow-[0_0_18px_rgba(244,63,94,0.45)]"
+          className={`absolute rounded-sm border-2 shadow-[0_0_18px_rgba(244,63,94,0.45)] ${box.isEvent ? 'border-rose-400' : 'border-sky-400'}`}
           style={{
             left: `${box.leftPct}%`,
             top: `${box.topPct}%`,
             width: `${box.widthPct}%`,
             height: `${box.heightPct}%`,
           }}
-        />
+        >
+          <span className={`absolute -top-5 left-0 rounded px-1 py-0.5 text-[9px] font-bold leading-none ${box.isEvent ? 'bg-rose-500 text-white' : 'bg-sky-600 text-white'}`}>
+            {box.label}
+          </span>
+        </div>
       ))}
       {debugInfo && (
         <div className="absolute bottom-2 right-2 max-w-[70%] rounded bg-black/75 px-2 py-1 text-[9px] font-semibold leading-snug text-white shadow">

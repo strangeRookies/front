@@ -10,6 +10,7 @@ export interface OverlayEvent {
   readonly confidence: number | null;
   readonly trackingId: string | number | null;
   readonly bbox: OverlayBox;
+  readonly eventTriggered?: boolean;
 }
 
 export interface OverlayMessage {
@@ -26,6 +27,7 @@ export interface OverlayMessage {
   readonly publishedAtMs?: number;
   readonly queueLagMs?: number;
   readonly droppedFrameCount?: number;
+  readonly receivedAtMs?: number;
 }
 
 function readString(value: unknown): string | null {
@@ -119,6 +121,7 @@ export function parseOverlayMessage(raw: unknown): OverlayMessage | null {
             ? event.trackingId
             : null,
         bbox: clampedBox,
+        eventTriggered: typeof event.eventTriggered === 'boolean' ? event.eventTriggered : undefined,
       });
     });
   }
@@ -137,5 +140,6 @@ export function parseOverlayMessage(raw: unknown): OverlayMessage | null {
     publishedAtMs: readNumber(record.publishedAtMs) ?? undefined,
     queueLagMs: readNumber(record.queueLagMs) ?? undefined,
     droppedFrameCount: readNumber(record.droppedFrameCount) ?? undefined,
+    receivedAtMs: Date.now(),
   };
 }

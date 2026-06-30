@@ -167,3 +167,84 @@ function nearestByTime<T extends OverlaySyncPayload>(buffer: readonly T[], targe
 function matchTimestamp(event: OverlaySyncPayload): number {
   return event.capturedAtMs ?? event.receivedAtMs;
 }
+
+export interface MinimalOverlayMessage {
+  readonly timestampMs?: number;
+  readonly capturedAtMs?: number;
+  readonly processedAtMs?: number;
+  readonly publishedAtMs?: number;
+}
+
+export interface MinimalAiEvent {
+  readonly timestamp: number;
+  readonly capturedAtMs?: number;
+}
+
+export function selectOverlayForDisplay<T extends MinimalOverlayMessage>(
+  overlayBuffer: readonly T[],
+  displayTargetMs: number,
+  maxMatchDeltaMs: number = 300,
+  maxAgeMs: number = 1000,
+  nowMs: number = Date.now(),
+): { overlay: T | undefined; deltaMs: number; reason?: string } {
+  if (overlayBuffer.length === 0) {
+    return { overlay: undefined, deltaMs: 0, reason: 'Buffer is empty' };
+  }
+
+  let closest: T | undefined = undefined;
+  let minDiff = Infinity;
+
+  for (const msg of overlayBuffer) {
+    const msgTime = msg.timestampMs ?? msg.capturedAtMs;
+    if (msgTime === undefined || msgTime === null) continue;
+
+    const diff = Math.abs(msgTime - displayTargetMs);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = msg;
+    }
+  }
+
+  if (!closest) {
+    return { overlay: undefined, deltaMs: 0, reason: 'No valid timestamp found in buffer' };
+  }
+
+  const closestTime = closest.timestampMs ?? closest.capturedAtMs ?? nowMs;
+  const overlayAge = nowMs - closestTime;
+
+  if (minDiff > maxMatchDeltaMs) {
+    return {
+      overlay: undefined,
+      deltaMs: minDiff,
+      reason: `Match delta too large (${Math.round(minDiff)}ms > ${maxMatchDeltaMs}ms)`,
+    };
+  }
+
+  if (overlayAge > maxAgeMs) {
+    return {
+      overlay: undefined,
+      deltaMs: minDiff,
+      reason: `Overlay too stale (${Math.round(overlayAge)}ms > ${maxAgeMs}ms)`,
+    };
+  }
+
+  return { overlay: closest, deltaMs: minDiff };
+}
+
+export function isEventStale<T extends MinimalAiEvent>(
+  event: T | undefined,
+  maxAgeMs: number = 1000,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!event) return true;
+  if (event.capturedAtMs !== undefined && event.capturedAtMs !== null) {
+    const age = nowMs - event.capturedAtMs;
+    return age > maxAgeMs;
+  }
+  const eventTime = event.timestamp;
+  if (eventTime === undefined || eventTime === null) return false;
+  const finalTime = eventTime < 10000000000 ? eventTime * 1000 : eventTime;
+  const age = nowMs - finalTime;
+  return age > maxAgeMs;
+}
+

@@ -17,8 +17,10 @@ const {
   cameraKey,
   enrichOverlayPayload,
   overlaySyncOptionsFromEnv,
+  selectOverlayForDisplay,
+  isEventStale,
 } = await import(pathToFileUrl(join(moduleDir, 'overlaySync.mjs')));
-const { parseOverlayBox, overlayBoxes } = await import(pathToFileUrl(join(moduleDir, 'overlayGeometry.mjs')));
+const { parseOverlayBox, overlayBoxes, resolveOverlayBoxDisplay, normalizeConfidence } = await import(pathToFileUrl(join(moduleDir, 'overlayGeometry.mjs')));
 const { parseToAiEvent } = await import(pathToFileUrl(join(moduleDir, 'aiEventParsing.mjs')));
 
 function writeTranspiledModule(sourcePath, outputName, replacements = {}) {
@@ -191,6 +193,43 @@ const eventBoxes = overlayBoxes({
   severity: 'HIGH',
 });
 check('overlayBoxes combines event bbox and boxes', eventBoxes.length === 2);
+
+check('confidence: 0.17 -> ID_1 normal', resolveOverlayBoxDisplay({ confidence: 0.17 }, 0).variant === 'normal' && resolveOverlayBoxDisplay({ confidence: 0.17 }, 0).label === 'ID_1');
+check('confidence: 17 -> ID_1 normal', resolveOverlayBoxDisplay({ confidence: 17 }, 0).variant === 'normal' && resolveOverlayBoxDisplay({ confidence: 17 }, 0).label === 'ID_1');
+check('confidence: "17%" -> ID_1 normal', resolveOverlayBoxDisplay({ confidence: '17%' }, 0).variant === 'normal' && resolveOverlayBoxDisplay({ confidence: '17%' }, 0).label === 'ID_1');
+
+check('confidence: 0.33 -> ID_1 normal', resolveOverlayBoxDisplay({ confidence: 0.33 }, 0).variant === 'normal' && resolveOverlayBoxDisplay({ confidence: 0.33 }, 0).label === 'ID_1');
+check('confidence: 33 -> ID_1 normal', resolveOverlayBoxDisplay({ confidence: 33 }, 0).variant === 'normal' && resolveOverlayBoxDisplay({ confidence: 33 }, 0).label === 'ID_1');
+check('confidence: "33%" -> ID_1 normal', resolveOverlayBoxDisplay({ confidence: '33%' }, 0).variant === 'normal' && resolveOverlayBoxDisplay({ confidence: '33%' }, 0).label === 'ID_1');
+
+check('confidence: 0.5 -> FAINT 50%', resolveOverlayBoxDisplay({ confidence: 0.5, type: 'faint' }, 0).variant === 'event' && resolveOverlayBoxDisplay({ confidence: 0.5, type: 'faint' }, 0).label === 'FAINT 50%');
+check('confidence: 50 -> FAINT 50%', resolveOverlayBoxDisplay({ confidence: 50, type: 'faint' }, 0).variant === 'event' && resolveOverlayBoxDisplay({ confidence: 50, type: 'faint' }, 0).label === 'FAINT 50%');
+check('confidence: "50%" -> FAINT 50%', resolveOverlayBoxDisplay({ confidence: '50%', type: 'faint' }, 0).variant === 'event' && resolveOverlayBoxDisplay({ confidence: '50%', type: 'faint' }, 0).label === 'FAINT 50%');
+
+check('eventType: "faint", confidence: 0.17 -> ID_1 normal', resolveOverlayBoxDisplay({ event_type: 'faint', confidence: 0.17 }, 0).variant === 'normal');
+check('type: "faint", confidence: 0.21 -> ID_1 normal', resolveOverlayBoxDisplay({ type: 'faint', confidence: 0.21 }, 0).variant === 'normal');
+
+// selectOverlayForDisplay unit tests
+const testBuffer = [
+  { timestampMs: 1000 },
+  { timestampMs: 1300 },
+  { timestampMs: 1600 }
+];
+const selectNormal = selectOverlayForDisplay(testBuffer, 1310, 300, 1000, 2000);
+check('selectOverlayForDisplay selects nearest', selectNormal.overlay?.timestampMs === 1300);
+
+const selectDeltaTooLarge = selectOverlayForDisplay(testBuffer, 1950, 300, 1000, 2500);
+check('selectOverlayForDisplay fails if delta > MAX_DELTA', selectDeltaTooLarge.overlay === undefined && selectDeltaTooLarge.reason.includes('Match delta too large'));
+
+const selectStale = selectOverlayForDisplay(testBuffer, 1310, 300, 1000, 2500); // age = 2500 - 1300 = 1200ms (> 1000ms)
+check('selectOverlayForDisplay fails if overlay age > MAX_AGE', selectStale.overlay === undefined && selectStale.reason.includes('Overlay too stale'));
+
+const selectEmpty = selectOverlayForDisplay([], 1300, 300, 1000, 2000);
+check('selectOverlayForDisplay handles empty buffer', selectEmpty.overlay === undefined && selectEmpty.reason.includes('Buffer is empty'));
+
+// isEventStale unit tests
+check('isEventStale evaluates false for fresh event', isEventStale({ timestamp: 14.5, capturedAtMs: 14500 }, 1000, 15000) === false);
+check('isEventStale evaluates true for stale event', isEventStale({ timestamp: 13.5, capturedAtMs: 13500 }, 1000, 15000) === true);
 
 const failed = checks.filter(([, passed]) => !passed);
 if (failed.length > 0) {

@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
 import type { OverlayMessage } from './overlayTypes';
+import {
+  resolveOverlayBoxDisplay,
+  FAINT_DISPLAY_THRESHOLD,
+  normalizeConfidence,
+} from '../utils/overlayGeometry';
 
 interface DetectionOverlayCanvasProps {
   readonly message?: OverlayMessage;
@@ -18,6 +23,8 @@ function drawLabel(
   x: number,
   y: number,
   maxWidth: number,
+  bgColor: string,
+  textColor: string,
 ) {
   context.font = '700 12px sans-serif';
   const metrics = context.measureText(label);
@@ -27,9 +34,9 @@ function drawLabel(
   const labelX = Math.max(0, Math.min(x, maxWidth - labelWidth));
   const labelY = Math.max(0, y - labelHeight - 4);
 
-  context.fillStyle = 'rgba(225, 29, 72, 0.92)';
+  context.fillStyle = bgColor;
   context.fillRect(labelX, labelY, labelWidth, labelHeight);
-  context.fillStyle = '#ffffff';
+  context.fillStyle = textColor;
   context.fillText(label, labelX + paddingX, labelY + 16, labelWidth - paddingX * 2);
 }
 
@@ -60,30 +67,53 @@ export function DetectionOverlayCanvas({ message }: DetectionOverlayCanvasProps)
 
       if (!message || message.events.length === 0) return;
 
+      if (import.meta.env.VITE_FRONT_OVERLAY_SYNC_DEBUG === 'true') {
+        const sourcePath = 'matchedOverlay';
+        message.events.forEach((event, idx) => {
+          const display = resolveOverlayBoxDisplay(event, idx);
+          const rawConfidence = event.confidence ?? 0;
+          const normalizedConfidence = normalizeConfidence(rawConfidence);
+          const trackId = event.trackingId ?? 'n/a';
+          const rawType = event.type ?? 'unknown';
+
+          console.log(
+            `[Overlay Diagnosis Debug] cameraLoginId: ${message.cameraLoginId ?? 'n/a'}, sourcePath: ${sourcePath}, ` +
+            `trackId: ${trackId}, raw confidence: ${rawConfidence}, normalized confidence: ${normalizedConfidence}, ` +
+            `threshold: ${FAINT_DISPLAY_THRESHOLD}, raw type: ${rawType}, ` +
+            `final variant: ${display.variant}, final label: ${display.label}`
+          );
+        });
+      }
+
       const scale = Math.max(width / message.frameWidth, height / message.frameHeight);
       const renderedWidth = message.frameWidth * scale;
       const renderedHeight = message.frameHeight * scale;
       const offsetX = (width - renderedWidth) / 2;
       const offsetY = (height - renderedHeight) / 2;
 
-      for (const event of message.events) {
+      for (let idx = 0; idx < message.events.length; idx++) {
+        const event = message.events[idx];
         const left = offsetX + event.bbox.x * scale;
         const top = offsetY + event.bbox.y * scale;
         const boxWidth = event.bbox.width * scale;
         const boxHeight = event.bbox.height * scale;
 
+        const display = resolveOverlayBoxDisplay(event, idx);
+        const isEvent = display.variant === 'event';
+
         context.lineWidth = 3;
-        context.strokeStyle = '#fb7185';
-        context.shadowColor = 'rgba(251, 113, 133, 0.7)';
+        context.strokeStyle = isEvent ? '#f43f5e' : '#38bdf8';
+        context.shadowColor = isEvent ? 'rgba(244, 63, 94, 0.7)' : 'rgba(56, 189, 248, 0.4)';
         context.shadowBlur = 12;
         context.strokeRect(left, top, boxWidth, boxHeight);
         context.shadowBlur = 0;
 
-        context.fillStyle = 'rgba(251, 113, 133, 0.12)';
+        context.fillStyle = isEvent ? 'rgba(244, 63, 94, 0.08)' : 'rgba(56, 189, 248, 0.04)';
         context.fillRect(left, top, boxWidth, boxHeight);
 
-        const confidence = event.confidence === null ? '' : ` ${Math.round(event.confidence * 100)}%`;
-        drawLabel(context, `${formatType(event.type)}${confidence}`, left, top, width);
+        const bgColor = isEvent ? 'rgba(225, 29, 72, 0.92)' : 'rgba(56, 189, 248, 0.92)';
+        const textColor = isEvent ? '#ffffff' : '#0f172a';
+        drawLabel(context, display.label, left, top, width, bgColor, textColor);
       }
     };
 

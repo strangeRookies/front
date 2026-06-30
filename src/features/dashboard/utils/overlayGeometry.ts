@@ -80,3 +80,101 @@ function readObjectValue(value: unknown, key: string): unknown {
   }
   return Object.prototype.hasOwnProperty.call(value, key) ? Object.getOwnPropertyDescriptor(value, key)?.value : undefined;
 }
+
+export const FAINT_DISPLAY_THRESHOLD = 0.5;
+
+export function normalizeConfidence(value: unknown): number {
+  if (typeof value === 'string') {
+    const cleaned = value.replace('%', '').trim();
+    const num = parseFloat(cleaned);
+    if (!Number.isNaN(num) && Number.isFinite(num)) {
+      return num > 1 ? num / 100 : num;
+    }
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 0;
+  }
+  return value > 1 ? value / 100 : value;
+}
+
+export function resolveOverlayBoxDisplay(box: any, index: number): { label: string; variant: 'normal' | 'event'; normalizedConfidence: number; fallbackIdUsed: boolean } {
+  if (!box) {
+    return {
+      label: `ID_${index + 1}`,
+      variant: 'normal',
+      normalizedConfidence: 0,
+      fallbackIdUsed: true,
+    };
+  }
+  const rawConfidence =
+    box.faintProb ??
+    box.faintProbability ??
+    box.confidence ??
+    box.score ??
+    box.probability ??
+    box.faintScore ??
+    0;
+
+  const normalizedConfidence = normalizeConfidence(rawConfidence);
+
+  const trackId =
+    box.trackId ??
+    box.track_id ??
+    box.personId ??
+    box.person_id ??
+    box.id ??
+    box.objectId;
+
+  const fallbackIdUsed = trackId === null || trackId === undefined;
+
+  const trackLabel = trackId !== null && trackId !== undefined
+    ? `ID_${trackId}`
+    : `ID_${index + 1}`;
+
+  const hasEventFlag =
+    box.isEvent !== undefined ||
+    box.isAnomaly !== undefined ||
+    box.alert !== undefined ||
+    box.confirmed !== undefined ||
+    box.status !== undefined ||
+    box.eventTriggered !== undefined;
+
+  const eventFlagValue =
+    box.isEvent === true ||
+    box.isAnomaly === true ||
+    box.alert === true ||
+    box.confirmed === true ||
+    box.confirmed === 'confirmed' ||
+    box.status === 'alert' ||
+    box.status === 'event' ||
+    box.eventTriggered === true;
+
+  let isConfirmedFaint = false;
+  if (hasEventFlag) {
+    isConfirmedFaint = eventFlagValue && normalizedConfidence >= FAINT_DISPLAY_THRESHOLD;
+  } else {
+    const isFaintType =
+      box.type === 'faint' ||
+      box.type === 'FAINT' ||
+      box.event_type === 'faint' ||
+      box.event_type === 'FAINT';
+    isConfirmedFaint = isFaintType && normalizedConfidence >= FAINT_DISPLAY_THRESHOLD;
+  }
+
+  if (isConfirmedFaint) {
+    return {
+      label: `FAINT ${Math.round(normalizedConfidence * 100)}%`,
+      variant: 'event',
+      normalizedConfidence,
+      fallbackIdUsed,
+    };
+  }
+
+  return {
+    label: trackLabel,
+    variant: 'normal',
+    normalizedConfidence,
+    fallbackIdUsed,
+  };
+}
+

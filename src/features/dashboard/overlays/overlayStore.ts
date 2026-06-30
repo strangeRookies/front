@@ -29,7 +29,9 @@ export const useCameraOverlayStore = create<CameraOverlayState>((set) => ({
   addFrameSync: (message) => {
     set((state) => {
       const frameSyncBuffers = new Map(state.frameSyncBuffers);
-      const list = [...(frameSyncBuffers.get(message.cameraLoginId) || [])];
+      const now = Date.now();
+      const list = (frameSyncBuffers.get(message.cameraLoginId) || [])
+        .filter((msg) => !msg.receivedAtMs || now - msg.receivedAtMs < 5000);
       list.push(message);
       if (list.length > MAX_BUFFER_SIZE) {
         list.shift();
@@ -41,7 +43,9 @@ export const useCameraOverlayStore = create<CameraOverlayState>((set) => ({
   addOverlaySync: (message) => {
     set((state) => {
       const overlaySyncBuffers = new Map(state.overlaySyncBuffers);
-      const list = [...(overlaySyncBuffers.get(message.cameraLoginId) || [])];
+      const now = Date.now();
+      const list = (overlaySyncBuffers.get(message.cameraLoginId) || [])
+        .filter((msg) => !msg.receivedAtMs || now - msg.receivedAtMs < 5000);
       list.push(message);
       if (list.length > MAX_BUFFER_SIZE) {
         list.shift();
@@ -83,10 +87,12 @@ export function useCameraOverlay(camera: LiveCamera): OverlayMessage | undefined
   ));
 }
 
+const EMPTY_BUFFER: OverlayMessage[] = [];
+
 export function useCameraFrameSyncBuffer(cameraLoginId: string): OverlayMessage[] {
-  return useCameraOverlayStore((state) => state.frameSyncBuffers.get(cameraLoginId) || []);
+  return useCameraOverlayStore((state) => state.frameSyncBuffers.get(cameraLoginId) || EMPTY_BUFFER);
 }
 
 export function useCameraOverlaySyncBuffer(cameraLoginId: string): OverlayMessage[] {
-  return useCameraOverlayStore((state) => state.overlaySyncBuffers.get(cameraLoginId) || []);
+  return useCameraOverlayStore((state) => state.overlaySyncBuffers.get(cameraLoginId) || EMPTY_BUFFER);
 }
