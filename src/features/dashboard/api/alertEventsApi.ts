@@ -125,6 +125,8 @@ export function toIncidentAlertFromRecentEvent(
       || `${normalizedEventType} 감지`,
     severity,
     status: acknowledged ? 'resolved' : 'new',
+    snapshotUrl: readString(event, ['snapshotUrl', 'snapshot_url']),
+    clipUrl: readString(event, ['clipUrl', 'clip_url']),
   };
 }
 

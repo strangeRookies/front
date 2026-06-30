@@ -14,22 +14,34 @@ export interface TelemetryEvent {
   memoText: string;
   confidence: number;
   boundingBox: BoundingBox;
+  trackingId?: number;
 }
 
 export interface TelemetryData {
-  timestamp: number;
+  timestamp?: number;
+  timestampMs?: number;
   streamId: string;
+  frameWidth?: number;
+  frameHeight?: number;
   events: TelemetryEvent[];
 }
 
 // 2. Zustand 스토어 타입 정의
 interface CctvStore {
   telemetryData: TelemetryData | null;
+  telemetryDataMap: Record<string, TelemetryData>;
   setTelemetryData: (data: TelemetryData) => void;
 }
 
 // 3. 스토어 생성
 export const useCctvStore = create<CctvStore>((set) => ({
   telemetryData: null,
-  setTelemetryData: (data) => set({ telemetryData: data }),
+  telemetryDataMap: {},
+  setTelemetryData: (data) => set((state) => ({
+    telemetryData: data,
+    telemetryDataMap: {
+      ...state.telemetryDataMap,
+      [data.streamId]: data
+    }
+  })),
 }));
