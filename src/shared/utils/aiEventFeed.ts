@@ -35,7 +35,7 @@ export function reduceAiEventFeed(
   const fp = aiEventFingerprint(incoming);
   // 동일 fingerprint의 기존 이벤트를 교체 후 최신순 유지
   const rest = activeEvents.filter((e) => aiEventFingerprint(e) !== fp);
-  return [incoming, ...rest].slice(0, 12);
+  return [incoming, ...rest];
 }
 
 // ---------------------------------------------------------------------------
