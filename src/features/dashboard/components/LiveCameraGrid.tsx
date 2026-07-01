@@ -1,6 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
-import { AlertCircle, AlertTriangle, Expand, EyeOff, RefreshCw, Signal, SignalZero, Video, WifiOff } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Expand, EyeOff, RefreshCw, Signal, SignalZero, ScanLine, Video, WifiOff } from 'lucide-react';
+import { RoiEditorModal } from './RoiEditorModal';
 import type { LiveCamera } from '../data/cameras';
 import { useFullscreenCamera } from '../hooks/useFullscreenCamera';
 import type { CameraConnectionStatus, CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
@@ -140,6 +141,8 @@ function CameraDangerFallback({ camera }: { camera: LiveCamera }) {
 
 export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick, cameraStatusMap }: LiveCameraGridProps) {
   const { activeFullscreenCameraId, requestCameraFullscreen, setCameraCardRef } = useFullscreenCamera();
+  const [roiCamera, setRoiCamera] = useState<LiveCamera | null>(null);
+
   const handleFullscreen = useCallback((cameraId: string, event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     void requestCameraFullscreen(cameraId);
@@ -200,6 +203,16 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
                   <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
                   {camera.connectionStatus === 'online' ? '정상' : camera.connectionStatus === 'connecting' ? '연결 중' : '오류'}
                 </div>
+                {camera.cameraDbId && (
+                  <button
+                    type="button"
+                    title="ROI 설정"
+                    onClick={(event) => { event.stopPropagation(); setRoiCamera(camera); }}
+                    className="rounded bg-slate-900 p-1.5 text-slate-400 transition-colors hover:bg-blue-900/60 hover:text-blue-300"
+                  >
+                    <ScanLine className="h-3 w-3" />
+                  </button>
+                )}
                 <button
                   type="button"
                   title={activeFullscreenCameraId === camera.id ? '전체 화면 표시 중' : '전체 화면'}
@@ -218,6 +231,15 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
         <div className="flex aspect-video items-center justify-center rounded-xl border border-dashed border-slate-700 bg-[#0f172a] text-xs font-semibold text-slate-500">
           등록된 카메라가 없습니다.
         </div>
+      )}
+
+      {roiCamera && roiCamera.cameraDbId && (
+        <RoiEditorModal
+          cameraDbId={Number(roiCamera.cameraDbId)}
+          cameraName={roiCamera.name}
+          cameraLoginId={roiCamera.cameraLoginId ?? roiCamera.id}
+          onClose={() => setRoiCamera(null)}
+        />
       )}
     </div>
   );
