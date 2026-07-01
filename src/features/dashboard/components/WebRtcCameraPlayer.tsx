@@ -218,6 +218,70 @@ export function WebRtcCameraPlayer({
     };
   }, [cameraLoginId, mode]);
 
+  // HLS 모드일 때 45초마다 WebRTC 복귀 가능한지 백그라운드 프로브
+  useEffect(() => {
+    if (mode !== 'hls') return undefined;
+
+    const probe = () => {
+      const tempPc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      });
+      let resolved = false;
+
+      const cleanup = () => {
+        try { tempPc.close(); } catch { /* ignore */ }
+      };
+
+      const timeout = setTimeout(() => {
+        if (!resolved) cleanup();
+      }, 6000);
+
+      tempPc.ontrack = () => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timeout);
+        cleanup();
+        console.log(`[WebRTC Player] Background probe succeeded for ${cameraLoginId}, switching back to WebRTC`);
+        setMode('webrtc');
+        setPlayStatus('connecting');
+        setFallbackReason(null);
+      };
+
+      (async () => {
+        try {
+          tempPc.addTransceiver('video', { direction: 'recvonly' });
+          const offer = await tempPc.createOffer();
+          await tempPc.setLocalDescription(offer);
+          await new Promise<void>((resolve) => {
+            if (tempPc.iceGatheringState === 'complete') { resolve(); return; }
+            const check = () => {
+              if (tempPc.iceGatheringState === 'complete') {
+                tempPc.removeEventListener('icegatheringstatechange', check);
+                resolve();
+              }
+            };
+            tempPc.addEventListener('icegatheringstatechange', check);
+            setTimeout(() => { tempPc.removeEventListener('icegatheringstatechange', check); resolve(); }, 2000);
+          });
+          const whepUrl = `${WEBRTC_BASE_URL}/${cameraLoginId}/whep`;
+          const res = await fetch(whepUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/sdp' },
+            body: tempPc.localDescription?.sdp,
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const answer = await res.text();
+          await tempPc.setRemoteDescription({ type: 'answer', sdp: answer });
+        } catch {
+          if (!resolved) cleanup();
+        }
+      })();
+    };
+
+    const intervalId = setInterval(probe, 45000);
+    return () => clearInterval(intervalId);
+  }, [mode, cameraLoginId]);
+
   // Clean up if component unmounts
   useEffect(() => {
     return () => {
