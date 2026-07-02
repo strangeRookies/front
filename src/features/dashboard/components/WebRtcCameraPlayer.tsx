@@ -42,6 +42,7 @@ export function WebRtcCameraPlayer({
     let isMounted = true;
     let hasTrack = false;
     let hasPlayed = false;
+    let iceConnected = false;
     let lastDecodedFrames = 0;
     let decodedFramesStuckCount = 0;
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
@@ -78,12 +79,28 @@ export function WebRtcCameraPlayer({
         triggerFallback('WebRTC connection timeout (no frame played within 7s)');
       }
     }, 7000);
+    const iceTimeoutId = setTimeout(() => {
+      if (!iceConnected && isMounted) {
+        triggerFallback('WebRTC ICE timeout (no ICE connection within 15s)');
+      }
+    }, 15000);
 
     pc.addEventListener('iceconnectionstatechange', () => {
       const state = pc.iceConnectionState;
       console.log(`[WebRTC Player] ${cameraLoginId} ICE Connection State: ${state}`);
-      if (state === 'failed' || state === 'disconnected') {
-        triggerFallback(`ICE connection state failed or disconnected: ${state}`);
+      if (state === 'connected' || state === 'completed') {
+        iceConnected = true;
+        decodedFramesStuckCount = 0;
+        if (iceDisconnectTimeout) { clearTimeout(iceDisconnectTimeout); iceDisconnectTimeout = null; }
+      } else if (state === 'disconnected') {
+        // UDP 후보 실패로 인한 일시적 disconnected — 5초 유예 후 복구 안 되면 폴백
+        iceDisconnectTimeout = setTimeout(() => {
+          if (pc.iceConnectionState === 'disconnected' && isMounted) {
+            triggerFallback('ICE connection: disconnected (no recovery within 5s)');
+          }
+        }, 5000);
+      } else if (state === 'failed') {
+        triggerFallback('ICE connection state: failed');
       }
     });
 
@@ -142,7 +159,11 @@ export function WebRtcCameraPlayer({
         }
         const answer = await response.text();
         if (!isMounted) return;
-        await pc.setRemoteDescription({ type: 'answer', sdp: answer });
+        // UDP 후보 제거 — SSH 터널 환경에서 UDP ICE는 응답 없이 in-progress만 쌓임
+        answerSdp = answerSdp.split('\n').filter(line =>
+          !line.startsWith('a=candidate:') || line.toLowerCase().includes(' tcp ')
+        ).join('\n');
+        await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
         console.log(`[WebRTC Player] WHEP negotiation succeeded for ${cameraLoginId}`);
       } catch (error) {
         if (error instanceof Error) {

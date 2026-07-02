@@ -4,6 +4,7 @@ import type { AiEvent } from '../../../hooks/useAiEvents';
 import type { LiveCamera } from '../data/cameras';
 import { LiveCameraGrid } from './LiveCameraGrid';
 import type { CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
+import { aiEventFingerprint } from '../../../shared/utils/aiAlerts';
 
 interface DashboardHomeViewProps {
   acknowledgedAiEventIds: ReadonlySet<string>;
@@ -57,7 +58,7 @@ export function DashboardHomeView({
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             <AiDangerPanel
-              events={dangerAiEvents}
+              events={dangerAiEvents.filter(event => !acknowledgedAiEventIds.has(aiEventFingerprint(event)))}
               acknowledgedEventIds={acknowledgedAiEventIds}
               onFocus={onFocusAiEvent}
               onConfirm={onConfirmAiEvent}

@@ -23,16 +23,44 @@ export function HlsStream({ streamUrl, title, className = '', dimmed = false }: 
     const video = videoRef.current;
     if (!video || !streamUrl) return undefined;
 
+    // Safari 네이티브 HLS
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = streamUrl;
-      return undefined;
+      const handleError = () => {
+        setTimeout(() => {
+          if (video) video.src = streamUrl;
+        }, 3000);
+      };
+      video.addEventListener('error', handleError);
+      return () => video.removeEventListener('error', handleError);
     }
 
     if (!Hls.isSupported()) return undefined;
 
-    const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-    hls.loadSource(streamUrl);
-    hls.attachMedia(video);
+    let hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+
+    const attach = () => {
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+    };
+
+    hls.on(Hls.Events.ERROR, (_event, data) => {
+      if (!data.fatal) return;
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        hls.startLoad();
+      } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        hls.recoverMediaError();
+      } else {
+        hls.destroy();
+        setTimeout(() => {
+          hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+          hls.on(Hls.Events.ERROR, () => {});
+          attach();
+        }, 3000);
+      }
+    });
+
+    attach();
     return () => {
       hls.destroy();
     };

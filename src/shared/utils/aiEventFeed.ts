@@ -15,7 +15,7 @@ export function aiEventFingerprint(event: AiEvent): string {
 // ---------------------------------------------------------------------------
 // Feed reducer: 15초 stale window + fingerprint 기반 deduplication
 // ---------------------------------------------------------------------------
-export const STALE_EVENT_WINDOW_MS = 15_000;
+export const STALE_EVENT_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 export function eventTimestampMs(event: AiEvent): number {
   // timestamp가 Unix epoch (초) 단위인 경우 ms 변환

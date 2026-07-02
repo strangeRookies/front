@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { AlertCircle, AlertTriangle, Expand, EyeOff, RefreshCw, Signal, SignalZero, Video, WifiOff } from 'lucide-react';
 import type { AiEvent } from '../../../hooks/useAiEvents';
@@ -114,7 +114,7 @@ function CameraStream({ camera, overlayEvent }: { camera: LiveCamera; overlayEve
         cameraLoginId={camera.cameraLoginId}
         overlayEvent={overlayEvent}
       />
-      {!unavailable && overlayMessage && (
+      {!unavailable && overlayMessage && camera.eventStatus !== 'danger' && (
         <DetectionOverlayCanvas message={overlayMessage} />
       )}
       {unavailable && (
@@ -129,9 +129,7 @@ function CameraStream({ camera, overlayEvent }: { camera: LiveCamera; overlayEve
 }
 
 function CameraDangerFallback({ camera }: { camera: LiveCamera }) {
-  const overlayMessage = useCameraOverlay(camera);
-
-  if (camera.eventStatus !== 'danger' || camera.connectionStatus === 'offline' || overlayMessage) {
+  if (camera.eventStatus !== 'danger' || camera.connectionStatus === 'offline') {
     return null;
   }
 
@@ -146,6 +144,27 @@ function CameraDangerFallback({ camera }: { camera: LiveCamera }) {
 
 export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick, cameraStatusMap, overlayEvents = [] }: LiveCameraGridProps) {
   const { activeFullscreenCameraId, requestCameraFullscreen, setCameraCardRef } = useFullscreenCamera();
+  const [roiCamera, setRoiCamera] = useState<LiveCamera | null>(null);
+  const [roiCountMap, setRoiCountMap] = useState<Map<string, number>>(new Map());
+  const [roiRefreshKey, setRoiRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const targets = cameras.filter(c => c.cameraDbId);
+    if (targets.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      targets.map(c =>
+        fetchRoiConfigs(Number(c.cameraDbId))
+          .then(rois => ({ id: c.cameraDbId!, count: rois.filter(r => r.isActive).length }))
+          .catch(() => ({ id: c.cameraDbId!, count: 0 }))
+      )
+    ).then(results => {
+      if (cancelled) return;
+      setRoiCountMap(new Map(results.map(r => [r.id, r.count])));
+    });
+    return () => { cancelled = true; };
+  }, [cameras, roiRefreshKey]);
+
   const handleFullscreen = useCallback((cameraId: string, event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     void requestCameraFullscreen(cameraId);
@@ -207,6 +226,23 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
                   <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
                   {camera.connectionStatus === 'online' ? '정상' : camera.connectionStatus === 'connecting' ? '연결 중' : '오류'}
                 </div>
+                {camera.cameraDbId && (
+                  <button
+                    type="button"
+                    title="ROI 설정"
+                    onClick={(event) => { event.stopPropagation(); setRoiCamera(camera); }}
+                    className={`flex items-center gap-1 rounded p-1.5 text-[10px] font-bold transition-colors
+                      ${(roiCountMap.get(camera.cameraDbId) ?? 0) > 0
+                        ? 'bg-blue-900/40 text-blue-300 hover:bg-blue-900/60'
+                        : 'bg-slate-900 text-slate-400 hover:bg-blue-900/60 hover:text-blue-300'
+                      }`}
+                  >
+                    <ScanLine className="h-3 w-3" />
+                    {(roiCountMap.get(camera.cameraDbId) ?? 0) > 0 && (
+                      <span>ROI {roiCountMap.get(camera.cameraDbId)}</span>
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   title={activeFullscreenCameraId === camera.id ? '전체 화면 표시 중' : '전체 화면'}
@@ -225,6 +261,15 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
         <div className="flex aspect-video items-center justify-center rounded-xl border border-dashed border-slate-700 bg-[#0f172a] text-xs font-semibold text-slate-500">
           등록된 카메라가 없습니다.
         </div>
+      )}
+
+      {roiCamera && roiCamera.cameraDbId && (
+        <RoiEditorModal
+          cameraDbId={Number(roiCamera.cameraDbId)}
+          cameraName={roiCamera.name}
+          cameraLoginId={roiCamera.cameraLoginId ?? roiCamera.id}
+          onClose={() => { setRoiCamera(null); setRoiRefreshKey(k => k + 1); }}
+        />
       )}
     </div>
   );
