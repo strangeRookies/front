@@ -45,6 +45,7 @@ export function WebRtcCameraPlayer({
     let iceConnected = false;
     let lastDecodedFrames = 0;
     let decodedFramesStuckCount = 0;
+    let iceDisconnectTimeout: ReturnType<typeof setTimeout> | null = null;
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     pcRef.current = pc;
 
@@ -160,7 +161,7 @@ export function WebRtcCameraPlayer({
         const answer = await response.text();
         if (!isMounted) return;
         // UDP 후보 제거 — SSH 터널 환경에서 UDP ICE는 응답 없이 in-progress만 쌓임
-        answerSdp = answerSdp.split('\n').filter(line =>
+        const answerSdp = answer.split('\n').filter(line =>
           !line.startsWith('a=candidate:') || line.toLowerCase().includes(' tcp ')
         ).join('\n');
         await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
