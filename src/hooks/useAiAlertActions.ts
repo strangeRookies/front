@@ -32,9 +32,9 @@ export function useAiAlertActions({ userType, username, facilityId, liveCameras,
       : `/topic/facility/${facilityId}/alerts`
     : '/topic/alerts';
 
-  const feedState = useAiEvents({ 
-    enabled: aiAlertsEnabled,
-    topic 
+  const feedState = useAiEvents({
+    enabled: aiAlertsEnabled && !!facilityId,
+    topic
   });
   const aiEvents = feedState.events;
   const overlayEvents = feedState.overlayEvents;
