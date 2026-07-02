@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
-import { AlertCircle, AlertTriangle, Expand, EyeOff, RefreshCw, Signal, SignalZero, Video, WifiOff } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Expand, EyeOff, RefreshCw, ScanLine, Signal, SignalZero, Video, WifiOff } from 'lucide-react';
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import { findCameraForAiEvent } from '../../../shared/utils/aiAlerts';
 import type { LiveCamera } from '../data/cameras';
@@ -10,6 +10,8 @@ import { toCameraConnectionStatusDisplay } from '../hooks/useCameraStatusWebSock
 import { DetectionOverlayCanvas } from '../overlays/DetectionOverlayCanvas';
 import { useCameraOverlay } from '../overlays/overlayStore';
 import { CameraStreamFrame } from './CameraStreamFrame';
+import { RoiEditorModal } from './RoiEditorModal';
+import { fetchRoiConfigs } from '../api/roiApi';
 
 interface LiveCameraGridProps {
   cameras: LiveCamera[];
