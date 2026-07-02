@@ -21,6 +21,8 @@ export function useCameraOverlays(
   const timeoutRefs = useRef<Map<string, number>>(new Map());
   const timestampRefs = useRef<Map<string, number>>(new Map());
   const setOverlay = useCameraOverlayStore((state) => state.setOverlay);
+  const addFrameSync = useCameraOverlayStore((state) => state.addFrameSync);
+  const addOverlaySync = useCameraOverlayStore((state) => state.addOverlaySync);
   const clearOverlayFromStore = useCameraOverlayStore((state) => state.clearOverlay);
   const clearAllOverlays = useCameraOverlayStore((state) => state.clearAllOverlays);
   const topic = useMemo(
@@ -76,6 +78,13 @@ export function useCameraOverlays(
           logger.warn('[Overlay] Ignoring invalid overlay payload.');
           return;
         }
+
+        if (message.messageType === 'frame_sync') {
+          addFrameSync(message);
+          return;
+        }
+
+        addOverlaySync(message);
 
         if (message.events.length === 0) {
           clearOverlay(message.cameraLoginId);

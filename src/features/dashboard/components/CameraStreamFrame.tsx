@@ -1,7 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { STREAM_MODE, type StreamRenderKind } from '../data/cameras';
+import type { AiEvent } from '../../../hooks/useAiEvents';
+import { CameraAiOverlay } from './CameraAiOverlay';
 import { WebRtcCameraPlayer } from './WebRtcCameraPlayer';
+import { fetchAiOverlay, startAiOverlay, type AiOverlayResponse, type AiOverlayStatus } from '../../../app/api/cameraApi';
 
 export interface CameraStreamFrameProps {
   readonly streamUrl?: string;
@@ -10,6 +13,7 @@ export interface CameraStreamFrameProps {
   readonly className?: string;
   readonly dimmed?: boolean;
   readonly cameraLoginId?: string;
+  readonly overlayEvent?: AiEvent;
 }
 
 export function HlsStream({ streamUrl, title, className = '', dimmed = false }: CameraStreamFrameProps) {
@@ -97,12 +101,79 @@ export function CameraStreamFrame({
   className = '',
   dimmed = false,
   cameraLoginId,
+  overlayEvent,
 }: CameraStreamFrameProps) {
-  if (!streamUrl) return null;
-
   const derivedLoginId = cameraLoginId || extractCameraLoginId(streamUrl);
+  const shouldResolveOverlay = streamKind === 'mjpeg' && STREAM_MODE === 'overlay' && !!derivedLoginId;
+  const [overlayUrl, setOverlayUrl] = useState<string | undefined>(undefined);
+  const [overlayStatus, setOverlayStatus] = useState<AiOverlayStatus>('UNKNOWN');
+  const [overlayError, setOverlayError] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!shouldResolveOverlay || !derivedLoginId) {
+      setOverlayUrl(undefined);
+      setOverlayStatus('UNKNOWN');
+      setOverlayError(undefined);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let retryTimer: number | undefined;
+
+    const applyResponse = (response: AiOverlayResponse): boolean => {
+      if (cancelled) {
+        return false;
+      }
+      setOverlayStatus(response.status);
+      setOverlayError(undefined);
+      if (response.status === 'RUNNING' && response.overlayUrl) {
+        setOverlayUrl(response.overlayUrl);
+        return true;
+      }
+      setOverlayUrl(undefined);
+      return false;
+    };
+
+    const loadOverlay = async (attempt: number): Promise<void> => {
+      try {
+        const response = attempt === 0
+          ? await startAiOverlay(derivedLoginId)
+          : await fetchAiOverlay(derivedLoginId);
+        const resolved = applyResponse(response);
+        if (resolved || cancelled || (response.status !== 'STARTING' && response.status !== 'UNKNOWN')) {
+          return;
+        }
+        if (attempt >= 20) {
+          setOverlayStatus('ERROR');
+          setOverlayError('AI overlay stream is still starting. Check the AI runner for this camera.');
+          return;
+        }
+        if (!resolved && !cancelled) {
+          retryTimer = window.setTimeout(() => {
+            void loadOverlay(attempt + 1);
+          }, 1000);
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setOverlayStatus('ERROR');
+        setOverlayError(error instanceof Error ? error.message : 'AI overlay stream request failed.');
+        setOverlayUrl(undefined);
+      }
+    };
+
+    void loadOverlay(0);
+    return () => {
+      cancelled = true;
+      if (retryTimer !== undefined) {
+        window.clearTimeout(retryTimer);
+      }
+    };
+  }, [derivedLoginId, shouldResolveOverlay]);
 
   if (streamKind === 'hls') {
+    if (!streamUrl) return null;
     if (STREAM_MODE === 'webrtc' && derivedLoginId) {
       return (
         <WebRtcCameraPlayer
@@ -110,25 +181,43 @@ export function CameraStreamFrame({
           title={title}
           className={className}
           dimmed={dimmed}
+          overlayEvent={overlayEvent}
         />
       );
     }
     return (
-      <HlsStream
-        streamUrl={streamUrl}
-        streamKind={streamKind}
-        title={title}
-        className={className}
-        dimmed={dimmed}
-      />
+      <div className={className}>
+        <HlsStream
+          streamUrl={streamUrl}
+          streamKind={streamKind}
+          title={title}
+          className="h-full w-full object-cover"
+          dimmed={dimmed}
+        />
+        <CameraAiOverlay cameraLoginId={derivedLoginId} event={overlayEvent} />
+      </div>
+    );
+  }
+
+  const resolvedStreamUrl = shouldResolveOverlay ? overlayUrl : streamUrl;
+  if (!resolvedStreamUrl) {
+    return (
+      <div
+        className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} flex items-center justify-center bg-slate-950 text-sm text-slate-300`}
+      >
+        {overlayError || (overlayStatus === 'ERROR' ? 'AI overlay stream unavailable.' : 'AI overlay starting...')}
+      </div>
     );
   }
 
   return (
-    <img
-      src={streamUrl}
-      alt={title}
-      className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''}`}
-    />
+    <div className={className}>
+      <img
+        src={resolvedStreamUrl}
+        alt={title}
+        className={`h-full w-full object-cover ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''}`}
+      />
+      <CameraAiOverlay cameraLoginId={derivedLoginId} event={overlayEvent} />
+    </div>
   );
 }

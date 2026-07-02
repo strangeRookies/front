@@ -239,6 +239,7 @@ export function NurseDashboard({
   const {
     acknowledgedAiEventIds,
     dangerAiEvents,
+    overlayEvents,
     focusedLiveCameras,
     focusAiEventCamera,
     handleConfirmAiEvent,
@@ -553,6 +554,7 @@ export function NurseDashboard({
             <DashboardHomeView
               acknowledgedAiEventIds={acknowledgedAiEventIds}
               dangerAiEvents={dangerAiEvents}
+              overlayEvents={overlayEvents}
               focusedLiveCameras={focusedLiveCameras}
               onCameraSelect={handleCameraClick}
               onConfirmAiEvent={handleConfirmAiEvent}

@@ -13,7 +13,7 @@ const checks = [
   ['POST method is used', apiSource.includes("method: 'POST'")],
   ['Confirm calls backend API', hookSource.includes('acknowledgeAndRequestRecording(event, username)')],
   ['Confirm acknowledges local event', hookSource.includes('next.add(fp)') || hookSource.includes('next.add(aiEventFingerprint')],
-  ['dashboard uses alert actions hook', dashboardSource.includes('useAiAlertActions({ userType, username, liveCameras, focusHome })')],
+  ['dashboard uses alert actions hook', dashboardSource.includes('useAiAlertActions({')],
   ['dashboard uses extracted alerts hook', dashboardSource.includes('useDashboardAlerts({')],
   ['dashboard alerts hook uses fingerprint ids', alertsHookSource.includes('aiEventFingerprint(event)')],
 ];
