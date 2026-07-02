@@ -11,6 +11,11 @@ export interface OverlayEvent {
   readonly trackingId: string | number | null;
   readonly bbox: OverlayBox;
   readonly eventTriggered?: boolean;
+  readonly displayId?: number | null;
+  readonly display_id?: number | null;
+  readonly displayLabel?: string | null;
+  readonly trackId?: string | number | null;
+  readonly track_id?: string | number | null;
 }
 
 export interface OverlayMessage {
@@ -121,9 +126,30 @@ export function parseOverlayMessage(raw: unknown): OverlayMessage | null {
             ? event.trackingId
             : null,
         bbox: clampedBox,
+<<<<<<< Updated upstream
         eventTriggered: typeof event.eventTriggered === 'boolean' ? event.eventTriggered : undefined,
       });
     });
+=======
+        eventTriggered: typeof event.eventTriggered === 'boolean' ? event.eventTriggered : false,
+        displayId: readNumber(event.displayId),
+        display_id: readNumber(event.display_id),
+        displayLabel: readString(event.displayLabel),
+        trackId:
+          typeof event.trackId === 'number' || typeof event.trackId === 'string'
+            ? event.trackId
+            : null,
+        track_id:
+          typeof event.track_id === 'number' || typeof event.track_id === 'string'
+            ? event.track_id
+            : null,
+      };
+    })
+    .filter((event): event is OverlayEvent => event !== null);
+
+  if (eventsRaw.length > 0 && events.length === 0) {
+    return null;
+>>>>>>> Stashed changes
   }
 
   return {

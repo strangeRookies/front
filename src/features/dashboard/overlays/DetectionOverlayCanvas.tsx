@@ -1,10 +1,14 @@
 import { useEffect, useRef } from 'react';
+<<<<<<< Updated upstream
 import type { OverlayMessage } from './overlayTypes';
 import {
   resolveOverlayBoxDisplay,
   FAINT_DISPLAY_THRESHOLD,
   normalizeConfidence,
 } from '../utils/overlayGeometry';
+=======
+import type { OverlayMessage, OverlayEvent } from './overlayTypes';
+>>>>>>> Stashed changes
 
 interface DetectionOverlayCanvasProps {
   readonly message?: OverlayMessage;
@@ -15,6 +19,18 @@ function formatType(type: string) {
   if (upper === 'FALL' || upper === 'FALL_DETECTED') return 'FALL_DETECTED';
   if (upper === 'FAINT') return 'FAINT';
   return upper || 'UNKNOWN';
+}
+
+export function getDisplayLabel(event: OverlayEvent): string {
+  if (event.displayLabel) return event.displayLabel;
+
+  const displayId = event.displayId ?? event.display_id;
+  if (displayId !== undefined && displayId !== null) {
+    return `ID ${displayId}`;
+  }
+
+  const rawId = event.trackId ?? event.trackingId ?? event.track_id;
+  return rawId !== undefined && rawId !== null ? `ID ${rawId}` : 'ID ?';
 }
 
 function drawLabel(
@@ -111,9 +127,15 @@ export function DetectionOverlayCanvas({ message }: DetectionOverlayCanvasProps)
         context.fillStyle = isEvent ? 'rgba(244, 63, 94, 0.08)' : 'rgba(56, 189, 248, 0.04)';
         context.fillRect(left, top, boxWidth, boxHeight);
 
+<<<<<<< Updated upstream
         const bgColor = isEvent ? 'rgba(225, 29, 72, 0.92)' : 'rgba(56, 189, 248, 0.92)';
         const textColor = isEvent ? '#ffffff' : '#0f172a';
         drawLabel(context, display.label, left, top, width, bgColor, textColor);
+=======
+        const idLabel = getDisplayLabel(event);
+        const confidence = event.confidence === null ? '' : ` ${Math.round(event.confidence * 100)}%`;
+        drawLabel(context, `${idLabel} ${formatType(event.type)}${confidence}`, left, top, width, labelBgColor);
+>>>>>>> Stashed changes
       }
     };
 
