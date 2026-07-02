@@ -126,12 +126,7 @@ export function parseOverlayMessage(raw: unknown): OverlayMessage | null {
             ? event.trackingId
             : null,
         bbox: clampedBox,
-<<<<<<< Updated upstream
         eventTriggered: typeof event.eventTriggered === 'boolean' ? event.eventTriggered : undefined,
-      });
-    });
-=======
-        eventTriggered: typeof event.eventTriggered === 'boolean' ? event.eventTriggered : false,
         displayId: readNumber(event.displayId),
         display_id: readNumber(event.display_id),
         displayLabel: readString(event.displayLabel),
@@ -143,13 +138,8 @@ export function parseOverlayMessage(raw: unknown): OverlayMessage | null {
           typeof event.track_id === 'number' || typeof event.track_id === 'string'
             ? event.track_id
             : null,
-      };
-    })
-    .filter((event): event is OverlayEvent => event !== null);
-
-  if (eventsRaw.length > 0 && events.length === 0) {
-    return null;
->>>>>>> Stashed changes
+      });
+    });
   }
 
   return {

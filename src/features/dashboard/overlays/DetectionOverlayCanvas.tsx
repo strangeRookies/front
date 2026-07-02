@@ -1,14 +1,10 @@
 import { useEffect, useRef } from 'react';
-<<<<<<< Updated upstream
-import type { OverlayMessage } from './overlayTypes';
+import type { OverlayMessage, OverlayEvent } from './overlayTypes';
 import {
   resolveOverlayBoxDisplay,
   FAINT_DISPLAY_THRESHOLD,
   normalizeConfidence,
 } from '../utils/overlayGeometry';
-=======
-import type { OverlayMessage, OverlayEvent } from './overlayTypes';
->>>>>>> Stashed changes
 
 interface DetectionOverlayCanvasProps {
   readonly message?: OverlayMessage;
@@ -127,15 +123,11 @@ export function DetectionOverlayCanvas({ message }: DetectionOverlayCanvasProps)
         context.fillStyle = isEvent ? 'rgba(244, 63, 94, 0.08)' : 'rgba(56, 189, 248, 0.04)';
         context.fillRect(left, top, boxWidth, boxHeight);
 
-<<<<<<< Updated upstream
         const bgColor = isEvent ? 'rgba(225, 29, 72, 0.92)' : 'rgba(56, 189, 248, 0.92)';
         const textColor = isEvent ? '#ffffff' : '#0f172a';
-        drawLabel(context, display.label, left, top, width, bgColor, textColor);
-=======
         const idLabel = getDisplayLabel(event);
-        const confidence = event.confidence === null ? '' : ` ${Math.round(event.confidence * 100)}%`;
-        drawLabel(context, `${idLabel} ${formatType(event.type)}${confidence}`, left, top, width, labelBgColor);
->>>>>>> Stashed changes
+        const finalLabel = `${idLabel} ${display.label}`;
+        drawLabel(context, finalLabel, left, top, width, bgColor, textColor);
       }
     };
 
