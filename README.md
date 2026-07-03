@@ -10,18 +10,32 @@
   Run `npm run dev` to start the development server.
 
   ## Stream modes
-
-  The monitoring dashboard separates raw MediaMTX HLS from AI overlay MJPEG.
-
+  
+  The monitoring dashboard supports raw MediaMTX HLS, WebRTC WHEP, and AI overlay MJPEG.
+  
   ```env
-  VITE_STREAM_MODE=overlay
+  VITE_STREAM_MODE=webrtc
+  VITE_WEBRTC_BASE_URL=http://localhost:8889
   VITE_HLS_BASE_URL=http://localhost:8888
-  VITE_OVERLAY_BASE_URL=http://localhost:8010
+  VITE_STREAM_FALLBACK_ENABLED=true
   ```
-
-  - `overlay`: default. `cam_01` maps to `http://localhost:8010`, `cam_02` to `http://localhost:8011`, and so on.
-  - `raw`: uses MediaMTX HLS at `http://localhost:8888/{cameraLoginId}/index.m3u8`.
-  - For SSH tunnel development from Windows, keep both base URLs as `localhost`.
+  
+  - `webrtc`: Uses MediaMTX WebRTC WHEP at `${VITE_WEBRTC_BASE_URL}/{cameraLoginId}/whep`.
+  - `raw`: Uses MediaMTX HLS at `${VITE_HLS_BASE_URL}/{cameraLoginId}/index.m3u8`.
+  - `overlay`: Uses AI overlay MJPEG at `http://localhost:8010/stream` (cam_01), `http://localhost:8011/stream` (cam_02), etc.
+  
+  ### Option A: Direct GPU PC Connection
+  If you are not using SSH tunnels, point the base URLs directly to the GPU PC IP (e.g. `192.168.0.66`):
+  ```env
+  VITE_WEBRTC_BASE_URL=http://192.168.0.66:8889
+  VITE_HLS_BASE_URL=http://192.168.0.66:8888
+  ```
+  
+  ### Option B: SSH Local Port Forwarding
+  When developing from a local machine through an SSH tunnel, you can keep the base URLs as `localhost`. Make sure to run the following forwarding command:
+  ```bash
+  ssh -L 8888:127.0.0.1:8888 -L 8889:127.0.0.1:8889 -L 8189:127.0.0.1:8189 welabs@192.168.0.66
+  ```
 
   ## AI alert routing
 
