@@ -32,11 +32,12 @@ export function useAiAlertActions({ userType, username, facilityId, liveCameras,
       : `/topic/facility/${facilityId}/alerts`
     : '/topic/alerts';
 
-  const feedState = useAiEvents({ 
-    enabled: aiAlertsEnabled,
-    topic 
+  const feedState = useAiEvents({
+    enabled: aiAlertsEnabled && !!facilityId,
+    topic
   });
   const aiEvents = feedState.events;
+  const overlayEvents = feedState.overlayEvents;
   const connectionState = feedState.connectionState;
 
   // Acknowledged fingerprints (not timestamps, so stable across re-publishes)
@@ -111,6 +112,7 @@ export function useAiAlertActions({ userType, username, facilityId, liveCameras,
     // Expose fingerprint-based set (primary)
     acknowledgedAiEventIds: acknowledgedFingerprints,
     dangerAiEvents,
+    overlayEvents,
     focusedLiveCameras,
     focusAiEventCamera,
     handleConfirmAiEvent,

@@ -185,13 +185,15 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
     return minDist <= POINT_HIT_RADIUS ? idx : -1;
   }
 
+  const MAX_POINTS = 5;
+
   function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
     if (e.button !== 0) return;
     const norm = toNormalized(e);
     const hit = nearestPointIdx(norm, canvasRef.current!);
     if (hit >= 0) {
       setDraggingIdx(hit);
-    } else {
+    } else if (points.length < MAX_POINTS) {
       setPoints(prev => [...prev, norm]);
     }
   }
@@ -327,7 +329,7 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
 
         {/* 안내 */}
         <p className="text-[11px] text-slate-500">
-          클릭으로 점 추가 &nbsp;·&nbsp; 드래그로 점 이동 &nbsp;·&nbsp; 우클릭으로 점 삭제 &nbsp;·&nbsp; 3개 이상 점이 있어야 저장 가능
+          클릭으로 점 추가 (최대 5개) &nbsp;·&nbsp; 드래그로 점 이동 &nbsp;·&nbsp; 우클릭으로 점 삭제 &nbsp;·&nbsp; 3개 이상 점이 있어야 저장 가능
         </p>
 
         {error && <p className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-300">{error}</p>}
@@ -383,12 +385,10 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
             <div className="flex flex-wrap gap-2">
               {existingRois.map(roi => {
                 const label = SCENARIO_LABELS[roi.scenarioType as keyof typeof SCENARIO_LABELS] ?? roi.scenarioType;
-                const pts = deserializePolygon(roi.polygonPoints).length;
                 return (
                   <div key={roi.roiConfigId} className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] text-slate-300">
                     <span className="h-2 w-2 rounded-full bg-emerald-400" />
                     {label}
-                    <span className="text-slate-500">({pts}점)</span>
                   </div>
                 );
               })}

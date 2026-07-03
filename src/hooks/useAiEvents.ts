@@ -1,45 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import { z } from 'zod';
 import { getBackendWsUrl } from '../shared/api/client';
 import { SimpleStompClient } from '../shared/utils/stomp';
-import { aiEventFingerprint, reduceAiEventFeed, STALE_EVENT_WINDOW_MS } from '../shared/utils/aiEventFeed';
+import { aiEventFingerprint, eventTimestampMs, reduceAiEventFeed, STALE_EVENT_WINDOW_MS } from '../shared/utils/aiEventFeed';
 import { logger } from '../shared/utils/logger';
+import { parseToAiEvent } from '../shared/utils/aiEventParsing';
+import type { AiEvent } from '../shared/utils/aiEventTypes';
+import {
+  OverlaySyncBuffer,
+  cameraKey,
+  enrichOverlayPayload,
+  overlaySyncDebugEnabled,
+  overlaySyncOptionsFromEnv,
+} from '../shared/utils/overlaySync';
 
-const unknownRecordSchema = z.record(z.string(), z.unknown());
-const aiEventSchema = z.object({
-  camera_id: z.string(),
-  camera_login_id: z.string().nullable().optional(),
-  frame_idx: z.number().default(0),
-  timestamp: z.number(),
-  event_type: z.string(),
-  score: z.number().default(0),
-  confidence: z.number().default(0),
-  boxes: z.array(unknownRecordSchema).default([]),
-  bbox: z.unknown().nullable().optional(),
-  threshold: z.number().default(0),
-  track_id: z.union([z.string(), z.number()]).nullable().optional(),
-  severity: z.string().default('HIGH'),
-});
-
-export interface AiEvent {
-  readonly camera_id: string;
-  readonly camera_login_id?: string;
-  readonly frame_idx: number;
-  readonly timestamp: number;
-  readonly event_type: string;
-  readonly score: number;
-  readonly confidence: number;
-  readonly boxes: readonly Record<string, unknown>[];
-  readonly bbox: unknown;
-  readonly threshold: number;
-  readonly track_id: string | null;
-  readonly severity: string;
-}
+type BufferedAiEvent = AiEvent & { readonly receivedAtMs: number };
 
 export type AiConnectionState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
 export interface AiEventFeedState {
   readonly events: readonly AiEvent[];
+  readonly overlayEvents: readonly AiEvent[];
   readonly connectionState: AiConnectionState;
   readonly lastEventAt: number | null;
 }
@@ -50,63 +30,7 @@ interface UseAiEventsOptions {
   readonly topic?: string;
 }
 
-// Periodically prune stale events so UI clears itself when feed goes quiet
 const PRUNE_INTERVAL_MS = 5_000;
-
-function normalizeRawPayload(raw: Record<string, unknown>) {
-  const cameraLoginId = raw.camera_login_id ?? raw.cameraLoginId;
-  const timestampVal =
-    typeof raw.timestamp === 'string'
-      ? Math.floor(new Date(raw.timestamp as string).getTime() / 1000)
-      : typeof raw.timestamp === 'number'
-        ? (raw.timestamp as number)
-        : Math.floor(Date.now() / 1000);
-
-  return {
-    camera_id: (raw.camera_id ?? raw.cameraId ?? raw.camera_login_id ?? raw.cameraLoginId) as string,
-    camera_login_id: typeof cameraLoginId === 'string' && cameraLoginId.trim() ? cameraLoginId : undefined,
-    event_type: (raw.event_type ?? raw.type) as string,
-    timestamp: timestampVal,
-    severity: (raw.severity ?? 'HIGH') as string,
-    frame_idx: (raw.frame_idx ?? 0) as number,
-    score: (raw.score ?? 0) as number,
-    confidence: (raw.confidence ?? 0) as number,
-    boxes: (raw.boxes ?? []) as Record<string, unknown>[],
-    bbox: raw.bbox ?? null,
-    threshold: (raw.threshold ?? 0) as number,
-    track_id: raw.track_id ?? null,
-  };
-}
-
-function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
-  try {
-    const normalized = normalizeRawPayload(raw);
-    const parsed = aiEventSchema.parse(normalized);
-    return {
-      camera_id: parsed.camera_id,
-      camera_login_id: parsed.camera_login_id ?? undefined,
-      frame_idx: parsed.frame_idx,
-      timestamp: parsed.timestamp,
-      event_type: parsed.event_type,
-      score: parsed.score,
-      confidence: parsed.confidence,
-      boxes: parsed.boxes,
-      bbox: parsed.bbox ?? null,
-      threshold: parsed.threshold,
-      track_id:
-        parsed.track_id === null || parsed.track_id === undefined
-          ? null
-          : String(parsed.track_id),
-      severity: parsed.severity,
-    };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn('[useAiEvents] Ignoring malformed AI event payload.');
-      return null;
-    }
-    throw error;
-  }
-}
 
 export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFeedState {
   const options = typeof input === 'string' ? { url: input, enabled: true } : input;
@@ -118,23 +42,22 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
 
   const [feedState, setFeedState] = useState<AiEventFeedState>({
     events: [],
+    overlayEvents: [],
     connectionState: 'idle',
     lastEventAt: null,
   });
+  const overlayBufferRef = useRef(new OverlaySyncBuffer<BufferedAiEvent>(overlaySyncOptionsFromEnv(import.meta.env)));
+  const overlayDebug = overlaySyncDebugEnabled(import.meta.env);
 
   // Prune stale events on a timer
-  const eventsRef = useRef<readonly AiEvent[]>([]);
-  eventsRef.current = feedState.events;
-
   useEffect(() => {
     const interval = setInterval(() => {
       const nowMs = Date.now();
       setFeedState((prev) => {
-        const pruned = prev.events.filter(
-          (e) => nowMs - (e.timestamp > 1e10 ? e.timestamp : e.timestamp * 1000) <= STALE_EVENT_WINDOW_MS,
-        );
-        if (pruned.length === prev.events.length) return prev;
-        return { ...prev, events: pruned };
+        const prunedEvents = prev.events.filter((e) => nowMs - eventTimestampMs(e) <= STALE_EVENT_WINDOW_MS);
+        const prunedOverlays = prev.overlayEvents.filter((e) => nowMs - eventTimestampMs(e) <= STALE_EVENT_WINDOW_MS);
+        if (prunedEvents.length === prev.events.length && prunedOverlays.length === prev.overlayEvents.length) return prev;
+        return { ...prev, events: prunedEvents, overlayEvents: prunedOverlays };
       });
     }, PRUNE_INTERVAL_MS);
     return () => clearInterval(interval);
@@ -142,22 +65,40 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
 
   useEffect(() => {
     if (!enabled) {
-      setFeedState({ events: [], connectionState: 'idle', lastEventAt: null });
+      setFeedState({ events: [], overlayEvents: [], connectionState: 'idle', lastEventAt: null });
       return undefined;
     }
 
     const isWebSocket = url.startsWith('ws://') || url.startsWith('wss://') || url.includes('/ws');
 
     const handleIncoming = (raw: Record<string, unknown>) => {
-      const aiEvent = parseToAiEvent(raw);
-      if (!aiEvent) {
+      const receivedAtMs = Date.now();
+      const parsedEvent = parseToAiEvent(raw);
+      if (!parsedEvent) {
         logger.warn('[useAiEvents] Failed to parse event or it was filtered out.');
         return;
       }
+      const enrichedEvent = enrichOverlayPayload(parsedEvent, receivedAtMs);
+      const selected = overlayBufferRef.current.push(enrichedEvent, receivedAtMs);
+      const selectedOverlayEvent: AiEvent = {
+        ...selected.event,
+        overlayBufferSize: selected.bufferSize,
+        overlaySyncWarning: selected.warning,
+      };
+      const incomingEvent: AiEvent = {
+        ...enrichedEvent,
+        overlayTimestampDeltaMs: selectedOverlayEvent.overlayTimestampDeltaMs,
+        selectedOverlayAgeMs: selectedOverlayEvent.selectedOverlayAgeMs,
+        overlayBufferSize: selected.bufferSize,
+        overlaySyncWarning: selected.warning,
+      };
+      const aiEvent = isOverlayEvent(enrichedEvent) ? selectedOverlayEvent : incomingEvent;
+      logOverlaySync(aiEvent, selected.warning, overlayDebug);
       setFeedState((prev) => ({
         connectionState: 'connected',
-        lastEventAt: Date.now(),
-        events: reduceAiEventFeed(prev.events, aiEvent),
+        lastEventAt: receivedAtMs,
+        events: isOverlayEvent(aiEvent) ? prev.events : reduceAiEventFeed(prev.events, aiEvent),
+        overlayEvents: isOverlayEvent(aiEvent) ? reduceAiEventFeed(prev.overlayEvents, aiEvent) : prev.overlayEvents,
       }));
     };
 
@@ -222,7 +163,47 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
   return feedState;
 }
 
-// ---------------------------------------------------------------------------
-// Backwards-compatible default export of events array for existing callers
-// ---------------------------------------------------------------------------
 export { aiEventFingerprint };
+export type { AiEvent, AiEventSequence } from '../shared/utils/aiEventTypes';
+
+function isOverlayEvent(event: AiEvent): boolean {
+  return event.messageType === 'overlay' || event.event_type === 'overlay';
+}
+
+function logOverlaySync(event: AiEvent, warning: boolean, debugEnabled: boolean): void {
+  if (!debugEnabled && !warning) {
+    return;
+  }
+  const message = [
+    `[overlay-sync] camera=${cameraKey(event)}`,
+    `frameId=${event.frameId ?? 'n/a'}`,
+    `capturedAtMs=${event.capturedAtMs ?? 'n/a'}`,
+    `publishedAtMs=${event.publishedAtMs ?? 'n/a'}`,
+    `receivedAtMs=${event.receivedAtMs ?? 'n/a'}`,
+    `networkLatencyMs=${event.networkLatencyMs ?? 'n/a'}`,
+    `endToEndLatencyMs=${event.endToEndLatencyMs ?? 'n/a'}`,
+    `selectedOverlayAgeMs=${event.selectedOverlayAgeMs ?? 'n/a'}`,
+    `overlayTimestampDeltaMs=${event.overlayTimestampDeltaMs ?? 'n/a'}`,
+    `bufferSize=${event.overlayBufferSize ?? 'n/a'}`,
+    sequenceLabel(event),
+  ].filter(Boolean).join(' ');
+  if (warning) {
+    logger.warn(message);
+    return;
+  }
+  logger.info(message);
+}
+
+function sequenceLabel(event: AiEvent): string {
+  const sequence = event.sequence;
+  if (!sequence) {
+    return '';
+  }
+  if (sequence.sequenceStartFrameId !== undefined || sequence.sequenceEndFrameId !== undefined) {
+    return `sequenceFrames=${sequence.sequenceStartFrameId ?? 'n/a'}-${sequence.sequenceEndFrameId ?? 'n/a'}`;
+  }
+  if (sequence.sequenceStartAtMs !== undefined || sequence.sequenceEndAtMs !== undefined) {
+    return `sequenceMs=${sequence.sequenceStartAtMs ?? 'n/a'}-${sequence.sequenceEndAtMs ?? 'n/a'}`;
+  }
+  return '';
+}

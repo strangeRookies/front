@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
-import { AlertCircle, AlertTriangle, Expand, EyeOff, RefreshCw, Signal, SignalZero, ScanLine, Video, WifiOff } from 'lucide-react';
-import { RoiEditorModal } from './RoiEditorModal';
+import { AlertCircle, AlertTriangle, Expand, EyeOff, RefreshCw, ScanLine, Signal, SignalZero, Video, WifiOff } from 'lucide-react';
+import type { AiEvent } from '../../../hooks/useAiEvents';
+import { findCameraForAiEvent } from '../../../shared/utils/aiAlerts';
 import type { LiveCamera } from '../data/cameras';
 import { useFullscreenCamera } from '../hooks/useFullscreenCamera';
 import type { CameraConnectionStatus, CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
@@ -9,6 +10,8 @@ import { toCameraConnectionStatusDisplay } from '../hooks/useCameraStatusWebSock
 import { DetectionOverlayCanvas } from '../overlays/DetectionOverlayCanvas';
 import { useCameraOverlay } from '../overlays/overlayStore';
 import { CameraStreamFrame } from './CameraStreamFrame';
+import { RoiEditorModal } from './RoiEditorModal';
+import { fetchRoiConfigs } from '../api/roiApi';
 
 interface LiveCameraGridProps {
   cameras: LiveCamera[];
@@ -16,6 +19,7 @@ interface LiveCameraGridProps {
   compact?: boolean;
   onCameraClick?: (camera: LiveCamera) => void;
   cameraStatusMap?: CameraStatusMap;
+  overlayEvents?: readonly AiEvent[];
 }
 
 function realtimeStatusIcon(status: CameraConnectionStatus) {
@@ -97,7 +101,7 @@ function gridClass(count: number) {
   return 'grid-cols-1 md:grid-cols-2';
 }
 
-function CameraStream({ camera }: { camera: LiveCamera }) {
+function CameraStream({ camera, overlayEvent }: { camera: LiveCamera; overlayEvent?: AiEvent }) {
   const unavailable = camera.connectionStatus === 'offline';
   const overlayMessage = useCameraOverlay(camera);
 
@@ -110,6 +114,7 @@ function CameraStream({ camera }: { camera: LiveCamera }) {
         className="absolute inset-0 h-full w-full object-cover"
         dimmed={unavailable}
         cameraLoginId={camera.cameraLoginId}
+        overlayEvent={overlayEvent}
       />
       {!unavailable && overlayMessage && camera.eventStatus !== 'danger' && (
         <DetectionOverlayCanvas message={overlayMessage} />
@@ -133,15 +138,34 @@ function CameraDangerFallback({ camera }: { camera: LiveCamera }) {
   return (
     <div className="absolute inset-0 border-2 border-rose-500 bg-rose-600/10">
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-rose-600 px-3 py-1 text-xs font-extrabold text-white shadow-lg">
-        {camera.eventLabel || '?댁긽 ?곹솴'}
+        {camera.eventLabel || '이상 상황'}
       </div>
     </div>
   );
 }
 
-export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick, cameraStatusMap }: LiveCameraGridProps) {
+export function LiveCameraGrid({ cameras, className = '', compact = false, onCameraClick, cameraStatusMap, overlayEvents = [] }: LiveCameraGridProps) {
   const { activeFullscreenCameraId, requestCameraFullscreen, setCameraCardRef } = useFullscreenCamera();
   const [roiCamera, setRoiCamera] = useState<LiveCamera | null>(null);
+  const [roiCountMap, setRoiCountMap] = useState<Map<string, number>>(new Map());
+  const [roiRefreshKey, setRoiRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const targets = cameras.filter(c => c.cameraDbId);
+    if (targets.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      targets.map(c =>
+        fetchRoiConfigs(Number(c.cameraDbId))
+          .then(rois => ({ id: c.cameraDbId!, count: rois.filter(r => r.isActive).length }))
+          .catch(() => ({ id: c.cameraDbId!, count: 0 }))
+      )
+    ).then(results => {
+      if (cancelled) return;
+      setRoiCountMap(new Map(results.map(r => [r.id, r.count])));
+    });
+    return () => { cancelled = true; };
+  }, [cameras, roiRefreshKey]);
 
   const handleFullscreen = useCallback((cameraId: string, event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -164,6 +188,7 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
           ?? undefined;
         const style = statusStyle(camera, realtimeCameraStatus?.status);
         const StatusIcon = style.icon;
+        const overlayEvent = overlayEvents.find((event) => findCameraForAiEvent(cameras, event)?.id === camera.id);
         return (
           <div
             ref={(element) => setCameraCardRef(camera.id, element)}
@@ -175,7 +200,7 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
             onKeyDown={(event) => handleCameraKeyDown(camera, event)}
           >
             <div className={`relative bg-black ${compact ? 'aspect-video' : cameras.length === 1 ? 'aspect-[16/8]' : 'aspect-video'}`}>
-              <CameraStream camera={camera} />
+              <CameraStream camera={camera} overlayEvent={overlayEvent} />
 
               <div className="absolute left-2 top-2 z-20 flex items-center gap-1.5 rounded bg-black/75 px-2 py-1 text-[10px] font-extrabold text-rose-300 backdrop-blur">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
@@ -208,9 +233,16 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
                     type="button"
                     title="ROI 설정"
                     onClick={(event) => { event.stopPropagation(); setRoiCamera(camera); }}
-                    className="rounded bg-slate-900 p-1.5 text-slate-400 transition-colors hover:bg-blue-900/60 hover:text-blue-300"
+                    className={`flex items-center gap-1 rounded p-1.5 text-[10px] font-bold transition-colors
+                      ${(roiCountMap.get(camera.cameraDbId) ?? 0) > 0
+                        ? 'bg-blue-900/40 text-blue-300 hover:bg-blue-900/60'
+                        : 'bg-slate-900 text-slate-400 hover:bg-blue-900/60 hover:text-blue-300'
+                      }`}
                   >
                     <ScanLine className="h-3 w-3" />
+                    {(roiCountMap.get(camera.cameraDbId) ?? 0) > 0 && (
+                      <span>ROI {roiCountMap.get(camera.cameraDbId)}</span>
+                    )}
                   </button>
                 )}
                 <button
@@ -238,7 +270,7 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
           cameraDbId={Number(roiCamera.cameraDbId)}
           cameraName={roiCamera.name}
           cameraLoginId={roiCamera.cameraLoginId ?? roiCamera.id}
-          onClose={() => setRoiCamera(null)}
+          onClose={() => { setRoiCamera(null); setRoiRefreshKey(k => k + 1); }}
         />
       )}
     </div>
