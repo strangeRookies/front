@@ -16,6 +16,16 @@ export interface ScenarioResponse {
   description: string;
 }
 
+// AI 서버가 실제로 ROI를 적용하는 단위(ai/registered_cameras.py:27-28의
+// FAINT_SCENARIO_TYPES/EXIT_SCENARIO_TYPES)와 대응. 낙상/쓰러짐/실신은
+// AI 쪽에서 하나의 합집합 마스크로 합쳐져 적용되므로 편집 단위도 하나로 묶는다.
+export const ROI_GROUPS = [
+  { groupId: 'FAINT', label: '이상행동 감지 (낙상·쓰러짐·실신)', scenarioTypes: ['FALL_BED', 'COLLAPSE', 'SYNCOPE'] as ScenarioType[] },
+  { groupId: 'EXIT', label: '이탈 감지', scenarioTypes: ['EXIT'] as ScenarioType[] },
+] as const;
+
+export type RoiGroupId = typeof ROI_GROUPS[number]['groupId'];
+
 export interface RoiConfigResponse {
   roiConfigId: number;
   cameraId: number;

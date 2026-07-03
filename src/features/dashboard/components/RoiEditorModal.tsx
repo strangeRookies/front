@@ -3,8 +3,9 @@ import { X, Trash2, Save, RotateCcw } from 'lucide-react';
 import {
   type NormalizedPoint,
   type RoiConfigResponse,
+  type RoiGroupId,
   type ScenarioResponse,
-  SCENARIO_LABELS,
+  ROI_GROUPS,
   createRoiConfig,
   deleteRoiConfig,
   deserializePolygon,
@@ -39,13 +40,20 @@ const STROKE_COLORS = [
 ];
 const POINT_HIT_RADIUS = 10;
 
+function scenarioIdsForGroup(groupId: RoiGroupId, scenarios: ScenarioResponse[]): number[] {
+  const group = ROI_GROUPS.find(g => g.groupId === groupId);
+  if (!group) return [];
+  const types: readonly string[] = group.scenarioTypes;
+  return scenarios.filter(s => types.includes(s.scenarioType)).map(s => s.scenarioId);
+}
+
 export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose }: RoiEditorModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [scenarios, setScenarios] = useState<ScenarioResponse[]>([]);
   const [existingRois, setExistingRois] = useState<RoiConfigResponse[]>([]);
-  const [selectedScenarioId, setSelectedScenarioId] = useState<number | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<RoiGroupId | null>(null);
   const [points, setPoints] = useState<NormalizedPoint[]>([]);
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,12 +73,9 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
           fetchRoiConfigs(cameraDbId),
         ]);
         if (cancelled) return;
-        const filtered = scenariosData.filter(s => s.scenarioType !== 'ASSAULT');
-        setScenarios(filtered);
+        setScenarios(scenariosData);
         setExistingRois(roisData.filter(r => r.isActive));
-        if (filtered.length > 0) {
-          setSelectedScenarioId(filtered[0].scenarioId);
-        }
+        setSelectedGroupId(ROI_GROUPS[0].groupId);
       } catch {
         if (!cancelled) setError('데이터 불러오기 실패');
       } finally {
@@ -82,10 +87,11 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
   }, [cameraDbId]);
 
   useEffect(() => {
-    if (selectedScenarioId === null) return;
-    const existing = existingRois.find(r => r.scenarioId === selectedScenarioId);
+    if (selectedGroupId === null) return;
+    const ids = scenarioIdsForGroup(selectedGroupId, scenarios);
+    const existing = existingRois.find(r => ids.includes(r.scenarioId));
     setPoints(existing ? deserializePolygon(existing.polygonPoints) : []);
-  }, [selectedScenarioId, existingRois]);
+  }, [selectedGroupId, existingRois, scenarios]);
 
   // 캔버스 크기를 컨테이너에 동기화
   const syncCanvasSize = useCallback(() => {
@@ -106,23 +112,24 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
 
     // 현재 편집 중인 폴리곤
     if (points.length > 0) {
-      const colorIdx = scenarios.findIndex(s => s.scenarioId === selectedScenarioId) % COLORS.length;
+      const colorIdx = ROI_GROUPS.findIndex(g => g.groupId === selectedGroupId) % COLORS.length;
+      const idx = colorIdx < 0 ? 0 : colorIdx;
       ctx.beginPath();
       ctx.moveTo(points[0].x * width, points[0].y * height);
       for (let i = 1; i < points.length; i++) {
         ctx.lineTo(points[i].x * width, points[i].y * height);
       }
       if (points.length >= 3) ctx.closePath();
-      ctx.fillStyle = COLORS[colorIdx < 0 ? 0 : colorIdx];
+      ctx.fillStyle = COLORS[idx];
       ctx.fill();
-      ctx.strokeStyle = STROKE_COLORS[colorIdx < 0 ? 0 : colorIdx];
+      ctx.strokeStyle = STROKE_COLORS[idx];
       ctx.lineWidth = 2;
       ctx.stroke();
 
       for (let i = 0; i < points.length; i++) {
         ctx.beginPath();
         ctx.arc(points[i].x * width, points[i].y * height, 6, 0, Math.PI * 2);
-        ctx.fillStyle = STROKE_COLORS[colorIdx < 0 ? 0 : colorIdx];
+        ctx.fillStyle = STROKE_COLORS[idx];
         ctx.fill();
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 2;
@@ -130,26 +137,29 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
       }
     }
 
-    // 다른 시나리오 ROI 미리보기 (점선)
-    existingRois.forEach(roi => {
-      if (roi.scenarioId === selectedScenarioId) return;
-      const scenarioIdx = scenarios.findIndex(s => s.scenarioId === roi.scenarioId) % COLORS.length;
-      const idx = scenarioIdx < 0 ? 0 : scenarioIdx;
-      const pts = deserializePolygon(roi.polygonPoints);
-      if (pts.length < 3) return;
-      ctx.beginPath();
-      ctx.moveTo(pts[0].x * width, pts[0].y * height);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * width, pts[i].y * height);
-      ctx.closePath();
-      ctx.fillStyle = COLORS[idx].replace('0.35', '0.1');
-      ctx.fill();
-      ctx.strokeStyle = STROKE_COLORS[idx].replace('0.9', '0.4');
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    });
-  }, [points, existingRois, selectedScenarioId, scenarios]);
+    // 다른 그룹 ROI 미리보기 (점선)
+    const otherGroup = ROI_GROUPS.find(g => g.groupId !== selectedGroupId);
+    if (otherGroup) {
+      const otherIds = scenarioIdsForGroup(otherGroup.groupId, scenarios);
+      const otherRoi = existingRois.find(r => otherIds.includes(r.scenarioId));
+      const pts = otherRoi ? deserializePolygon(otherRoi.polygonPoints) : [];
+      if (pts.length >= 3) {
+        const otherColorIdx = ROI_GROUPS.findIndex(g => g.groupId === otherGroup.groupId) % COLORS.length;
+        const idx = otherColorIdx < 0 ? 0 : otherColorIdx;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x * width, pts[0].y * height);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * width, pts[i].y * height);
+        ctx.closePath();
+        ctx.fillStyle = COLORS[idx].replace('0.35', '0.1');
+        ctx.fill();
+        ctx.strokeStyle = STROKE_COLORS[idx].replace('0.9', '0.4');
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  }, [points, existingRois, selectedGroupId, scenarios]);
 
   // 컨테이너 크기 변화 감지 → 캔버스 리사이즈 → 리드로우
   useEffect(() => {
@@ -214,7 +224,7 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
   }
 
   async function handleSave() {
-    if (selectedScenarioId === null || points.length < 3) {
+    if (selectedGroupId === null || points.length < 3) {
       setError('최소 3개 이상의 점이 필요합니다.');
       return;
     }
@@ -222,16 +232,19 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
     setError(null);
     try {
       const polygonPoints = serializePolygon(points);
-      const existing = existingRois.find(r => r.scenarioId === selectedScenarioId);
-      let saved: RoiConfigResponse;
-      if (existing) {
-        saved = await updateRoiConfig(existing.roiConfigId, { polygonPoints });
-      } else {
-        saved = await createRoiConfig(cameraDbId, { scenarioId: selectedScenarioId, polygonPoints });
-      }
+      const scenarioIds = scenarioIdsForGroup(selectedGroupId, scenarios);
+      const saved = await Promise.all(
+        scenarioIds.map(scenarioId => {
+          const existing = existingRois.find(r => r.scenarioId === scenarioId);
+          return existing
+            ? updateRoiConfig(existing.roiConfigId, { polygonPoints })
+            : createRoiConfig(cameraDbId, { scenarioId, polygonPoints });
+        })
+      );
       setExistingRois(prev => {
-        const filtered = prev.filter(r => r.scenarioId !== selectedScenarioId);
-        return [...filtered, saved];
+        const savedScenarioIds = new Set(saved.map(r => r.scenarioId));
+        const filtered = prev.filter(r => !savedScenarioIds.has(r.scenarioId));
+        return [...filtered, ...saved];
       });
     } catch {
       setError('저장 실패. 좌표 값이 0~1 범위를 벗어났을 수 있습니다.');
@@ -241,14 +254,16 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
   }
 
   async function handleDelete() {
-    if (selectedScenarioId === null) return;
-    const existing = existingRois.find(r => r.scenarioId === selectedScenarioId);
-    if (!existing) { setPoints([]); return; }
+    if (selectedGroupId === null) return;
+    const scenarioIds = scenarioIdsForGroup(selectedGroupId, scenarios);
+    const existing = existingRois.filter(r => scenarioIds.includes(r.scenarioId));
+    if (existing.length === 0) { setPoints([]); return; }
     setSaving(true);
     setError(null);
     try {
-      await deleteRoiConfig(existing.roiConfigId);
-      setExistingRois(prev => prev.filter(r => r.roiConfigId !== existing.roiConfigId));
+      await Promise.all(existing.map(r => deleteRoiConfig(r.roiConfigId)));
+      const deletedIds = new Set(existing.map(r => r.roiConfigId));
+      setExistingRois(prev => prev.filter(r => !deletedIds.has(r.roiConfigId)));
       setPoints([]);
     } catch {
       setError('삭제 실패');
@@ -257,7 +272,8 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
     }
   }
 
-  const hasExistingForSelected = existingRois.some(r => r.scenarioId === selectedScenarioId);
+  const selectedScenarioIds = selectedGroupId ? scenarioIdsForGroup(selectedGroupId, scenarios) : [];
+  const hasExistingForSelected = existingRois.some(r => selectedScenarioIds.includes(r.scenarioId));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -274,31 +290,33 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
           </button>
         </div>
 
-        {/* 시나리오 탭 */}
+        {/* 그룹 탭 */}
         <div className="flex flex-wrap gap-2">
           {loading ? (
             <span className="text-xs text-slate-500">시나리오 불러오는 중...</span>
           ) : (
-            scenarios.map(s => {
-              const hasRoi = existingRois.some(r => r.scenarioId === s.scenarioId);
-              const isSelected = s.scenarioId === selectedScenarioId;
+            ROI_GROUPS.map(group => {
+              const groupScenarioIds = scenarioIdsForGroup(group.groupId, scenarios);
+              const hasRoi = existingRois.some(r => groupScenarioIds.includes(r.scenarioId));
+              const isSelected = group.groupId === selectedGroupId;
               return (
                 <button
-                  key={s.scenarioId}
-                  onClick={() => { setSelectedScenarioId(s.scenarioId); setError(null); }}
+                  key={group.groupId}
+                  onClick={() => { setSelectedGroupId(group.groupId); setError(null); }}
                   className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors
                     ${isSelected
                       ? 'border-blue-500 bg-blue-500/20 text-blue-300'
                       : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-500'
                     }`}
                 >
-                  {SCENARIO_LABELS[s.scenarioType] ?? s.scenarioType}
+                  {group.label}
                   {hasRoi && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
                 </button>
               );
             })
           )}
         </div>
+        <p className="text-[11px] text-slate-500">낙상·쓰러짐·실신은 하나의 분석 영역을 공유합니다.</p>
 
         {/* 캔버스 에디터 */}
         <div
@@ -383,15 +401,14 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">저장된 ROI</p>
             <div className="flex flex-wrap gap-2">
-              {existingRois.map(roi => {
-                const label = SCENARIO_LABELS[roi.scenarioType as keyof typeof SCENARIO_LABELS] ?? roi.scenarioType;
-                return (
-                  <div key={roi.roiConfigId} className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] text-slate-300">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                    {label}
-                  </div>
-                );
-              })}
+              {ROI_GROUPS.filter(group =>
+                existingRois.some(r => scenarioIdsForGroup(group.groupId, scenarios).includes(r.scenarioId))
+              ).map(group => (
+                <div key={group.groupId} className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] text-slate-300">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  {group.label}
+                </div>
+              ))}
             </div>
           </div>
         )}
