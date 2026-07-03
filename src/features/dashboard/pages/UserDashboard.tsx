@@ -54,16 +54,19 @@ function toLiveCameraConnectionStatus(camera: CameraResponse): CameraConnectionS
     case 'CONNECTED':
       return 'online';
     case 'RECONNECTING':
-    case 'UNKNOWN':
-      return 'connecting';
-    case 'DISCONNECTED':
     case 'ERROR':
+    case 'DISCONNECTED':
+    case 'UNKNOWN':
+      // Show as 'connecting' so the video stream remains visible while
+      // the AI worker is initializing or temporarily unavailable.
+      return 'connecting';
     case 'DISABLED':
       return 'offline';
     default:
       return 'connecting';
   }
 }
+
 
 function isVisibleLiveCamera(camera: CameraResponse) {
   return camera.status === 'ACTIVE';
