@@ -125,11 +125,19 @@ export function resolveOverlayBoxDisplay(box: any, index: number): { label: stri
     box.id ??
     box.objectId;
 
-  const fallbackIdUsed = trackId === null || trackId === undefined;
+  const displayLabel = typeof box.displayLabel === 'string' && box.displayLabel.trim()
+    ? box.displayLabel.trim()
+    : undefined;
+  const displayId = box.displayId ?? box.display_id;
+  const operatorLabel = displayLabel ?? (
+    displayId !== null && displayId !== undefined ? `ID ${displayId}` : undefined
+  );
 
-  const trackLabel = trackId !== null && trackId !== undefined
+  const fallbackIdUsed = operatorLabel === undefined && (trackId === null || trackId === undefined);
+
+  const trackLabel = operatorLabel ?? (trackId !== null && trackId !== undefined
     ? `ID_${trackId}`
-    : `ID_${index + 1}`;
+    : `ID_${index + 1}`);
 
   const hasEventFlag =
     box.isEvent !== undefined ||

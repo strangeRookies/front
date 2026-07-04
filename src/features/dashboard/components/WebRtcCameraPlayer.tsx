@@ -62,9 +62,11 @@ export function WebRtcCameraPlayer({
       }
     };
 
+    const whepUrl = `${WEBRTC_BASE_URL}/${cameraLoginId}/whep`;
+
     const triggerFallback = (reason: string) => {
       if (!isMounted) return;
-      console.warn(`[WebRTC Player] Falling back to HLS for ${cameraLoginId}. Reason: ${reason}`);
+      console.warn(`[WebRTC Player] Falling back to HLS for ${cameraLoginId}. Attempted WHEP URL: ${whepUrl}. Reason: ${reason}`);
       setFallbackReason(reason);
       cleanup();
       if (STREAM_FALLBACK_ENABLED) {
@@ -146,8 +148,6 @@ export function WebRtcCameraPlayer({
         if (!isMounted) return;
         await pc.setLocalDescription(offer);
         await waitForIceGathering(pc);
-        if (!isMounted) return;
-        const whepUrl = `${WEBRTC_BASE_URL}/${cameraLoginId}/whep`;
         console.log(`[WebRTC Player] Connecting to WHEP URL: ${whepUrl}`);
         const response = await fetch(whepUrl, {
           method: 'POST',

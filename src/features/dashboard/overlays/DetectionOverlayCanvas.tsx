@@ -29,6 +29,17 @@ export function getDisplayLabel(event: OverlayEvent): string {
   return rawId !== undefined && rawId !== null ? `ID ${rawId}` : 'ID ?';
 }
 
+export function composeOverlayLabel(event: OverlayEvent, index: number): string {
+  const display = resolveOverlayBoxDisplay(event, index);
+  const idLabel = getDisplayLabel(event);
+
+  if (idLabel === 'ID ?') {
+    return display.label;
+  }
+
+  return display.label === idLabel ? idLabel : `${idLabel} ${display.label}`;
+}
+
 function drawLabel(
   context: CanvasRenderingContext2D,
   label: string,
@@ -125,8 +136,7 @@ export function DetectionOverlayCanvas({ message }: DetectionOverlayCanvasProps)
 
         const bgColor = isEvent ? 'rgba(225, 29, 72, 0.92)' : 'rgba(56, 189, 248, 0.92)';
         const textColor = isEvent ? '#ffffff' : '#0f172a';
-        const idLabel = getDisplayLabel(event);
-        const finalLabel = `${idLabel} ${display.label}`;
+        const finalLabel = composeOverlayLabel(event, idx);
         drawLabel(context, finalLabel, left, top, width, bgColor, textColor);
       }
     };
