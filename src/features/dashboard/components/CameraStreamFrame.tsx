@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { STREAM_MODE, type StreamRenderKind } from '../data/cameras';
+import { STREAM_MODE, getMjpegUrlForCamera, type StreamRenderKind } from '../data/cameras';
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import { CameraAiOverlay } from './CameraAiOverlay';
 import { WebRtcCameraPlayer } from './WebRtcCameraPlayer';
-import { fetchAiOverlay, startAiOverlay, type AiOverlayResponse, type AiOverlayStatus } from '../../../app/api/cameraApi';
 
 export interface CameraStreamFrameProps {
   readonly streamUrl?: string;
@@ -84,14 +83,79 @@ function extractCameraLoginId(urlStr?: string): string | undefined {
   try {
     const url = new URL(urlStr);
     const pathParts = url.pathname.split('/').filter(Boolean);
+    if (pathParts[0] === 'mjpeg' && pathParts[1]) {
+      return pathParts[1];
+    }
     if (pathParts.length > 0) {
       return pathParts[0]; // For /cam_01/index.m3u8 or /cam_01/whep
     }
   } catch {
+    const mjpegMatch = urlStr.match(/\/mjpeg\/([^/]+)/);
+    if (mjpegMatch) return mjpegMatch[1];
     const match = urlStr.match(/\/([^/]+)\/(index\.m3u8|whep)/);
     if (match) return match[1];
   }
   return undefined;
+}
+
+/**
+ * MJPEG 스트림을 <img> 태그로 표시하는 컴포넌트.
+ * STREAM_MODE=mjpeg 일 때 AI worker가 overlay를 JPEG 프레임에 직접 그려 보내므로
+ * 프론트에서 별도 bbox/ROI/keypoint overlay를 그리지 않는다.
+ */
+function MjpegStream({
+  cameraLoginId,
+  title,
+  className = '',
+  dimmed = false,
+}: {
+  cameraLoginId: string;
+  title: string;
+  className?: string;
+  dimmed?: boolean;
+}) {
+  const mjpegUrl = getMjpegUrlForCamera(cameraLoginId);
+  const [loadError, setLoadError] = useState<string | undefined>(undefined);
+  const [loaded, setLoaded] = useState(false);
+
+  // cameraLoginId가 바뀌면 상태 초기화
+  useEffect(() => {
+    setLoadError(undefined);
+    setLoaded(false);
+  }, [cameraLoginId]);
+
+  if (loadError) {
+    return (
+      <div
+        className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} flex flex-col items-center justify-center gap-1.5 bg-slate-950 px-4 text-center`}
+      >
+        <span className="text-[10px] font-bold text-rose-400">MJPEG stream not ready</span>
+        <span className="break-all text-[9px] text-slate-500">{cameraLoginId}</span>
+        <span className="break-all text-[9px] text-slate-600">{mjpegUrl}</span>
+        <span className="text-[9px] text-slate-600">{loadError}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} relative`}>
+      {!loaded && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-slate-950 text-center">
+          <span className="text-[10px] font-bold text-slate-400">연결 중...</span>
+          <span className="text-[9px] text-slate-600">{cameraLoginId}</span>
+        </div>
+      )}
+      <img
+        src={mjpegUrl}
+        alt={title}
+        className={`h-full w-full object-cover ${loaded ? '' : 'opacity-0'}`}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          setLoadError(`HTTP load error — ${mjpegUrl}`);
+        }}
+      />
+    </div>
+  );
 }
 
 export function CameraStreamFrame({
@@ -104,118 +168,52 @@ export function CameraStreamFrame({
   overlayEvent,
 }: CameraStreamFrameProps) {
   const derivedLoginId = cameraLoginId || extractCameraLoginId(streamUrl);
-  const shouldResolveOverlay = streamKind === 'mjpeg' && STREAM_MODE === 'overlay' && !!derivedLoginId;
-  const [overlayUrl, setOverlayUrl] = useState<string | undefined>(undefined);
-  const [overlayStatus, setOverlayStatus] = useState<AiOverlayStatus>('UNKNOWN');
-  const [overlayError, setOverlayError] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    if (!shouldResolveOverlay || !derivedLoginId) {
-      setOverlayUrl(undefined);
-      setOverlayStatus('UNKNOWN');
-      setOverlayError(undefined);
-      return undefined;
-    }
-
-    let cancelled = false;
-    let retryTimer: number | undefined;
-
-    const applyResponse = (response: AiOverlayResponse): boolean => {
-      if (cancelled) {
-        return false;
-      }
-      setOverlayStatus(response.status);
-      setOverlayError(undefined);
-      if (response.status === 'RUNNING' && response.overlayUrl) {
-        setOverlayUrl(response.overlayUrl);
-        return true;
-      }
-      setOverlayUrl(undefined);
-      return false;
-    };
-
-    const loadOverlay = async (attempt: number): Promise<void> => {
-      try {
-        const response = attempt === 0
-          ? await startAiOverlay(derivedLoginId)
-          : await fetchAiOverlay(derivedLoginId);
-        const resolved = applyResponse(response);
-        if (resolved || cancelled || (response.status !== 'STARTING' && response.status !== 'UNKNOWN')) {
-          return;
-        }
-        if (attempt >= 20) {
-          setOverlayStatus('ERROR');
-          setOverlayError('AI overlay stream is still starting. Check the AI runner for this camera.');
-          return;
-        }
-        if (!resolved && !cancelled) {
-          retryTimer = window.setTimeout(() => {
-            void loadOverlay(attempt + 1);
-          }, 1000);
-        }
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-        setOverlayStatus('ERROR');
-        setOverlayError(error instanceof Error ? error.message : 'AI overlay stream request failed.');
-        setOverlayUrl(undefined);
-      }
-    };
-
-    void loadOverlay(0);
-    return () => {
-      cancelled = true;
-      if (retryTimer !== undefined) {
-        window.clearTimeout(retryTimer);
-      }
-    };
-  }, [derivedLoginId, shouldResolveOverlay]);
-
-  if (streamKind === 'hls') {
-    if (!streamUrl) return null;
-    if (STREAM_MODE === 'webrtc' && derivedLoginId) {
+  // ─── MJPEG 모드 ─────────────────────────────────────────────────────────────
+  // AI worker가 JPEG 프레임에 overlay를 직접 그려 보내므로 프론트에서 별도 overlay를 렌더링하지 않는다.
+  if (streamKind === 'mjpeg') {
+    if (!derivedLoginId) {
       return (
-        <WebRtcCameraPlayer
-          cameraLoginId={derivedLoginId}
-          title={title}
-          className={className}
-          dimmed={dimmed}
-          overlayEvent={overlayEvent}
-        />
+        <div
+          className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} flex items-center justify-center bg-slate-950 text-sm text-slate-400`}
+        >
+          카메라 ID를 확인할 수 없습니다.
+        </div>
       );
     }
     return (
-      <div className={className}>
-        <HlsStream
-          streamUrl={streamUrl}
-          streamKind={streamKind}
-          title={title}
-          className="h-full w-full object-cover"
-          dimmed={dimmed}
-        />
-        <CameraAiOverlay cameraLoginId={derivedLoginId} event={overlayEvent} />
-      </div>
+      <MjpegStream
+        cameraLoginId={derivedLoginId}
+        title={title}
+        className={className}
+        dimmed={dimmed}
+      />
     );
   }
 
-  const resolvedStreamUrl = shouldResolveOverlay ? overlayUrl : streamUrl;
-  if (!resolvedStreamUrl) {
+  // ─── HLS / WebRTC 모드 ──────────────────────────────────────────────────────
+  if (!streamUrl) return null;
+
+  if (STREAM_MODE === 'webrtc' && derivedLoginId) {
     return (
-      <div
-        className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} flex items-center justify-center bg-slate-950 text-sm text-slate-300`}
-      >
-        {overlayError || (overlayStatus === 'ERROR' ? 'AI overlay stream unavailable.' : 'AI overlay starting...')}
-      </div>
+      <WebRtcCameraPlayer
+        cameraLoginId={derivedLoginId}
+        title={title}
+        className={className}
+        dimmed={dimmed}
+        overlayEvent={overlayEvent}
+      />
     );
   }
 
   return (
     <div className={className}>
-      <img
-        src={resolvedStreamUrl}
-        alt={title}
-        className={`h-full w-full object-cover ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''}`}
+      <HlsStream
+        streamUrl={streamUrl}
+        streamKind={streamKind}
+        title={title}
+        className="h-full w-full object-cover"
+        dimmed={dimmed}
       />
       <CameraAiOverlay cameraLoginId={derivedLoginId} event={overlayEvent} />
     </div>

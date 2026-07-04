@@ -4,6 +4,7 @@ import { AlertCircle, AlertTriangle, Expand, Eye, EyeOff, RefreshCw, ScanLine, S
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import { findCameraForAiEvent } from '../../../shared/utils/aiAlerts';
 import type { LiveCamera } from '../data/cameras';
+import { STREAM_MODE } from '../data/cameras';
 import { useFullscreenCamera } from '../hooks/useFullscreenCamera';
 import type { CameraConnectionStatus, CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
 import { toCameraConnectionStatusDisplay } from '../hooks/useCameraStatusWebSocket';
@@ -105,6 +106,9 @@ function gridClass(count: number) {
 function CameraStream({ camera, overlayEvent, roiConfigs }: { camera: LiveCamera; overlayEvent?: AiEvent; roiConfigs: RoiConfigResponse[] }) {
   const unavailable = camera.connectionStatus === 'offline';
   const overlayMessage = useCameraOverlay(camera);
+  // MJPEG 모드에서는 AI worker가 JPEG 프레임에 overlay를 직접 그려 보내므로
+  // 프론트에서 DetectionOverlayCanvas / RoiOverlayCanvas를 중복 렌더링하지 않는다.
+  const isMjpegMode = STREAM_MODE === 'mjpeg';
 
   return (
     <>
@@ -117,10 +121,10 @@ function CameraStream({ camera, overlayEvent, roiConfigs }: { camera: LiveCamera
         cameraLoginId={camera.cameraLoginId}
         overlayEvent={overlayEvent}
       />
-      {!unavailable && roiConfigs.length > 0 && (
+      {!isMjpegMode && !unavailable && roiConfigs.length > 0 && (
         <RoiOverlayCanvas rois={roiConfigs} />
       )}
-      {!unavailable && overlayMessage && camera.eventStatus !== 'danger' && (
+      {!isMjpegMode && !unavailable && overlayMessage && camera.eventStatus !== 'danger' && (
         <DetectionOverlayCanvas message={overlayMessage} />
       )}
       {unavailable && (
