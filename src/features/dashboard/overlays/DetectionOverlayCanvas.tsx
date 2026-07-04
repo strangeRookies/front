@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
-import type { OverlayMessage } from './overlayTypes';
+import type { OverlayMessage, OverlayEvent } from './overlayTypes';
+import {
+  resolveOverlayBoxDisplay,
+  FAINT_DISPLAY_THRESHOLD,
+  normalizeConfidence,
+} from '../utils/overlayGeometry';
 
 interface DetectionOverlayCanvasProps {
   readonly message?: OverlayMessage;
@@ -12,6 +17,18 @@ function formatType(type: string) {
   return upper || 'UNKNOWN';
 }
 
+export function getDisplayLabel(event: OverlayEvent): string {
+  if (event.displayLabel) return event.displayLabel;
+
+  const displayId = event.displayId ?? event.display_id;
+  if (displayId !== undefined && displayId !== null) {
+    return `ID ${displayId}`;
+  }
+
+  const rawId = event.trackId ?? event.trackingId ?? event.track_id;
+  return rawId !== undefined && rawId !== null ? `ID ${rawId}` : 'ID ?';
+}
+
 function drawLabel(
   context: CanvasRenderingContext2D,
   label: string,
@@ -19,6 +36,7 @@ function drawLabel(
   y: number,
   maxWidth: number,
   bgColor: string,
+  textColor: string,
 ) {
   context.font = '700 12px sans-serif';
   const metrics = context.measureText(label);
@@ -30,7 +48,7 @@ function drawLabel(
 
   context.fillStyle = bgColor;
   context.fillRect(labelX, labelY, labelWidth, labelHeight);
-  context.fillStyle = '#ffffff';
+  context.fillStyle = textColor;
   context.fillText(label, labelX + paddingX, labelY + 16, labelWidth - paddingX * 2);
 }
 
@@ -61,35 +79,55 @@ export function DetectionOverlayCanvas({ message }: DetectionOverlayCanvasProps)
 
       if (!message || message.events.length === 0) return;
 
+      if (import.meta.env.VITE_FRONT_OVERLAY_SYNC_DEBUG === 'true') {
+        const sourcePath = 'matchedOverlay';
+        message.events.forEach((event, idx) => {
+          const display = resolveOverlayBoxDisplay(event, idx);
+          const rawConfidence = event.confidence ?? 0;
+          const normalizedConfidence = normalizeConfidence(rawConfidence);
+          const trackId = event.trackingId ?? 'n/a';
+          const rawType = event.type ?? 'unknown';
+
+          console.log(
+            `[Overlay Diagnosis Debug] cameraLoginId: ${message.cameraLoginId ?? 'n/a'}, sourcePath: ${sourcePath}, ` +
+            `trackId: ${trackId}, raw confidence: ${rawConfidence}, normalized confidence: ${normalizedConfidence}, ` +
+            `threshold: ${FAINT_DISPLAY_THRESHOLD}, raw type: ${rawType}, ` +
+            `final variant: ${display.variant}, final label: ${display.label}`
+          );
+        });
+      }
+
       const scale = Math.max(width / message.frameWidth, height / message.frameHeight);
       const renderedWidth = message.frameWidth * scale;
       const renderedHeight = message.frameHeight * scale;
       const offsetX = (width - renderedWidth) / 2;
       const offsetY = (height - renderedHeight) / 2;
 
-      for (const event of message.events) {
-        const isDanger = !!event.eventTriggered;
-        const strokeColor = isDanger ? '#fb7185' : '#10b981'; // 빨강 vs 초록
-        const shadowColor = isDanger ? 'rgba(251, 113, 133, 0.7)' : 'rgba(16, 185, 129, 0.5)';
-        const fillColor = isDanger ? 'rgba(251, 113, 133, 0.12)' : 'rgba(16, 185, 129, 0.08)';
-        const labelBgColor = isDanger ? 'rgba(225, 29, 72, 0.92)' : 'rgba(16, 185, 129, 0.92)';
+      for (let idx = 0; idx < message.events.length; idx++) {
+        const event = message.events[idx];
         const left = offsetX + event.bbox.x * scale;
         const top = offsetY + event.bbox.y * scale;
         const boxWidth = event.bbox.width * scale;
         const boxHeight = event.bbox.height * scale;
 
+        const display = resolveOverlayBoxDisplay(event, idx);
+        const isEvent = display.variant === 'event';
+
         context.lineWidth = 3;
-        context.strokeStyle = strokeColor;
-        context.shadowColor = shadowColor;
+        context.strokeStyle = isEvent ? '#f43f5e' : '#38bdf8';
+        context.shadowColor = isEvent ? 'rgba(244, 63, 94, 0.7)' : 'rgba(56, 189, 248, 0.4)';
         context.shadowBlur = 12;
         context.strokeRect(left, top, boxWidth, boxHeight);
         context.shadowBlur = 0;
 
-        context.fillStyle = fillColor;
+        context.fillStyle = isEvent ? 'rgba(244, 63, 94, 0.08)' : 'rgba(56, 189, 248, 0.04)';
         context.fillRect(left, top, boxWidth, boxHeight);
 
-        const confidence = event.confidence === null ? '' : ` ${Math.round(event.confidence * 100)}%`;
-        drawLabel(context, `${formatType(event.type)}${confidence}`, left, top, width, labelBgColor);
+        const bgColor = isEvent ? 'rgba(225, 29, 72, 0.92)' : 'rgba(56, 189, 248, 0.92)';
+        const textColor = isEvent ? '#ffffff' : '#0f172a';
+        const idLabel = getDisplayLabel(event);
+        const finalLabel = `${idLabel} ${display.label}`;
+        drawLabel(context, finalLabel, left, top, width, bgColor, textColor);
       }
     };
 

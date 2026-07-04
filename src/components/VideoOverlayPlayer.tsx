@@ -1,5 +1,10 @@
 import React, { useRef, useEffect } from 'react';
 import { useCctvStore, TelemetryEvent } from '../store/useCctvStore';
+import {
+  resolveOverlayBoxDisplay,
+  FAINT_DISPLAY_THRESHOLD,
+  normalizeConfidence,
+} from '../features/dashboard/utils/overlayGeometry';
 
 // AI 모델이 기준 삼은 원본 해상도 (팀 내 기준값으로 조정 필요)
 const AI_ORIGINAL_WIDTH = 1280;
@@ -35,32 +40,52 @@ export const VideoOverlayPlayer: React.FC<VideoOverlayPlayerProps> = ({ streamUr
     const scaleX = canvasWidth / AI_ORIGINAL_WIDTH;
     const scaleY = canvasHeight / AI_ORIGINAL_HEIGHT;
 
-    events.forEach((event) => {
-      if (event.type === 'faint') {
-        const { boundingBox, memoText, confidence } = event;
-        const { x, y, width, height } = boundingBox;
+    if (import.meta.env.VITE_FRONT_OVERLAY_SYNC_DEBUG === 'true') {
+      const sourcePath = 'legacyFallback';
+      events.forEach((event, idx) => {
+        const display = resolveOverlayBoxDisplay(event, idx);
+        const rawConfidence = event.confidence ?? 0;
+        const normalizedConfidence = normalizeConfidence(rawConfidence);
+        const trackId = (event as any).trackId ?? (event as any).track_id ?? 'n/a';
+        const rawType = event.type ?? 'unknown';
 
-        const scaledX = x * scaleX;
-        const scaledY = y * scaleY;
-        const scaledWidth = width * scaleX;
-        const scaledHeight = height * scaleY;
+        console.log(
+          `[Overlay Diagnosis Debug] cameraLoginId: legacyPlayer, sourcePath: ${sourcePath}, ` +
+          `trackId: ${trackId}, raw confidence: ${rawConfidence}, normalized confidence: ${normalizedConfidence}, ` +
+          `threshold: ${FAINT_DISPLAY_THRESHOLD}, raw type: ${rawType}, ` +
+          `final variant: ${display.variant}, final label: ${display.label}`
+        );
+      });
+    }
 
-        // [A] 바운딩 박스
-        ctx.strokeStyle = '#EF4444';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
+    events.forEach((event, idx) => {
+      const display = resolveOverlayBoxDisplay(event, idx);
+      const isEvent = display.variant === 'event';
 
-        // [B] 텍스트 배경
-        ctx.fillStyle = '#EF4444';
-        const text = `${memoText} (${(confidence * 100).toFixed(0)}%)`;
-        ctx.font = 'bold 14px sans-serif';
-        const textWidth = ctx.measureText(text).width;
-        ctx.fillRect(scaledX - 1, scaledY - 25, textWidth + 10, 25);
+      const { boundingBox } = event;
+      if (!boundingBox) return;
+      const { x, y, width, height } = boundingBox;
 
-        // [C] 텍스트
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillText(text, scaledX + 5, scaledY - 7);
-      }
+      const scaledX = x * scaleX;
+      const scaledY = y * scaleY;
+      const scaledWidth = width * scaleX;
+      const scaledHeight = height * scaleY;
+
+      // [A] 바운딩 박스
+      ctx.strokeStyle = isEvent ? '#EF4444' : '#38BDF8';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
+
+      // [B] 텍스트 배경
+      ctx.fillStyle = isEvent ? '#EF4444' : '#38BDF8';
+      const text = display.label;
+      ctx.font = 'bold 14px sans-serif';
+      const textWidth = ctx.measureText(text).width;
+      ctx.fillRect(scaledX - 1, scaledY - 25, textWidth + 10, 25);
+
+      // [C] 텍스트
+      ctx.fillStyle = isEvent ? '#FFFFFF' : '#0F172A';
+      ctx.fillText(text, scaledX + 5, scaledY - 7);
     });
   };
 
