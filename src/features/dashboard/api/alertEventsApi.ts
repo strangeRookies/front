@@ -126,7 +126,7 @@ export function toIncidentAlertFromRecentEvent(
     severity,
     status: acknowledged ? 'resolved' : 'new',
     snapshotUrl: readString(event, ['snapshotUrl', 'snapshot_url']),
-    clipUrl: readString(event, ['clipUrl', 'clip_url']),
+    clipUrl: readString(event, ['clipUrl', 'clip_url']) || (readString(event, ['snapshotUrl', 'snapshot_url']).includes('.mp4') || readString(event, ['snapshotUrl', 'snapshot_url']).includes('/clips/') ? readString(event, ['snapshotUrl', 'snapshot_url']) : ''),
   };
 }
 
