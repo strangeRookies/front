@@ -1,6 +1,6 @@
 export type CameraConnectionStatus = 'online' | 'offline' | 'connecting';
 export type CameraEventStatus = 'normal' | 'warning' | 'danger';
-export type StreamMode = 'raw' | 'overlay' | 'webrtc';
+export type StreamMode = 'raw' | 'overlay' | 'webrtc' | 'mjpeg';
 export type StreamRenderKind = 'hls' | 'mjpeg';
 
 export interface LiveCamera {
@@ -25,10 +25,13 @@ export const STREAM_MODE: StreamMode =
     ? 'webrtc'
     : streamModeEnv === 'raw'
       ? 'raw'
-      : 'overlay';
+      : streamModeEnv === 'mjpeg'
+        ? 'mjpeg'
+        : 'overlay';
 
 export const WEBRTC_BASE_URL = (env.VITE_WEBRTC_BASE_URL || 'http://localhost:8889').replace(/\/$/, '');
 export const HLS_BASE_URL = (env.VITE_HLS_BASE_URL || env.VITE_STREAM_BASE_URL || 'http://localhost:8888').replace(/\/$/, '');
+export const MJPEG_BASE_URL = (env.VITE_MJPEG_BASE_URL || env.VITE_OVERLAY_BASE_URL || 'http://localhost:8010').replace(/\/$/, '');
 export const STREAM_FALLBACK_ENABLED: boolean = env.VITE_STREAM_FALLBACK_ENABLED !== 'false';
 
 export function cameraLoginIdFor(cameraLoginId: string | undefined, cameraId: number | string): string {
@@ -56,6 +59,9 @@ export const getDynamicStreamUrl = (cameraLoginId: string): string => {
   }
   if (STREAM_MODE === 'raw') {
     return `${HLS_BASE_URL}/${cameraLoginId}/index.m3u8`;
+  }
+  if (STREAM_MODE === 'mjpeg') {
+    return `${MJPEG_BASE_URL}/mjpeg/${cameraLoginId}`;
   }
   return '';
 };

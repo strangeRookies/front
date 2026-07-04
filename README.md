@@ -14,15 +14,17 @@
   The monitoring dashboard supports raw MediaMTX HLS, WebRTC WHEP, and AI overlay MJPEG.
   
   ```env
-  VITE_STREAM_MODE=webrtc
+  VITE_STREAM_MODE=mjpeg
   VITE_WEBRTC_BASE_URL=http://localhost:8889
   VITE_HLS_BASE_URL=http://localhost:8888
+  VITE_MJPEG_BASE_URL=http://localhost:8010
   VITE_STREAM_FALLBACK_ENABLED=true
   ```
   
   - `webrtc`: Uses MediaMTX WebRTC WHEP at `${VITE_WEBRTC_BASE_URL}/{cameraLoginId}/whep`.
   - `raw`: Uses MediaMTX HLS at `${VITE_HLS_BASE_URL}/{cameraLoginId}/index.m3u8`.
-  - `overlay`: Uses AI overlay MJPEG at `http://localhost:8010/stream` (cam_01), `http://localhost:8011/stream` (cam_02), etc.
+  - `mjpeg`: Uses AI MJPEG at `${VITE_MJPEG_BASE_URL}/mjpeg/{cameraLoginId}`.
+  - `overlay`: Uses backend-reported AI overlay MJPEG URLs for compatibility.
   
   ### Option A: Direct GPU PC Connection
   If you are not using SSH tunnels, point the base URLs directly to the GPU PC IP (e.g. `192.168.0.66`):
