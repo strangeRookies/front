@@ -27,11 +27,14 @@ export const STREAM_MODE: StreamMode =
       ? 'raw'
       : streamModeEnv === 'mjpeg'
         ? 'mjpeg'
-        : 'overlay';
+        : 'mjpeg';
 
 export const WEBRTC_BASE_URL = (env.VITE_WEBRTC_BASE_URL || 'http://localhost:8889').replace(/\/$/, '');
 export const HLS_BASE_URL = (env.VITE_HLS_BASE_URL || env.VITE_STREAM_BASE_URL || 'http://localhost:8888').replace(/\/$/, '');
 export const MJPEG_BASE_URL = (env.VITE_MJPEG_BASE_URL || env.VITE_OVERLAY_BASE_URL || 'http://localhost:8010').replace(/\/$/, '');
+const mjpegBasePathEnv = (env.VITE_MJPEG_BASE_PATH || '/mjpeg').replace(/^\/+|\/+$/g, '');
+export const MJPEG_BASE_PATH = `/${mjpegBasePathEnv || 'mjpeg'}`;
+export const MJPEG_PORT_END = Number.parseInt(env.VITE_MJPEG_PORT_END || '8020', 10);
 export const STREAM_FALLBACK_ENABLED: boolean = env.VITE_STREAM_FALLBACK_ENABLED !== 'false';
 
 /**
@@ -48,7 +51,7 @@ const MJPEG_PROXY_MODE: boolean = env.VITE_MJPEG_PROXY_MODE === 'true';
 export function getMjpegUrlForCamera(cameraLoginId: string): string {
   // nginx 등 reverse proxy 모드: 단일 URL + cameraLoginId 경로
   if (MJPEG_PROXY_MODE) {
-    return `${MJPEG_BASE_URL}/mjpeg/${cameraLoginId}`;
+    return `${MJPEG_BASE_URL}${MJPEG_BASE_PATH}/${cameraLoginId}`;
   }
   // 직접 모드: 카메라 번호로 포트 offset 계산
   // cam_01 -> +0, cam_02 -> +1, cam_03 -> +2 ...
@@ -58,7 +61,7 @@ export function getMjpegUrlForCamera(cameraLoginId: string): string {
   const camNum = numMatch ? parseInt(numMatch[1], 10) : 1;
   const portOffset = Math.max(0, camNum - 1);
   const targetPort = basePort + portOffset;
-  return `${parsed.protocol}//${parsed.hostname}:${targetPort}/mjpeg/${cameraLoginId}`;
+  return `${parsed.protocol}//${parsed.hostname}:${targetPort}${MJPEG_BASE_PATH}/${cameraLoginId}`;
 }
 
 export function cameraLoginIdFor(cameraLoginId: string | undefined, cameraId: number | string): string {

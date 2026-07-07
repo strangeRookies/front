@@ -18,7 +18,7 @@ import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import { CCTVRegistration } from '../components/CCTVRegistration';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
-import type { LiveCamera } from '../data/cameras';
+import { STREAM_MODE, cameraLoginIdFor, getDynamicStreamUrl, streamRenderKind, type LiveCamera } from '../data/cameras';
 import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, updateAdminMember, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse } from '../api/adminApi';
 import { useAiEvents } from '../../../hooks/useAiEvents';
 import { isDangerAiEvent, getSeverityTone, getEventTypeKorean, aiEventFingerprint } from '../../../shared/utils/aiAlerts';
@@ -715,16 +715,18 @@ const handleSubmitReply = async () => {
             if (selectedSpace?.type === 'corporate') {
               const corpCameras = spaceViewCameras as CorporateCameraResponse[];
               const selectedCorp = corpCameras.find(c => String(c.cameraId) === spaceSelectedCameraId);
-              const corpStreamUrl = selectedCorp?.assignedVideoPath ?? selectedCorp?.rtspUrl ?? '';
+              const corpCameraLoginId = selectedCorp
+                ? cameraLoginIdFor(selectedCorp.cameraLoginId, selectedCorp.cameraId)
+                : '';
               const corpLiveCamera: LiveCamera | null = selectedCorp ? {
-                id: selectedCorp.cameraLoginId || String(selectedCorp.cameraId),
-                cameraLoginId: selectedCorp.cameraLoginId,
+                id: corpCameraLoginId,
+                cameraLoginId: corpCameraLoginId,
                 cameraDbId: String(selectedCorp.cameraId),
                 name: selectedCorp.cameraName,
                 location: selectedCorp.locationDescription ?? '',
-                streamUrl: corpStreamUrl,
-                streamMode: 'raw',
-                streamKind: 'hls',
+                streamUrl: getDynamicStreamUrl(corpCameraLoginId),
+                streamMode: STREAM_MODE,
+                streamKind: streamRenderKind(),
                 connectionStatus: selectedCorp.connectionStatus === 'CONNECTED' ? 'online'
                   : selectedCorp.connectionStatus === 'RECONNECTING' ? 'connecting' : 'offline',
                 eventStatus: 'normal',
@@ -794,19 +796,22 @@ const handleSubmitReply = async () => {
             // ── 개인 시설 뷰 ──────────────────────────────────────────
             if (selectedSpace?.type === 'individual') {
               const indCameras = spaceViewCameras as AdminFacilityCameraResponse[];
-              const individualLiveCameras: LiveCamera[] = indCameras.map(cam => ({
-                id: cam.cameraLoginId || String(cam.cameraId),
-                cameraLoginId: cam.cameraLoginId,
-                cameraDbId: String(cam.cameraId),
-                name: cam.cameraName,
-                location: cam.locationDescription ?? '',
-                streamUrl: cam.assignedVideoPath ?? cam.rtspUrl,
-                streamMode: 'raw' as const,
-                streamKind: 'hls' as const,
-                connectionStatus: cam.connectionStatus === 'CONNECTED' ? 'online'
-                  : cam.connectionStatus === 'RECONNECTING' ? 'connecting' : 'offline',
-                eventStatus: 'normal' as const,
-              }));
+              const individualLiveCameras: LiveCamera[] = indCameras.map(cam => {
+                const cameraLoginId = cameraLoginIdFor(cam.cameraLoginId, cam.cameraId);
+                return {
+                  id: cameraLoginId,
+                  cameraLoginId,
+                  cameraDbId: String(cam.cameraId),
+                  name: cam.cameraName,
+                  location: cam.locationDescription ?? '',
+                  streamUrl: getDynamicStreamUrl(cameraLoginId),
+                  streamMode: STREAM_MODE,
+                  streamKind: streamRenderKind(),
+                  connectionStatus: cam.connectionStatus === 'CONNECTED' ? 'online'
+                    : cam.connectionStatus === 'RECONNECTING' ? 'connecting' : 'offline',
+                  eventStatus: 'normal' as const,
+                };
+              });
 
               return (
                 <div className="flex-1 flex flex-col overflow-hidden">

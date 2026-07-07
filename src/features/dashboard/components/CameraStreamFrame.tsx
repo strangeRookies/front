@@ -114,15 +114,59 @@ function MjpegStream({
   className?: string;
   dimmed?: boolean;
 }) {
-  const mjpegUrl = getMjpegUrlForCamera(cameraLoginId);
+  const [cacheBuster, setCacheBuster] = useState(() => Date.now());
+  const mjpegUrl = `${getMjpegUrlForCamera(cameraLoginId)}?t=${cacheBuster}`;
   const [loadError, setLoadError] = useState<string | undefined>(undefined);
   const [loaded, setLoaded] = useState(false);
+  const [diagInfo, setDiagInfo] = useState<{
+    complete: boolean;
+    naturalWidth: number;
+    naturalHeight: number;
+    lastErrorTime?: string;
+  }>({
+    complete: false,
+    naturalWidth: 0,
+    naturalHeight: 0,
+  });
 
-  // cameraLoginId가 바뀌면 상태 초기화
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // cameraLoginId가 바뀌면 상태 초기화 및 캐시 버스터 갱신
   useEffect(() => {
     setLoadError(undefined);
     setLoaded(false);
+    setCacheBuster(Date.now());
+    setDiagInfo({
+      complete: false,
+      naturalWidth: 0,
+      naturalHeight: 0,
+    });
   }, [cameraLoginId]);
+
+  // 주기적으로 이미지 갱신 상태 모니터링 (진단용 콘솔 출력)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (imgRef.current) {
+        const img = imgRef.current;
+        console.log(`[mjpeg-diag] camera=${cameraLoginId} complete=${img.complete} dimensions=${img.naturalWidth}x${img.naturalHeight} url=${mjpegUrl}`);
+        setDiagInfo(prev => ({
+          ...prev,
+          complete: img.complete,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+        }));
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [cameraLoginId, mjpegUrl]);
+
+  let expectedPort = 'unknown';
+  try {
+    const parsedUrl = new URL(mjpegUrl);
+    expectedPort = parsedUrl.port || (parsedUrl.protocol === 'https:' ? '443' : '80');
+  } catch {
+    expectedPort = 'invalid';
+  }
 
   if (loadError) {
     return (
@@ -130,9 +174,13 @@ function MjpegStream({
         className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} flex flex-col items-center justify-center gap-1.5 bg-slate-950 px-4 text-center`}
       >
         <span className="text-[10px] font-bold text-rose-400">MJPEG stream not ready</span>
-        <span className="break-all text-[9px] text-slate-500">{cameraLoginId}</span>
-        <span className="break-all text-[9px] text-slate-600">{mjpegUrl}</span>
-        <span className="text-[9px] text-slate-600">{loadError}</span>
+        <span className="break-all text-[9px] text-slate-500">Camera: {cameraLoginId}</span>
+        <span className="break-all text-[9px] text-slate-600">URL: {mjpegUrl}</span>
+        <span className="text-[9px] text-slate-600">Expected Port: {expectedPort}</span>
+        <span className="text-[9px] text-rose-500">{loadError}</span>
+        {diagInfo.lastErrorTime && (
+          <span className="text-[8px] text-slate-500">Error Time: {diagInfo.lastErrorTime}</span>
+        )}
       </div>
     );
   }
@@ -146,12 +194,28 @@ function MjpegStream({
         </div>
       )}
       <img
+        ref={imgRef}
         src={mjpegUrl}
         alt={title}
         className={`h-full w-full object-cover ${loaded ? '' : 'opacity-0'}`}
-        onLoad={() => setLoaded(true)}
+        onLoad={() => {
+          setLoaded(true);
+          if (imgRef.current) {
+            setDiagInfo(prev => ({
+              ...prev,
+              complete: imgRef.current?.complete ?? false,
+              naturalWidth: imgRef.current?.naturalWidth ?? 0,
+              naturalHeight: imgRef.current?.naturalHeight ?? 0,
+            }));
+          }
+        }}
         onError={() => {
-          setLoadError(`HTTP load error — ${mjpegUrl}`);
+          const nowStr = new Date().toLocaleTimeString();
+          setLoadError(`HTTP load error — code 404/500 or network issue`);
+          setDiagInfo(prev => ({
+            ...prev,
+            lastErrorTime: nowStr,
+          }));
         }}
       />
     </div>
