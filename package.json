@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test:ai-ack": "node scripts/verify-ai-acknowledge-contract.mjs",
     "test:mjpeg-routing": "node scripts/verify-mjpeg-stream-routing.mjs",
+    "test:mjpeg-stale": "node scripts/verify-mjpeg-stale-detector.mjs",
     "test:overlay-sync": "node scripts/verify-overlay-sync-contract.mjs && node scripts/verify-overlay-sync-behavior.mjs"
   },
   "dependencies": {
