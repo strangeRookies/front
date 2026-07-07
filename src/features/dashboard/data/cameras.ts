@@ -15,6 +15,9 @@ export interface LiveCamera {
   connectionStatus: CameraConnectionStatus;
   eventStatus: CameraEventStatus;
   eventLabel?: string;
+  overlayUrl?: string | null;
+  overlayStreamType?: 'MJPEG' | string | null;
+  overlayRenderedInStream?: boolean | null;
 }
 
 const env = import.meta.env;
@@ -95,6 +98,50 @@ export const getDynamicStreamUrl = (cameraLoginId: string): string => {
   }
   return '';
 };
+
+export interface BackendOverlayState {
+  readonly overlayUrl?: string | null;
+  readonly overlayStreamType?: 'MJPEG' | string | null;
+  readonly overlayRenderedInStream?: boolean | null;
+}
+
+export interface ResolvedCameraStream {
+  readonly streamUrl: string;
+  readonly streamKind: StreamRenderKind;
+}
+
+export function isValidBrowserOverlayUrl(value?: string | null): value is string {
+  if (!value || value.includes('0.0.0.0')) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export function isMjpegOverlayStream(overlay: BackendOverlayState): boolean {
+  return overlay.overlayStreamType === 'MJPEG' && isValidBrowserOverlayUrl(overlay.overlayUrl);
+}
+
+export function isOverlayRenderedInStream(overlay: BackendOverlayState): boolean {
+  return isMjpegOverlayStream(overlay) && overlay.overlayRenderedInStream === true;
+}
+
+export function resolveCameraStream(cameraLoginId: string, overlay: BackendOverlayState): ResolvedCameraStream {
+  if (isMjpegOverlayStream(overlay)) {
+    return {
+      streamUrl: overlay.overlayUrl,
+      streamKind: 'mjpeg',
+    };
+  }
+  return {
+    streamUrl: getDynamicStreamUrl(cameraLoginId),
+    streamKind: streamRenderKind(),
+  };
+}
 
 export const streamUrl = (cameraId: string) => {
   return getDynamicStreamUrl(cameraId);

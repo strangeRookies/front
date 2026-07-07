@@ -123,21 +123,20 @@ export function DetectionOverlayCanvas({ message }: DetectionOverlayCanvasProps)
 
         const display = resolveOverlayBoxDisplay(event, idx);
         const isEvent = display.variant === 'event';
+        if (!isEvent) continue;
 
         context.lineWidth = 3;
-        context.strokeStyle = isEvent ? '#f43f5e' : '#38bdf8';
-        context.shadowColor = isEvent ? 'rgba(244, 63, 94, 0.7)' : 'rgba(56, 189, 248, 0.4)';
+        context.strokeStyle = '#f43f5e';
+        context.shadowColor = 'rgba(244, 63, 94, 0.7)';
         context.shadowBlur = 12;
         context.strokeRect(left, top, boxWidth, boxHeight);
         context.shadowBlur = 0;
 
-        context.fillStyle = isEvent ? 'rgba(244, 63, 94, 0.08)' : 'rgba(56, 189, 248, 0.04)';
+        context.fillStyle = 'rgba(244, 63, 94, 0.08)';
         context.fillRect(left, top, boxWidth, boxHeight);
 
-        const bgColor = isEvent ? 'rgba(225, 29, 72, 0.92)' : 'rgba(56, 189, 248, 0.92)';
-        const textColor = isEvent ? '#ffffff' : '#0f172a';
         const finalLabel = composeOverlayLabel(event, idx);
-        drawLabel(context, finalLabel, left, top, width, bgColor, textColor);
+        drawLabel(context, finalLabel, left, top, width, 'rgba(225, 29, 72, 0.92)', '#ffffff');
       }
     };
 

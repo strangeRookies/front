@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { STREAM_MODE, getMjpegUrlForCamera, type StreamRenderKind } from '../data/cameras';
+import { STREAM_MODE, type StreamRenderKind } from '../data/cameras';
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import { CameraAiOverlay } from './CameraAiOverlay';
 import { WebRtcCameraPlayer } from './WebRtcCameraPlayer';
@@ -107,6 +107,11 @@ function extractCameraLoginId(urlStr?: string): string | undefined {
   return undefined;
 }
 
+function withCacheBuster(url: string, cacheBuster: number): string {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}t=${cacheBuster}`;
+}
+
 /**
  * MJPEG 스트림을 <img> 태그로 표시하는 컴포넌트.
  * STREAM_MODE=mjpeg 일 때 AI worker가 overlay를 JPEG 프레임에 직접 그려 보내므로
@@ -114,17 +119,20 @@ function extractCameraLoginId(urlStr?: string): string | undefined {
  */
 function MjpegStream({
   cameraLoginId,
+  streamUrl,
   title,
   className = '',
   dimmed = false,
 }: {
-  cameraLoginId: string;
+  cameraLoginId?: string;
+  streamUrl: string;
   title: string;
   className?: string;
   dimmed?: boolean;
 }) {
   const [cacheBuster, setCacheBuster] = useState(() => Date.now());
-  const mjpegUrl = `${getMjpegUrlForCamera(cameraLoginId)}?t=${cacheBuster}`;
+  const mjpegUrl = withCacheBuster(streamUrl, cacheBuster);
+  const cameraLabel = cameraLoginId ?? extractCameraLoginId(streamUrl) ?? 'unknown-camera';
   const [loadError, setLoadError] = useState<string | undefined>(undefined);
   const [loaded, setLoaded] = useState(false);
   const [diagInfo, setDiagInfo] = useState<{
@@ -184,7 +192,7 @@ function MjpegStream({
     consecutivePayloadStaleRef.current = 0;
     lastReconnectAtRef.current = 0;
     reconnectAttemptRef.current = 0;
-  }, [cameraLoginId]);
+  }, [cameraLoginId, streamUrl]);
 
   let expectedPort = 'unknown';
   let healthUrl = '';
@@ -206,7 +214,7 @@ function MjpegStream({
         healthErrorReason: 'health-url-invalid',
         isStale: false,
       }));
-      console.warn(`[mjpeg-health] Camera ${cameraLoginId} diagnostic unavailable reason=health-url-invalid`);
+      console.warn(`[mjpeg-health] Camera ${cameraLabel} diagnostic unavailable reason=health-url-invalid`);
       return undefined;
     }
 
@@ -235,7 +243,7 @@ function MjpegStream({
             isStale: false,
             staleReasons: [],
           }));
-          console.warn(`[mjpeg-health] Camera ${cameraLoginId} diagnostic unavailable reason=health-fetch-failed status=${res.status}`);
+          console.warn(`[mjpeg-health] Camera ${cameraLabel} diagnostic unavailable reason=health-fetch-failed status=${res.status}`);
           return;
         }
         const data = await res.json();
@@ -279,7 +287,7 @@ function MjpegStream({
         const now = Date.now();
         const cooldownMs = reconnectCooldownMs(reconnectAttemptRef.current);
         if (now - lastReconnectAtRef.current < cooldownMs) {
-          console.warn(`[mjpeg-stale] Camera ${cameraLoginId} reconnect skipped reason=reconnect-cooldown-active cooldownMs=${cooldownMs}`);
+          console.warn(`[mjpeg-stale] Camera ${cameraLabel} reconnect skipped reason=reconnect-cooldown-active cooldownMs=${cooldownMs}`);
           setDiagInfo(prev => ({
             ...prev,
             healthErrorReason: 'reconnect-cooldown-active',
@@ -287,7 +295,7 @@ function MjpegStream({
           return;
         }
 
-        console.warn(`[mjpeg-stale] Camera ${cameraLoginId} stale detected reason=${staleReasons.join(',')} Auto-reconnecting...`);
+        console.warn(`[mjpeg-stale] Camera ${cameraLabel} stale detected reason=${staleReasons.join(',')} Auto-reconnecting...`);
         lastReconnectAtRef.current = now;
         reconnectAttemptRef.current += 1;
         setCacheBuster(now);
@@ -307,12 +315,12 @@ function MjpegStream({
           isStale: false,
           staleReasons: [],
         }));
-        console.warn(`[mjpeg-health] Camera ${cameraLoginId} diagnostic unavailable reason=${reason} message=${message}`);
+        console.warn(`[mjpeg-health] Camera ${cameraLabel} diagnostic unavailable reason=${reason} message=${message}`);
       }
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [cameraLoginId, healthUrl]);
+  }, [cameraLabel, healthUrl]);
 
   const handleReconnect = () => {
     const now = Date.now();
@@ -336,7 +344,7 @@ function MjpegStream({
         className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} flex flex-col items-center justify-center gap-1.5 bg-slate-950 px-4 text-center`}
       >
         <span className="text-[10px] font-bold text-rose-400">MJPEG stream not ready</span>
-        <span className="break-all text-[9px] text-slate-500">Camera: {cameraLoginId}</span>
+        <span className="break-all text-[9px] text-slate-500">Camera: {cameraLabel}</span>
         <span className="break-all text-[9px] text-slate-600">URL: {mjpegUrl}</span>
         <span className="text-[9px] text-slate-600">Expected Port: {expectedPort}</span>
         <span className="text-[9px] text-rose-500">{loadError}</span>
@@ -361,7 +369,7 @@ function MjpegStream({
             {diagInfo.isStale ? '영상 지연 발생 (Stale)' : '연결 중...'}
           </span>
           <span className="text-[9px] text-slate-600">
-            {cameraLoginId} {diagInfo.lastHealthFrameAge > 0 && `(Age: ${diagInfo.lastHealthFrameAge}ms)`}
+            {cameraLabel} {diagInfo.lastHealthFrameAge > 0 && `(Age: ${diagInfo.lastHealthFrameAge}ms)`}
           </span>
           <button
             onClick={handleReconnect}
@@ -426,7 +434,7 @@ export function CameraStreamFrame({
   // ─── MJPEG 모드 ─────────────────────────────────────────────────────────────
   // AI worker가 JPEG 프레임에 overlay를 직접 그려 보내므로 프론트에서 별도 overlay를 렌더링하지 않는다.
   if (streamKind === 'mjpeg') {
-    if (!derivedLoginId) {
+    if (!streamUrl) {
       return (
         <div
           className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} flex items-center justify-center bg-slate-950 text-sm text-slate-400`}
@@ -437,6 +445,7 @@ export function CameraStreamFrame({
     }
     return (
       <MjpegStream
+        streamUrl={streamUrl}
         cameraLoginId={derivedLoginId}
         title={title}
         className={className}

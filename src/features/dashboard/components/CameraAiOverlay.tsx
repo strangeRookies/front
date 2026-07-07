@@ -92,16 +92,12 @@ export function CameraAiOverlay({ cameraLoginId, videoFrameClock, event: propEve
           const geometry = parseOverlayBox(e.bbox, matchedOverlay!.frameWidth, matchedOverlay!.frameHeight);
           if (!geometry) return undefined;
           const display = resolveOverlayBoxDisplay(e, idx);
+          if (display.variant !== 'event') return undefined;
           return { ...geometry, label: display.label, isEvent: display.variant === 'event', fallbackIdUsed: display.fallbackIdUsed };
         })
         .filter((b): b is OverlayBox & { label: string; isEvent: boolean; fallbackIdUsed: boolean } => b !== undefined)
         .slice(0, 8)
-    : overlayBoxes(propEvent!).map((b, idx) => ({
-        ...b,
-        label: `ID_${idx + 1}`,
-        isEvent: false,
-        fallbackIdUsed: true,
-      }));
+    : [];
 
   const activeFrameId = matchedOverlay ? matchedOverlay.frameId : (propEvent ? propEvent.frameId : undefined);
   const activeTimestamp = matchedOverlay ? matchedOverlay.timestampMs : (propEvent ? propEvent.timestamp : now);

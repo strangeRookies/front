@@ -18,7 +18,7 @@ import { CCTVStatsCards } from '../components/CCTVStatsCards';
 import { CCTVRegistration } from '../components/CCTVRegistration';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
-import { STREAM_MODE, cameraLoginIdFor, getDynamicStreamUrl, streamRenderKind, type LiveCamera } from '../data/cameras';
+import { STREAM_MODE, cameraLoginIdFor, resolveCameraStream, type LiveCamera } from '../data/cameras';
 import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, updateAdminMember, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse } from '../api/adminApi';
 import { useAiEvents } from '../../../hooks/useAiEvents';
 import { isDangerAiEvent, getSeverityTone, getEventTypeKorean, aiEventFingerprint } from '../../../shared/utils/aiAlerts';
@@ -718,18 +718,24 @@ const handleSubmitReply = async () => {
               const corpCameraLoginId = selectedCorp
                 ? cameraLoginIdFor(selectedCorp.cameraLoginId, selectedCorp.cameraId)
                 : '';
+              const corpResolvedStream = selectedCorp
+                ? resolveCameraStream(corpCameraLoginId, selectedCorp)
+                : null;
               const corpLiveCamera: LiveCamera | null = selectedCorp ? {
                 id: corpCameraLoginId,
                 cameraLoginId: corpCameraLoginId,
                 cameraDbId: String(selectedCorp.cameraId),
                 name: selectedCorp.cameraName,
                 location: selectedCorp.locationDescription ?? '',
-                streamUrl: getDynamicStreamUrl(corpCameraLoginId),
+                streamUrl: corpResolvedStream!.streamUrl,
                 streamMode: STREAM_MODE,
-                streamKind: streamRenderKind(),
+                streamKind: corpResolvedStream!.streamKind,
                 connectionStatus: selectedCorp.connectionStatus === 'CONNECTED' ? 'online'
                   : selectedCorp.connectionStatus === 'RECONNECTING' ? 'connecting' : 'offline',
                 eventStatus: 'normal',
+                overlayUrl: selectedCorp.overlayUrl,
+                overlayStreamType: selectedCorp.overlayStreamType,
+                overlayRenderedInStream: selectedCorp.overlayRenderedInStream,
               } : null;
 
               return (
@@ -798,18 +804,22 @@ const handleSubmitReply = async () => {
               const indCameras = spaceViewCameras as AdminFacilityCameraResponse[];
               const individualLiveCameras: LiveCamera[] = indCameras.map(cam => {
                 const cameraLoginId = cameraLoginIdFor(cam.cameraLoginId, cam.cameraId);
+                const resolvedStream = resolveCameraStream(cameraLoginId, cam);
                 return {
                   id: cameraLoginId,
                   cameraLoginId,
                   cameraDbId: String(cam.cameraId),
                   name: cam.cameraName,
                   location: cam.locationDescription ?? '',
-                  streamUrl: getDynamicStreamUrl(cameraLoginId),
+                  streamUrl: resolvedStream.streamUrl,
                   streamMode: STREAM_MODE,
-                  streamKind: streamRenderKind(),
+                  streamKind: resolvedStream.streamKind,
                   connectionStatus: cam.connectionStatus === 'CONNECTED' ? 'online'
                     : cam.connectionStatus === 'RECONNECTING' ? 'connecting' : 'offline',
                   eventStatus: 'normal' as const,
+                  overlayUrl: cam.overlayUrl,
+                  overlayStreamType: cam.overlayStreamType,
+                  overlayRenderedInStream: cam.overlayRenderedInStream,
                 };
               });
 

@@ -7,7 +7,7 @@ import { fetchRecentAlertEvents, toIncidentAlertFromRecentEvent } from '../api/a
 import { useAiAlertActions } from '../../../hooks/useAiAlertActions';
 import { useDashboardAlerts } from '../hooks/useDashboardAlerts';
 import type { MenuId, InquiryCategory, IncidentAlert } from '../types/dashboard';
-import { STREAM_MODE, cameraLoginIdFor, getDynamicStreamUrl, streamRenderKind, type LiveCamera, type CameraConnectionStatus, type CameraEventStatus } from '../data/cameras';
+import { STREAM_MODE, cameraLoginIdFor, resolveCameraStream, type LiveCamera, type CameraConnectionStatus, type CameraEventStatus } from '../data/cameras';
 import {
   ALL_MENU_ITEMS,
   CATEGORIES,
@@ -72,11 +72,6 @@ function isVisibleLiveCamera(camera: CameraResponse) {
   return camera.status === 'ACTIVE';
 }
 
-function toLiveCameraStreamUrl(camera: CameraResponse) {
-  const cameraLoginId = cameraLoginIdFor(camera.cameraLoginId, camera.cameraId);
-  return getDynamicStreamUrl(cameraLoginId);
-}
-
 export function NurseDashboard({
   username,
   userType,
@@ -121,18 +116,25 @@ export function NurseDashboard({
   const liveCameras = useMemo<LiveCamera[]>(() => {
     return registeredCameras
       .filter(isVisibleLiveCamera)
-      .map((camera) => ({
-        id: cameraLoginIdFor(camera.cameraLoginId, camera.cameraId),
-        cameraLoginId: cameraLoginIdFor(camera.cameraLoginId, camera.cameraId),
-        cameraDbId: camera.cameraId.toString(),
-        name: camera.cameraName || camera.cameraLoginId,
-        location: camera.locationDescription || camera.cameraLoginId || '-',
-        streamUrl: toLiveCameraStreamUrl(camera),
-        streamMode: STREAM_MODE,
-        streamKind: streamRenderKind(),
-        connectionStatus: toLiveCameraConnectionStatus(camera),
-        eventStatus: 'normal',
-      }));
+      .map((camera) => {
+        const cameraLoginId = cameraLoginIdFor(camera.cameraLoginId, camera.cameraId);
+        const resolvedStream = resolveCameraStream(cameraLoginId, camera);
+        return {
+          id: cameraLoginId,
+          cameraLoginId,
+          cameraDbId: camera.cameraId.toString(),
+          name: camera.cameraName || camera.cameraLoginId,
+          location: camera.locationDescription || camera.cameraLoginId || '-',
+          streamUrl: resolvedStream.streamUrl,
+          streamMode: STREAM_MODE,
+          streamKind: resolvedStream.streamKind,
+          connectionStatus: toLiveCameraConnectionStatus(camera),
+          eventStatus: 'normal',
+          overlayUrl: camera.overlayUrl,
+          overlayStreamType: camera.overlayStreamType,
+          overlayRenderedInStream: camera.overlayRenderedInStream,
+        };
+      });
   }, [registeredCameras]);
 
   const recentAlertFacilityIds = useMemo(() => {

@@ -18,6 +18,9 @@ export interface CameraResponse {
   connectionStatus?: CameraConnectionStatus;
   lastConnectionReportAt?: string;
   displayStreamUrl?: string;
+  overlayUrl?: string | null;
+  overlayStreamType?: 'MJPEG' | string | null;
+  overlayRenderedInStream?: boolean | null;
 }
 
 export interface RegisterCameraRequest {
@@ -43,6 +46,8 @@ export interface AiOverlayResponse {
   readonly rtspUrl?: string | null;
   readonly overlayPort?: number | null;
   readonly overlayUrl?: string | null;
+  readonly overlayStreamType?: 'MJPEG' | string | null;
+  readonly overlayRenderedInStream?: boolean | null;
   readonly pid?: number | null;
   readonly status: AiOverlayStatus;
   readonly updatedAt?: string | null;

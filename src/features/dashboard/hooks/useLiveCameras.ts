@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchActiveCameras, type CameraResponse, type CameraConnectionStatus as BackendCameraConnectionStatus } from '../../../app/api/cameraApi';
-import { STREAM_MODE, cameraLoginIdFor, getDynamicStreamUrl, streamRenderKind, type CameraConnectionStatus, type LiveCamera } from '../data/cameras';
+import { STREAM_MODE, cameraLoginIdFor, resolveCameraStream, type CameraConnectionStatus, type LiveCamera } from '../data/cameras';
 
 function backendConnectionStatus(status: BackendCameraConnectionStatus | undefined): CameraConnectionStatus {
   switch (status) {
@@ -24,23 +24,23 @@ function isFrontendVisibleCamera(camera: CameraResponse): boolean {
     && camera.connectionStatus !== 'DISABLED';
 }
 
-function cameraStreamUrl(camera: CameraResponse): string {
-  const cameraLoginId = cameraLoginIdFor(camera.cameraLoginId, camera.cameraId);
-  return getDynamicStreamUrl(cameraLoginId);
-}
-
 function activeCameraToLiveCamera(camera: CameraResponse): LiveCamera {
+  const cameraLoginId = cameraLoginIdFor(camera.cameraLoginId, camera.cameraId);
+  const resolvedStream = resolveCameraStream(cameraLoginId, camera);
   return {
-    id: cameraLoginIdFor(camera.cameraLoginId, camera.cameraId),
-    cameraLoginId: cameraLoginIdFor(camera.cameraLoginId, camera.cameraId),
+    id: cameraLoginId,
+    cameraLoginId,
     cameraDbId: String(camera.cameraId),
     name: camera.cameraName || camera.cameraLoginId || `CCTV-${camera.cameraId}`,
     location: camera.locationDescription || camera.cameraLoginId || '-',
-    streamUrl: cameraStreamUrl(camera),
+    streamUrl: resolvedStream.streamUrl,
     streamMode: STREAM_MODE,
-    streamKind: streamRenderKind(),
+    streamKind: resolvedStream.streamKind,
     connectionStatus: backendConnectionStatus(camera.connectionStatus),
     eventStatus: 'normal',
+    overlayUrl: camera.overlayUrl,
+    overlayStreamType: camera.overlayStreamType,
+    overlayRenderedInStream: camera.overlayRenderedInStream,
   };
 }
 

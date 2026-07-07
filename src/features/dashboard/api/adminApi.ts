@@ -74,6 +74,9 @@ export interface AdminFacilityCameraResponse {
   connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
   status: 'ACTIVE' | 'INACTIVE';
   assignedVideoPath: string | null;
+  overlayUrl?: string | null;
+  overlayStreamType?: 'MJPEG' | string | null;
+  overlayRenderedInStream?: boolean | null;
 }
 
 export async function fetchAdminFacilityCameras(facilityId: number): Promise<AdminFacilityCameraResponse[]> {
@@ -126,6 +129,9 @@ export interface CorporateCameraResponse {
   assignedVideoPath: string | null;
   connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
   lastConnectionReportAt: string | null;
+  overlayUrl?: string | null;
+  overlayStreamType?: 'MJPEG' | string | null;
+  overlayRenderedInStream?: boolean | null;
 }
 
 export interface BulkCorporateCameraUploadResult {
