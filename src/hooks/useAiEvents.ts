@@ -78,6 +78,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
         logger.warn('[useAiEvents] Failed to parse event or it was filtered out.');
         return;
       }
+      logAiAlertLatency(parsedEvent, raw, receivedAtMs);
       const enrichedEvent = enrichOverlayPayload(parsedEvent, receivedAtMs);
       const selected = overlayBufferRef.current.push(enrichedEvent, receivedAtMs);
       const selectedOverlayEvent: AiEvent = {
@@ -178,6 +179,7 @@ function logOverlaySync(event: AiEvent, warning: boolean, debugEnabled: boolean)
     `[overlay-sync] camera=${cameraKey(event)}`,
     `frameId=${event.frameId ?? 'n/a'}`,
     `capturedAtMs=${event.capturedAtMs ?? 'n/a'}`,
+    `mqttReceivedAtMs=${event.mqttReceivedAtMs ?? 'n/a'}`,
     `publishedAtMs=${event.publishedAtMs ?? 'n/a'}`,
     `receivedAtMs=${event.receivedAtMs ?? 'n/a'}`,
     `networkLatencyMs=${event.networkLatencyMs ?? 'n/a'}`,
@@ -192,6 +194,69 @@ function logOverlaySync(event: AiEvent, warning: boolean, debugEnabled: boolean)
     return;
   }
   logger.info(message);
+}
+
+function logAiAlertLatency(event: AiEvent, raw: Record<string, unknown>, receivedAtMs: number): void {
+  if (isOverlayEvent(event)) {
+    return;
+  }
+
+  const rawTimestampMs = readLatencyNumber(raw.timestampMs ?? raw.timestamp_ms);
+  const rawTimestamp = readLatencyNumber(raw.timestamp);
+  const capturedAtMs = event.capturedAtMs;
+  const processedAtMs = event.processedAtMs;
+  const mqttReceivedAtMs = event.mqttReceivedAtMs;
+  const publishedAtMs = event.publishedAtMs;
+  const eventTimestampMs = timestampToMs(event.timestamp);
+
+  logger.info(`[ai-alert-latency] ${JSON.stringify({
+    cameraId: event.camera_id,
+    cameraLoginId: event.camera_login_id ?? null,
+    eventType: event.event_type,
+    severity: event.severity,
+    frameId: event.frameId ?? null,
+    trackId: event.track_id,
+    receivedAtMs,
+    rawTimestamp,
+    rawTimestampMs,
+    eventTimestamp: event.timestamp,
+    eventTimestampMs,
+    capturedAtMs: capturedAtMs ?? null,
+    processedAtMs: processedAtMs ?? null,
+    mqttReceivedAtMs: mqttReceivedAtMs ?? null,
+    publishedAtMs: publishedAtMs ?? null,
+    aiProcessingDelayMs: diffMs(processedAtMs, capturedAtMs),
+    mqttBridgeDelayMs: diffMs(mqttReceivedAtMs, processedAtMs),
+    backendPublishDelayMs: diffMs(publishedAtMs, mqttReceivedAtMs),
+    stompReceiveDelayMs: publishedAtMs === undefined ? null : receivedAtMs - publishedAtMs,
+    lagFromEventTimestampMs: eventTimestampMs === null ? null : receivedAtMs - eventTimestampMs,
+    lagFromCapturedMs: capturedAtMs === undefined ? null : receivedAtMs - capturedAtMs,
+    lagFromProcessedMs: processedAtMs === undefined ? null : receivedAtMs - processedAtMs,
+    lagFromMqttReceivedMs: mqttReceivedAtMs === undefined ? null : receivedAtMs - mqttReceivedAtMs,
+    lagFromPublishedMs: publishedAtMs === undefined ? null : receivedAtMs - publishedAtMs,
+  })}`);
+}
+
+function diffMs(end: number | undefined, start: number | undefined): number | null {
+  return end === undefined || start === undefined ? null : end - start;
+}
+
+function timestampToMs(value: number): number | null {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  return value > 1e10 ? value : value * 1000;
+}
+
+function readLatencyNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function sequenceLabel(event: AiEvent): string {

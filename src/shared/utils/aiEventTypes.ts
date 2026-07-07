@@ -8,6 +8,7 @@ export interface AiEvent {
   readonly timestamp: number;
   readonly capturedAtMs?: number;
   readonly processedAtMs?: number;
+  readonly mqttReceivedAtMs?: number;
   readonly publishedAtMs?: number;
   readonly receivedAtMs?: number;
   readonly networkLatencyMs?: number;
