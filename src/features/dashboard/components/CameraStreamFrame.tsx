@@ -4,6 +4,15 @@ import { STREAM_MODE, getMjpegUrlForCamera, type StreamRenderKind } from '../dat
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import { CameraAiOverlay } from './CameraAiOverlay';
 import { WebRtcCameraPlayer } from './WebRtcCameraPlayer';
+import {
+  MJPEG_STALE_POLL_THRESHOLD,
+  classifyHealthFetchError,
+  reconnectCooldownMs,
+  staleReasonsForPayload,
+  type MjpegHealthCounters,
+  type MjpegHealthErrorReason,
+  type MjpegStaleReason,
+} from '../utils/mjpegStaleDetector';
 
 export interface CameraStreamFrameProps {
   readonly streamUrl?: string;
@@ -127,7 +136,12 @@ function MjpegStream({
     isStale: boolean;
     processedFrames: number;
     mjpegFrames: number;
+    streamClients: number;
+    staleReasons: readonly MjpegStaleReason[];
+    reconnectAttempt: number;
+    diagnosticUnavailable: boolean;
     healthError?: string;
+    healthErrorReason?: MjpegHealthErrorReason;
   }>({
     complete: false,
     naturalWidth: 0,
@@ -136,9 +150,17 @@ function MjpegStream({
     isStale: false,
     processedFrames: 0,
     mjpegFrames: 0,
+    streamClients: 0,
+    staleReasons: [],
+    reconnectAttempt: 0,
+    diagnosticUnavailable: false,
   });
 
   const imgRef = useRef<HTMLImageElement>(null);
+  const previousHealthRef = useRef<MjpegHealthCounters | undefined>(undefined);
+  const consecutivePayloadStaleRef = useRef(0);
+  const lastReconnectAtRef = useRef(0);
+  const reconnectAttemptRef = useRef(0);
 
   // cameraLoginId가 바뀌면 상태 초기화 및 캐시 버스터 갱신
   useEffect(() => {
@@ -153,7 +175,15 @@ function MjpegStream({
       isStale: false,
       processedFrames: 0,
       mjpegFrames: 0,
+      streamClients: 0,
+      staleReasons: [],
+      reconnectAttempt: 0,
+      diagnosticUnavailable: false,
     });
+    previousHealthRef.current = undefined;
+    consecutivePayloadStaleRef.current = 0;
+    lastReconnectAtRef.current = 0;
+    reconnectAttemptRef.current = 0;
   }, [cameraLoginId]);
 
   let expectedPort = 'unknown';
@@ -168,9 +198,18 @@ function MjpegStream({
 
   // Polling health endpoint to detect stream stale state
   useEffect(() => {
-    if (!healthUrl) return;
+    if (!healthUrl) {
+      setDiagInfo(prev => ({
+        ...prev,
+        diagnosticUnavailable: true,
+        healthError: 'Invalid health URL',
+        healthErrorReason: 'health-url-invalid',
+        isStale: false,
+      }));
+      console.warn(`[mjpeg-health] Camera ${cameraLoginId} diagnostic unavailable reason=health-url-invalid`);
+      return undefined;
+    }
 
-    let consecutiveStaleCount = 0;
     const interval = setInterval(async () => {
       let complete = false;
       let width = 0;
@@ -182,53 +221,93 @@ function MjpegStream({
       }
 
       try {
-        const res = await fetch(healthUrl);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        
-        const frameAge = Number(data.frame_age_ms ?? data.last_frame_age_ms ?? -1);
-        const processed = Number(data.processed_frame_count ?? 0);
-        const mjpeg = Number(data.mjpeg_frame_count ?? 0);
-        
-        const stale = frameAge > 5000;
-        
-        setDiagInfo(prev => {
-          const isStaleNow = stale || (prev.processedFrames > 0 && prev.processedFrames === processed);
-          
-          if (isStaleNow) {
-            consecutiveStaleCount++;
-          } else {
-            consecutiveStaleCount = 0;
-          }
-
-          return {
+        const res = await fetch(healthUrl, { cache: 'no-store' });
+        if (!res.ok) {
+          consecutivePayloadStaleRef.current = 0;
+          setDiagInfo(prev => ({
             ...prev,
             complete,
             naturalWidth: width,
             naturalHeight: height,
-            lastHealthFrameAge: frameAge,
-            processedFrames: processed,
-            mjpegFrames: mjpeg,
-            isStale: isStaleNow,
-            healthError: undefined,
-          };
-        });
-      } catch (err: any) {
+            diagnosticUnavailable: true,
+            healthError: `HTTP ${res.status}`,
+            healthErrorReason: 'health-fetch-failed',
+            isStale: false,
+            staleReasons: [],
+          }));
+          console.warn(`[mjpeg-health] Camera ${cameraLoginId} diagnostic unavailable reason=health-fetch-failed status=${res.status}`);
+          return;
+        }
+        const data = await res.json();
+
+        const frameAge = Number(data.frame_age_ms ?? data.last_frame_age_ms ?? -1);
+        const processed = Number(data.processed_frame_count ?? 0);
+        const mjpeg = Number(data.mjpeg_frame_count ?? 0);
+        const streamClients = Number(data.stream_clients ?? data.mjpeg_client_count ?? data.summary?.mjpeg_client_count ?? 0);
+        const staleReasons = staleReasonsForPayload(
+          frameAge,
+          processed,
+          mjpeg,
+          streamClients,
+          previousHealthRef.current,
+        );
+        const isStaleNow = staleReasons.length === 3;
+        previousHealthRef.current = { processedFrames: processed, mjpegFrames: mjpeg };
+        consecutivePayloadStaleRef.current = isStaleNow ? consecutivePayloadStaleRef.current + 1 : 0;
+
         setDiagInfo(prev => ({
           ...prev,
           complete,
           naturalWidth: width,
           naturalHeight: height,
-          healthError: err.message || 'fetch failed',
-          isStale: true,
+          lastHealthFrameAge: frameAge,
+          processedFrames: processed,
+          mjpegFrames: mjpeg,
+          streamClients,
+          staleReasons,
+          reconnectAttempt: reconnectAttemptRef.current,
+          diagnosticUnavailable: false,
+          isStale: isStaleNow,
+          healthError: undefined,
+          healthErrorReason: undefined,
         }));
-        consecutiveStaleCount++;
-      }
 
-      if (consecutiveStaleCount >= 3) {
-        console.warn(`[mjpeg-stale] Camera ${cameraLoginId} stale detected. Auto-reconnecting...`);
-        setCacheBuster(Date.now());
-        consecutiveStaleCount = 0;
+        if (consecutivePayloadStaleRef.current < MJPEG_STALE_POLL_THRESHOLD) {
+          return;
+        }
+
+        const now = Date.now();
+        const cooldownMs = reconnectCooldownMs(reconnectAttemptRef.current);
+        if (now - lastReconnectAtRef.current < cooldownMs) {
+          console.warn(`[mjpeg-stale] Camera ${cameraLoginId} reconnect skipped reason=reconnect-cooldown-active cooldownMs=${cooldownMs}`);
+          setDiagInfo(prev => ({
+            ...prev,
+            healthErrorReason: 'reconnect-cooldown-active',
+          }));
+          return;
+        }
+
+        console.warn(`[mjpeg-stale] Camera ${cameraLoginId} stale detected reason=${staleReasons.join(',')} Auto-reconnecting...`);
+        lastReconnectAtRef.current = now;
+        reconnectAttemptRef.current += 1;
+        setCacheBuster(now);
+        consecutivePayloadStaleRef.current = 0;
+      } catch (err: unknown) {
+        const reason = classifyHealthFetchError(err);
+        const message = err instanceof Error ? err.message : 'fetch failed';
+        consecutivePayloadStaleRef.current = 0;
+        setDiagInfo(prev => ({
+          ...prev,
+          complete,
+          naturalWidth: width,
+          naturalHeight: height,
+          healthError: message,
+          healthErrorReason: reason,
+          diagnosticUnavailable: true,
+          isStale: false,
+          staleReasons: [],
+        }));
+        console.warn(`[mjpeg-health] Camera ${cameraLoginId} diagnostic unavailable reason=${reason} message=${message}`);
       }
     }, 3000);
 
@@ -236,8 +315,19 @@ function MjpegStream({
   }, [cameraLoginId, healthUrl]);
 
   const handleReconnect = () => {
-    setCacheBuster(Date.now());
-    setDiagInfo(prev => ({ ...prev, isStale: false, lastHealthFrameAge: 0 }));
+    const now = Date.now();
+    setCacheBuster(now);
+    lastReconnectAtRef.current = now;
+    reconnectAttemptRef.current = 0;
+    consecutivePayloadStaleRef.current = 0;
+    setDiagInfo(prev => ({
+      ...prev,
+      isStale: false,
+      staleReasons: [],
+      reconnectAttempt: 0,
+      lastHealthFrameAge: 0,
+      diagnosticUnavailable: false,
+    }));
   };
 
   if (loadError) {
@@ -312,6 +402,10 @@ function MjpegStream({
         <div>Mode: MJPEG | Port: {expectedPort}</div>
         <div>Size: {diagInfo.naturalWidth}x{diagInfo.naturalHeight}</div>
         <div>Age: {diagInfo.lastHealthFrameAge}ms {diagInfo.isStale ? '(STALE)' : ''}</div>
+        <div>Frames: processed={diagInfo.processedFrames} mjpeg={diagInfo.mjpegFrames}</div>
+        <div>Clients: {diagInfo.streamClients} | Reconnects: {diagInfo.reconnectAttempt}</div>
+        {diagInfo.staleReasons.length > 0 && <div>Reasons: {diagInfo.staleReasons.join(',')}</div>}
+        {diagInfo.healthErrorReason && <div className="text-amber-300">Reason: {diagInfo.healthErrorReason}</div>}
         {diagInfo.healthError && <div className="text-rose-400">Err: {diagInfo.healthError}</div>}
       </div>
     </div>
