@@ -8,6 +8,9 @@ interface ImportMetaEnv {
   readonly VITE_WEBRTC_BASE_URL?: string;
   readonly VITE_MJPEG_BASE_URL?: string;
   readonly VITE_OVERLAY_BASE_URL?: string;
+  readonly VITE_MJPEG_PORT_END?: string;
+  readonly VITE_MJPEG_BASE_PATH?: string;
+  readonly VITE_MJPEG_PROXY_MODE?: string;
   readonly VITE_STREAM_BASE_URL?: string;
   readonly VITE_BACKEND_BASE_URL?: string;
   readonly VITE_BACKEND_WS_URL?: string;

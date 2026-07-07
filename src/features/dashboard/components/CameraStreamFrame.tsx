@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { STREAM_MODE, type StreamRenderKind } from '../data/cameras';
+import { STREAM_MODE, getMjpegUrlForCamera, type StreamRenderKind } from '../data/cameras';
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import { CameraAiOverlay } from './CameraAiOverlay';
 import { WebRtcCameraPlayer } from './WebRtcCameraPlayer';
-import { fetchAiOverlay, startAiOverlay, type AiOverlayResponse, type AiOverlayStatus } from '../../../app/api/cameraApi';
 
 export interface CameraStreamFrameProps {
   readonly streamUrl?: string;
@@ -84,14 +83,239 @@ function extractCameraLoginId(urlStr?: string): string | undefined {
   try {
     const url = new URL(urlStr);
     const pathParts = url.pathname.split('/').filter(Boolean);
+    if (pathParts[0] === 'mjpeg' && pathParts[1]) {
+      return pathParts[1];
+    }
     if (pathParts.length > 0) {
       return pathParts[0]; // For /cam_01/index.m3u8 or /cam_01/whep
     }
   } catch {
+    const mjpegMatch = urlStr.match(/\/mjpeg\/([^/]+)/);
+    if (mjpegMatch) return mjpegMatch[1];
     const match = urlStr.match(/\/([^/]+)\/(index\.m3u8|whep)/);
     if (match) return match[1];
   }
   return undefined;
+}
+
+/**
+ * MJPEG 스트림을 <img> 태그로 표시하는 컴포넌트.
+ * STREAM_MODE=mjpeg 일 때 AI worker가 overlay를 JPEG 프레임에 직접 그려 보내므로
+ * 프론트에서 별도 bbox/ROI/keypoint overlay를 그리지 않는다.
+ */
+function MjpegStream({
+  cameraLoginId,
+  title,
+  className = '',
+  dimmed = false,
+}: {
+  cameraLoginId: string;
+  title: string;
+  className?: string;
+  dimmed?: boolean;
+}) {
+  const [cacheBuster, setCacheBuster] = useState(() => Date.now());
+  const mjpegUrl = `${getMjpegUrlForCamera(cameraLoginId)}?t=${cacheBuster}`;
+  const [loadError, setLoadError] = useState<string | undefined>(undefined);
+  const [loaded, setLoaded] = useState(false);
+  const [diagInfo, setDiagInfo] = useState<{
+    complete: boolean;
+    naturalWidth: number;
+    naturalHeight: number;
+    lastErrorTime?: string;
+    lastHealthFrameAge: number;
+    isStale: boolean;
+    processedFrames: number;
+    mjpegFrames: number;
+    healthError?: string;
+  }>({
+    complete: false,
+    naturalWidth: 0,
+    naturalHeight: 0,
+    lastHealthFrameAge: -1,
+    isStale: false,
+    processedFrames: 0,
+    mjpegFrames: 0,
+  });
+
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // cameraLoginId가 바뀌면 상태 초기화 및 캐시 버스터 갱신
+  useEffect(() => {
+    setLoadError(undefined);
+    setLoaded(false);
+    setCacheBuster(Date.now());
+    setDiagInfo({
+      complete: false,
+      naturalWidth: 0,
+      naturalHeight: 0,
+      lastHealthFrameAge: -1,
+      isStale: false,
+      processedFrames: 0,
+      mjpegFrames: 0,
+    });
+  }, [cameraLoginId]);
+
+  let expectedPort = 'unknown';
+  let healthUrl = '';
+  try {
+    const parsedUrl = new URL(mjpegUrl);
+    expectedPort = parsedUrl.port || (parsedUrl.protocol === 'https:' ? '443' : '80');
+    healthUrl = `${parsedUrl.protocol}//${parsedUrl.host}/health`;
+  } catch {
+    expectedPort = 'invalid';
+  }
+
+  // Polling health endpoint to detect stream stale state
+  useEffect(() => {
+    if (!healthUrl) return;
+
+    let consecutiveStaleCount = 0;
+    const interval = setInterval(async () => {
+      let complete = false;
+      let width = 0;
+      let height = 0;
+      if (imgRef.current) {
+        complete = imgRef.current.complete;
+        width = imgRef.current.naturalWidth;
+        height = imgRef.current.naturalHeight;
+      }
+
+      try {
+        const res = await fetch(healthUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        
+        const frameAge = Number(data.frame_age_ms ?? data.last_frame_age_ms ?? -1);
+        const processed = Number(data.processed_frame_count ?? 0);
+        const mjpeg = Number(data.mjpeg_frame_count ?? 0);
+        
+        const stale = frameAge > 5000;
+        
+        setDiagInfo(prev => {
+          const isStaleNow = stale || (prev.processedFrames > 0 && prev.processedFrames === processed);
+          
+          if (isStaleNow) {
+            consecutiveStaleCount++;
+          } else {
+            consecutiveStaleCount = 0;
+          }
+
+          return {
+            ...prev,
+            complete,
+            naturalWidth: width,
+            naturalHeight: height,
+            lastHealthFrameAge: frameAge,
+            processedFrames: processed,
+            mjpegFrames: mjpeg,
+            isStale: isStaleNow,
+            healthError: undefined,
+          };
+        });
+      } catch (err: any) {
+        setDiagInfo(prev => ({
+          ...prev,
+          complete,
+          naturalWidth: width,
+          naturalHeight: height,
+          healthError: err.message || 'fetch failed',
+          isStale: true,
+        }));
+        consecutiveStaleCount++;
+      }
+
+      if (consecutiveStaleCount >= 3) {
+        console.warn(`[mjpeg-stale] Camera ${cameraLoginId} stale detected. Auto-reconnecting...`);
+        setCacheBuster(Date.now());
+        consecutiveStaleCount = 0;
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [cameraLoginId, healthUrl]);
+
+  const handleReconnect = () => {
+    setCacheBuster(Date.now());
+    setDiagInfo(prev => ({ ...prev, isStale: false, lastHealthFrameAge: 0 }));
+  };
+
+  if (loadError) {
+    return (
+      <div
+        className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} flex flex-col items-center justify-center gap-1.5 bg-slate-950 px-4 text-center`}
+      >
+        <span className="text-[10px] font-bold text-rose-400">MJPEG stream not ready</span>
+        <span className="break-all text-[9px] text-slate-500">Camera: {cameraLoginId}</span>
+        <span className="break-all text-[9px] text-slate-600">URL: {mjpegUrl}</span>
+        <span className="text-[9px] text-slate-600">Expected Port: {expectedPort}</span>
+        <span className="text-[9px] text-rose-500">{loadError}</span>
+        {diagInfo.lastErrorTime && (
+          <span className="text-[8px] text-slate-500">Error Time: {diagInfo.lastErrorTime}</span>
+        )}
+        <button
+          onClick={handleReconnect}
+          className="mt-2 rounded bg-slate-800 px-2 py-1 text-[9px] text-slate-200 hover:bg-slate-700"
+        >
+          재연결 (Reconnect)
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} relative group`}>
+      {(!loaded || diagInfo.isStale) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-slate-950/80 text-center z-10">
+          <span className="text-[10px] font-bold text-slate-400">
+            {diagInfo.isStale ? '영상 지연 발생 (Stale)' : '연결 중...'}
+          </span>
+          <span className="text-[9px] text-slate-600">
+            {cameraLoginId} {diagInfo.lastHealthFrameAge > 0 && `(Age: ${diagInfo.lastHealthFrameAge}ms)`}
+          </span>
+          <button
+            onClick={handleReconnect}
+            className="mt-1 rounded bg-slate-800 px-2 py-0.5 text-[9px] text-slate-300 hover:bg-slate-700"
+          >
+            재연결
+          </button>
+        </div>
+      )}
+      <img
+        ref={imgRef}
+        src={mjpegUrl}
+        alt={title}
+        className={`h-full w-full object-cover ${loaded ? '' : 'opacity-0'}`}
+        onLoad={() => {
+          setLoaded(true);
+          if (imgRef.current) {
+            setDiagInfo(prev => ({
+              ...prev,
+              complete: imgRef.current?.complete ?? false,
+              naturalWidth: imgRef.current?.naturalWidth ?? 0,
+              naturalHeight: imgRef.current?.naturalHeight ?? 0,
+            }));
+          }
+        }}
+        onError={() => {
+          const nowStr = new Date().toLocaleTimeString();
+          setLoadError(`HTTP load error — code 404/500 or network issue`);
+          setDiagInfo(prev => ({
+            ...prev,
+            lastErrorTime: nowStr,
+          }));
+        }}
+      />
+      {/* Mini Diagnostic HUD overlay (visible on hover) */}
+      <div className="absolute bottom-1 left-1 bg-slate-950/70 p-1 text-[8px] text-slate-400 rounded pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-20">
+        <div>URL: {mjpegUrl}</div>
+        <div>Mode: MJPEG | Port: {expectedPort}</div>
+        <div>Size: {diagInfo.naturalWidth}x{diagInfo.naturalHeight}</div>
+        <div>Age: {diagInfo.lastHealthFrameAge}ms {diagInfo.isStale ? '(STALE)' : ''}</div>
+        {diagInfo.healthError && <div className="text-rose-400">Err: {diagInfo.healthError}</div>}
+      </div>
+    </div>
+  );
 }
 
 export function CameraStreamFrame({
@@ -104,118 +328,52 @@ export function CameraStreamFrame({
   overlayEvent,
 }: CameraStreamFrameProps) {
   const derivedLoginId = cameraLoginId || extractCameraLoginId(streamUrl);
-  const shouldResolveOverlay = streamKind === 'mjpeg' && STREAM_MODE === 'overlay' && !!derivedLoginId;
-  const [overlayUrl, setOverlayUrl] = useState<string | undefined>(undefined);
-  const [overlayStatus, setOverlayStatus] = useState<AiOverlayStatus>('UNKNOWN');
-  const [overlayError, setOverlayError] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    if (!shouldResolveOverlay || !derivedLoginId) {
-      setOverlayUrl(undefined);
-      setOverlayStatus('UNKNOWN');
-      setOverlayError(undefined);
-      return undefined;
-    }
-
-    let cancelled = false;
-    let retryTimer: number | undefined;
-
-    const applyResponse = (response: AiOverlayResponse): boolean => {
-      if (cancelled) {
-        return false;
-      }
-      setOverlayStatus(response.status);
-      setOverlayError(undefined);
-      if (response.status === 'RUNNING' && response.overlayUrl) {
-        setOverlayUrl(response.overlayUrl);
-        return true;
-      }
-      setOverlayUrl(undefined);
-      return false;
-    };
-
-    const loadOverlay = async (attempt: number): Promise<void> => {
-      try {
-        const response = attempt === 0
-          ? await startAiOverlay(derivedLoginId)
-          : await fetchAiOverlay(derivedLoginId);
-        const resolved = applyResponse(response);
-        if (resolved || cancelled || (response.status !== 'STARTING' && response.status !== 'UNKNOWN')) {
-          return;
-        }
-        if (attempt >= 20) {
-          setOverlayStatus('ERROR');
-          setOverlayError('AI overlay stream is still starting. Check the AI runner for this camera.');
-          return;
-        }
-        if (!resolved && !cancelled) {
-          retryTimer = window.setTimeout(() => {
-            void loadOverlay(attempt + 1);
-          }, 1000);
-        }
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-        setOverlayStatus('ERROR');
-        setOverlayError(error instanceof Error ? error.message : 'AI overlay stream request failed.');
-        setOverlayUrl(undefined);
-      }
-    };
-
-    void loadOverlay(0);
-    return () => {
-      cancelled = true;
-      if (retryTimer !== undefined) {
-        window.clearTimeout(retryTimer);
-      }
-    };
-  }, [derivedLoginId, shouldResolveOverlay]);
-
-  if (streamKind === 'hls') {
-    if (!streamUrl) return null;
-    if (STREAM_MODE === 'webrtc' && derivedLoginId) {
+  // ─── MJPEG 모드 ─────────────────────────────────────────────────────────────
+  // AI worker가 JPEG 프레임에 overlay를 직접 그려 보내므로 프론트에서 별도 overlay를 렌더링하지 않는다.
+  if (streamKind === 'mjpeg') {
+    if (!derivedLoginId) {
       return (
-        <WebRtcCameraPlayer
-          cameraLoginId={derivedLoginId}
-          title={title}
-          className={className}
-          dimmed={dimmed}
-          overlayEvent={overlayEvent}
-        />
+        <div
+          className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} flex items-center justify-center bg-slate-950 text-sm text-slate-400`}
+        >
+          카메라 ID를 확인할 수 없습니다.
+        </div>
       );
     }
     return (
-      <div className={className}>
-        <HlsStream
-          streamUrl={streamUrl}
-          streamKind={streamKind}
-          title={title}
-          className="h-full w-full object-cover"
-          dimmed={dimmed}
-        />
-        <CameraAiOverlay cameraLoginId={derivedLoginId} event={overlayEvent} />
-      </div>
+      <MjpegStream
+        cameraLoginId={derivedLoginId}
+        title={title}
+        className={className}
+        dimmed={dimmed}
+      />
     );
   }
 
-  const resolvedStreamUrl = shouldResolveOverlay ? overlayUrl : streamUrl;
-  if (!resolvedStreamUrl) {
+  // ─── HLS / WebRTC 모드 ──────────────────────────────────────────────────────
+  if (!streamUrl) return null;
+
+  if (STREAM_MODE === 'webrtc' && derivedLoginId) {
     return (
-      <div
-        className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} flex items-center justify-center bg-slate-950 text-sm text-slate-300`}
-      >
-        {overlayError || (overlayStatus === 'ERROR' ? 'AI overlay stream unavailable.' : 'AI overlay starting...')}
-      </div>
+      <WebRtcCameraPlayer
+        cameraLoginId={derivedLoginId}
+        title={title}
+        className={className}
+        dimmed={dimmed}
+        overlayEvent={overlayEvent}
+      />
     );
   }
 
   return (
     <div className={className}>
-      <img
-        src={resolvedStreamUrl}
-        alt={title}
-        className={`h-full w-full object-cover ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''}`}
+      <HlsStream
+        streamUrl={streamUrl}
+        streamKind={streamKind}
+        title={title}
+        className="h-full w-full object-cover"
+        dimmed={dimmed}
       />
       <CameraAiOverlay cameraLoginId={derivedLoginId} event={overlayEvent} />
     </div>

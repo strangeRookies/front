@@ -23,8 +23,8 @@
   
   - `webrtc`: Uses MediaMTX WebRTC WHEP at `${VITE_WEBRTC_BASE_URL}/{cameraLoginId}/whep`.
   - `raw`: Uses MediaMTX HLS at `${VITE_HLS_BASE_URL}/{cameraLoginId}/index.m3u8`.
-  - `mjpeg`: Uses AI MJPEG at `${VITE_MJPEG_BASE_URL}/mjpeg/{cameraLoginId}`.
-  - `overlay`: Uses backend-reported AI overlay MJPEG URLs for compatibility.
+  - `mjpeg`: Uses direct AI MJPEG at dynamic per-camera ports calculated from `VITE_MJPEG_BASE_URL` (e.g. cam_01=8010, cam_02=8011) or a proxy URL if `VITE_MJPEG_PROXY_MODE=true` is set.
+  - `overlay`: Kept for backwards compatibility.
   
   ### Option A: Direct GPU PC Connection
   If you are not using SSH tunnels, point the base URLs directly to the GPU PC IP (e.g. `192.168.0.66`):
