@@ -123,10 +123,19 @@ function MjpegStream({
     naturalWidth: number;
     naturalHeight: number;
     lastErrorTime?: string;
+    lastHealthFrameAge: number;
+    isStale: boolean;
+    processedFrames: number;
+    mjpegFrames: number;
+    healthError?: string;
   }>({
     complete: false,
     naturalWidth: 0,
     naturalHeight: 0,
+    lastHealthFrameAge: -1,
+    isStale: false,
+    processedFrames: 0,
+    mjpegFrames: 0,
   });
 
   const imgRef = useRef<HTMLImageElement>(null);
@@ -140,33 +149,96 @@ function MjpegStream({
       complete: false,
       naturalWidth: 0,
       naturalHeight: 0,
+      lastHealthFrameAge: -1,
+      isStale: false,
+      processedFrames: 0,
+      mjpegFrames: 0,
     });
   }, [cameraLoginId]);
 
-  // 주기적으로 이미지 갱신 상태 모니터링 (진단용 콘솔 출력)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (imgRef.current) {
-        const img = imgRef.current;
-        console.log(`[mjpeg-diag] camera=${cameraLoginId} complete=${img.complete} dimensions=${img.naturalWidth}x${img.naturalHeight} url=${mjpegUrl}`);
-        setDiagInfo(prev => ({
-          ...prev,
-          complete: img.complete,
-          naturalWidth: img.naturalWidth,
-          naturalHeight: img.naturalHeight,
-        }));
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [cameraLoginId, mjpegUrl]);
-
   let expectedPort = 'unknown';
+  let healthUrl = '';
   try {
     const parsedUrl = new URL(mjpegUrl);
     expectedPort = parsedUrl.port || (parsedUrl.protocol === 'https:' ? '443' : '80');
+    healthUrl = `${parsedUrl.protocol}//${parsedUrl.host}/health`;
   } catch {
     expectedPort = 'invalid';
   }
+
+  // Polling health endpoint to detect stream stale state
+  useEffect(() => {
+    if (!healthUrl) return;
+
+    let consecutiveStaleCount = 0;
+    const interval = setInterval(async () => {
+      let complete = false;
+      let width = 0;
+      let height = 0;
+      if (imgRef.current) {
+        complete = imgRef.current.complete;
+        width = imgRef.current.naturalWidth;
+        height = imgRef.current.naturalHeight;
+      }
+
+      try {
+        const res = await fetch(healthUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        
+        const frameAge = Number(data.frame_age_ms ?? data.last_frame_age_ms ?? -1);
+        const processed = Number(data.processed_frame_count ?? 0);
+        const mjpeg = Number(data.mjpeg_frame_count ?? 0);
+        
+        const stale = frameAge > 5000;
+        
+        setDiagInfo(prev => {
+          const isStaleNow = stale || (prev.processedFrames > 0 && prev.processedFrames === processed);
+          
+          if (isStaleNow) {
+            consecutiveStaleCount++;
+          } else {
+            consecutiveStaleCount = 0;
+          }
+
+          return {
+            ...prev,
+            complete,
+            naturalWidth: width,
+            naturalHeight: height,
+            lastHealthFrameAge: frameAge,
+            processedFrames: processed,
+            mjpegFrames: mjpeg,
+            isStale: isStaleNow,
+            healthError: undefined,
+          };
+        });
+      } catch (err: any) {
+        setDiagInfo(prev => ({
+          ...prev,
+          complete,
+          naturalWidth: width,
+          naturalHeight: height,
+          healthError: err.message || 'fetch failed',
+          isStale: true,
+        }));
+        consecutiveStaleCount++;
+      }
+
+      if (consecutiveStaleCount >= 3) {
+        console.warn(`[mjpeg-stale] Camera ${cameraLoginId} stale detected. Auto-reconnecting...`);
+        setCacheBuster(Date.now());
+        consecutiveStaleCount = 0;
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [cameraLoginId, healthUrl]);
+
+  const handleReconnect = () => {
+    setCacheBuster(Date.now());
+    setDiagInfo(prev => ({ ...prev, isStale: false, lastHealthFrameAge: 0 }));
+  };
 
   if (loadError) {
     return (
@@ -181,16 +253,32 @@ function MjpegStream({
         {diagInfo.lastErrorTime && (
           <span className="text-[8px] text-slate-500">Error Time: {diagInfo.lastErrorTime}</span>
         )}
+        <button
+          onClick={handleReconnect}
+          className="mt-2 rounded bg-slate-800 px-2 py-1 text-[9px] text-slate-200 hover:bg-slate-700"
+        >
+          재연결 (Reconnect)
+        </button>
       </div>
     );
   }
 
   return (
-    <div className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} relative`}>
-      {!loaded && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-slate-950 text-center">
-          <span className="text-[10px] font-bold text-slate-400">연결 중...</span>
-          <span className="text-[9px] text-slate-600">{cameraLoginId}</span>
+    <div className={`${className} ${dimmed ? 'opacity-25 grayscale pointer-events-none' : ''} relative group`}>
+      {(!loaded || diagInfo.isStale) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-slate-950/80 text-center z-10">
+          <span className="text-[10px] font-bold text-slate-400">
+            {diagInfo.isStale ? '영상 지연 발생 (Stale)' : '연결 중...'}
+          </span>
+          <span className="text-[9px] text-slate-600">
+            {cameraLoginId} {diagInfo.lastHealthFrameAge > 0 && `(Age: ${diagInfo.lastHealthFrameAge}ms)`}
+          </span>
+          <button
+            onClick={handleReconnect}
+            className="mt-1 rounded bg-slate-800 px-2 py-0.5 text-[9px] text-slate-300 hover:bg-slate-700"
+          >
+            재연결
+          </button>
         </div>
       )}
       <img
@@ -218,6 +306,14 @@ function MjpegStream({
           }));
         }}
       />
+      {/* Mini Diagnostic HUD overlay (visible on hover) */}
+      <div className="absolute bottom-1 left-1 bg-slate-950/70 p-1 text-[8px] text-slate-400 rounded pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-20">
+        <div>URL: {mjpegUrl}</div>
+        <div>Mode: MJPEG | Port: {expectedPort}</div>
+        <div>Size: {diagInfo.naturalWidth}x{diagInfo.naturalHeight}</div>
+        <div>Age: {diagInfo.lastHealthFrameAge}ms {diagInfo.isStale ? '(STALE)' : ''}</div>
+        {diagInfo.healthError && <div className="text-rose-400">Err: {diagInfo.healthError}</div>}
+      </div>
     </div>
   );
 }
