@@ -50,17 +50,17 @@ export function DashboardHistoryView({
 
   return (
     <div className="flex-1 p-6 space-y-6 overflow-y-auto max-w-5xl flex flex-col">
-      <div>
+      <div className="px-1">
         <h2 className="text-base font-extrabold text-white">이벤트 기록</h2>
         <p className="text-xs text-slate-400 mt-1">
           실제 수신된 이벤트 기록을 기간, 카메라, 키워드로 조회합니다.
         </p>
       </div>
-      <div className="bg-[#071329] border border-slate-800 p-4 rounded-2xl">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-2">
+      <div className="bg-[#071329] border border-slate-800 p-3 rounded-2xl shadow-lg">
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="col-span-2 space-y-1.5">
             <label className="text-[10px] font-bold text-slate-400 tracking-wider">기간</label>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="flex gap-2">
               {[
                 { id: 'today', label: '오늘' },
                 { id: 'week', label: '7일' },
@@ -69,10 +69,10 @@ export function DashboardHistoryView({
                 <button
                   key={period.id}
                   onClick={() => onSearchDateChange(period.id as 'today' | 'week' | 'month')}
-                  className={`py-2 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                  className={`flex-1 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
                     searchDate === period.id
-                      ? 'bg-blue-600/10 border-blue-500 text-blue-400'
-                      : 'border-slate-800 text-slate-400 hover:border-slate-700'
+                      ? 'bg-blue-600 border-blue-500 text-white shadow-md'
+                      : 'border-slate-700 bg-[#020817] text-slate-400 hover:border-slate-500 hover:text-slate-200'
                   }`}
                 >
                   {period.label}
@@ -80,12 +80,12 @@ export function DashboardHistoryView({
               ))}
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="col-span-1 space-y-1.5">
             <label className="text-[10px] font-bold text-slate-400 tracking-wider">카메라</label>
             <select
               value={searchCamera}
               onChange={(event) => onSearchCameraChange(event.target.value)}
-              className="w-full px-3 py-2 bg-[#020817] border border-slate-800 rounded-lg text-xs text-slate-300"
+              className="w-full px-2 py-1.5 bg-[#020817] border border-slate-700 rounded-lg text-[11px] text-slate-200 outline-none focus:border-blue-500 transition-colors"
             >
               <option value="전체">전체 카메라</option>
               {cameraOptions.map((camera) => (
@@ -95,16 +95,16 @@ export function DashboardHistoryView({
               ))}
             </select>
           </div>
-          <div className="space-y-2">
+          <div className="col-span-1 space-y-1.5">
             <label className="text-[10px] font-bold text-slate-400 tracking-wider">키워드</label>
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+              <Search className="absolute left-2 top-2 w-3 h-3 text-slate-500" />
               <input
                 type="text"
                 value={searchKeyword}
                 onChange={(event) => onSearchKeywordChange(event.target.value)}
-                placeholder="낙상, 병실, 복도"
-                className="w-full pl-9 pr-4 py-2 bg-[#020817] border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600"
+                placeholder="키워드 검색"
+                className="w-full pl-6 pr-2 py-1.5 bg-[#020817] border border-slate-700 rounded-lg text-[11px] text-white placeholder-slate-600 outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </div>
@@ -122,36 +122,26 @@ export function DashboardHistoryView({
             </div>
           ) : (
             historyAlerts.map((log) => (
-              <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-800/10">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400">
-                    <Video className="w-4 h-4" />
+              <button 
+                key={log.id} 
+                onClick={() => onOpenIncident(log)}
+                className="w-full p-4 flex items-center justify-between hover:bg-slate-800/30 active:bg-slate-800/50 transition-colors text-left cursor-pointer border-b border-slate-800/50 last:border-0"
+              >
+                <div className="flex items-center gap-3.5 flex-1 min-w-0 pr-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 shadow-inner flex-shrink-0">
+                    <Video className="w-4.5 h-4.5" />
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">{log.label}</h4>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-1 font-mono">
-                      <span>위치: {log.camera}</span>
-                      <span>/</span>
-                      <span>{new Date(log.timestamp).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.\s/g, '-').replace(/\./g, '')} {log.time}</span>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-extrabold text-white truncate leading-tight">{log.label}</h4>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1 font-mono truncate">
+                      <span className="truncate max-w-[100px]">{log.camera}</span>
+                      <span className="text-slate-700">|</span>
+                      <span>{new Date(log.timestamp).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }).replace(/\.\s/g, '/').replace(/\./g, '')} {log.time}</span>
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onOpenIncident(log)}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-[10px] cursor-pointer"
-                  >
-                    열기
-                  </button>
-                  <button
-                    onClick={() => alert('MP4 다운로드 준비가 완료되었습니다.')}
-                    className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded border border-slate-800 cursor-pointer"
-                    title="다운로드"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
+
+              </button>
             ))
           )}
           

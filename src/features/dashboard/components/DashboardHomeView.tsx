@@ -31,32 +31,49 @@ export function DashboardHomeView({
   cameraStatusMap,
 }: DashboardHomeViewProps) {
   return (
-    <div className="flex-1 flex overflow-hidden">
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
+    <div className="flex-1 flex flex-col overflow-y-auto relative w-full pb-20">
+      {/* 1. Camera Section */}
+      <div className="w-full space-y-3 pb-4">
+        <div className="flex justify-between items-center px-4 pt-4">
+          <h2 className="text-base font-extrabold text-white flex items-center gap-1.5">
             <Video className="w-4 h-4 text-blue-400" />
-            실시간 CCTV 모니터링
+            실시간 모니터링
           </h2>
-          <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">
-            실시간 모니터링 중입니다.
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+              모니터링 중
+            </span>
+            <button
+              onClick={onEmergency}
+              className="text-[10px] font-bold bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-0.5 rounded-full shadow-md shadow-rose-900/50 transition-colors flex items-center gap-1 cursor-pointer active:scale-95"
+            >
+              <Flame className="w-3 h-3" />
+              119 출동
+            </button>
+          </div>
         </div>
 
-        <LiveCameraGrid
-          cameras={[...focusedLiveCameras]}
-          onCameraClick={onCameraSelect}
-          cameraStatusMap={cameraStatusMap}
-          overlayEvents={overlayEvents}
-        />
+        <div className="px-3 sm:px-4">
+          <LiveCameraGrid
+            cameras={[...focusedLiveCameras]}
+            onCameraClick={onCameraSelect}
+            cameraStatusMap={cameraStatusMap}
+            overlayEvents={overlayEvents}
+          />
+        </div>
       </div>
 
-      <div className="w-72 bg-[#020817] border-l border-slate-800/50 flex flex-col flex-shrink-0">
-        <div className="flex-1 bg-[#071329] m-3 mb-0 rounded-xl flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-slate-800/50">
-            <h3 className="text-base font-bold text-white">실시간 AI 이벤트</h3>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      {/* 2. AI Events Section */}
+      <div className="w-full px-4 pb-8 flex-col flex gap-2">
+        <div className="flex items-center justify-between pb-1">
+          <h3 className="text-base font-extrabold text-white flex items-center gap-1.5">
+            <Flame className="w-4 h-4 text-amber-500" />
+            실시간 AI 이벤트
+          </h3>
+        </div>
+        
+        <div className="bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden flex flex-col shadow-lg">
+          <div className="p-2 sm:p-3">
             <AiDangerPanel
               events={dangerAiEvents.filter(event => !acknowledgedAiEventIds.has(aiEventFingerprint(event)))}
               acknowledgedEventIds={acknowledgedAiEventIds}
@@ -65,14 +82,8 @@ export function DashboardHomeView({
             />
           </div>
         </div>
-        <button
-          onClick={onEmergency}
-          className="mx-3 my-3 py-4 bg-[#dc2626] hover:bg-red-500 text-white font-extrabold rounded-xl text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
-        >
-          <Flame className="w-4 h-4 fill-white/20" />
-          119 긴급 출동 요청
-        </button>
       </div>
+
     </div>
   );
 }

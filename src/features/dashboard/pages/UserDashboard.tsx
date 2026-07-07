@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Download, LogOut, Shield, ShieldAlert, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { aiEventFingerprint } from '../../../shared/utils/aiAlerts';
 import type { Inquiry } from '../../../shared/types/inquiry';
 import { fetchMyInquiries, createInquiry } from '../api/inquiryApi';
 import { fetchRecentAlertEvents, toIncidentAlertFromRecentEvent } from '../api/alertEventsApi';
@@ -425,6 +426,10 @@ export function NurseDashboard({
   const playbackStreamUrl = selectedIncident?.clipUrl || selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
   const playbackStreamKind = selectedIncident?.clipUrl ? 'hls' : (selectedCameraObj?.streamKind || liveCameras[0]?.streamKind);
 
+  const unacknowledgedAiEventsCount = useMemo(() => {
+    return dangerAiEvents.filter(event => !acknowledgedAiEventIds.has(aiEventFingerprint(event))).length;
+  }, [dangerAiEvents, acknowledgedAiEventIds]);
+
   // --- Loading View ---
   if (isLoading) {
     return (
@@ -437,57 +442,47 @@ export function NurseDashboard({
 
   // --- Main Layout Render ---
   return (
-    <div className="min-h-screen bg-[#020817] text-slate-100 flex flex-col font-sans">
-      <header className="h-14 bg-[#061224] border-b border-slate-800/60 px-6 flex items-center justify-between z-10 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <Shield className="w-5 h-5 text-blue-400 fill-blue-400/20" />
-          <h1 className="text-sm font-extrabold tracking-wider text-white">스마트 안전 관제 시스템</h1>
-          <span className="h-4 w-px bg-slate-700" />
-          <span className="text-xs font-bold text-slate-400">
-            {userType === 'individual' ? '개인용 대시보드' : '기업용 대시보드'}
-          </span>
+    <div className="flex-1 h-full w-full bg-[#020817] text-slate-100 flex flex-col font-sans overflow-hidden">
+      <header className="h-14 bg-[#061224] border-b border-slate-800/60 px-4 flex items-center justify-between z-10 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <Shield className="w-5 h-5 flex-shrink-0 text-blue-400 fill-blue-400/20" />
+          <h1 className="text-sm font-extrabold tracking-wider text-white">스마트 관제 시스템</h1>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 px-3 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-            <span className="text-[10px] font-bold text-rose-400">확인 대기 이벤트 {unresolvedTenMinAlertsCount}건</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/20 px-2 py-1 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping flex-shrink-0" />
+            <span className="text-[10px] font-bold text-rose-400">
+              {unacknowledgedAiEventsCount}건
+            </span>
           </div>
           <div
-            className="flex items-center gap-2 ml-2 px-2 py-0.5 rounded text-[10px] font-bold"
+            className="flex items-center gap-1.5 px-1 py-0.5 rounded text-[10px] font-bold"
             style={{
               color: connectionState === 'connected' ? '#34d399' : connectionState === 'connecting' ? '#fbbf24' : '#94a3b8',
             }}
           >
             <span
-              className="w-1.5 h-1.5 rounded-full"
+              className="w-1.5 h-1.5 flex-shrink-0 rounded-full"
               style={{
                 background: connectionState === 'connected' ? '#34d399' : connectionState === 'connecting' ? '#fbbf24' : '#64748b',
               }}
             />
-            {connectionState === 'connected' ? '연결됨' : connectionState === 'connecting' ? '연결 중' : '연결 끊김'}
           </div>
-          <div className="flex items-center gap-2.5">
-            <div className="text-right">
-              <span className="text-xs font-bold text-slate-200 block">{username || '사용자'}</span>
-              <span className="text-[10px] text-slate-500 font-semibold">
-                {userType === 'individual' ? '개인' : '기업'}
-              </span>
-            </div>
-            <button onClick={onLogout} className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-all cursor-pointer" title="로그아웃">
+          <div className="flex items-center gap-1">
+            <button onClick={onLogout} className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-all cursor-pointer" title="로그아웃">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        <aside className="w-56 bg-[#071329] border-r border-slate-800/50 flex flex-col flex-shrink-0">
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        <aside className="hidden w-56 bg-[#071329] border-r border-slate-800/50 flex-col flex-shrink-0">
           <div className="p-4 space-y-1 flex-1">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-3">메뉴</h3>
             <nav className="space-y-0.5">
               {ALL_MENU_ITEMS.filter((item) => !item.individualOnly || userType === 'individual').map(({ id, label, icon: Icon }) => {
                 const isActive = activeMenu === id;
-                const badge = id === 'alerts' ? unresolvedTenMinAlertsCount : undefined;
                 return (
                   <button
                     key={id}
@@ -503,11 +498,6 @@ export function NurseDashboard({
                       <Icon className="w-4 h-4" />
                       <span>{label}</span>
                     </div>
-                    {badge !== undefined && badge > 0 && (
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white text-[#0758D6]' : 'bg-rose-500 text-white'}`}>
-                        {badge}
-                      </span>
-                    )}
                   </button>
                 );
               })}
@@ -539,14 +529,14 @@ export function NurseDashboard({
               </div>
               <div className="bg-[#0f172a] rounded-xl p-3 border border-slate-800/50">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase">확인 대기 이벤트</span>
-                  {unresolvedTenMinAlertsCount > 0 && (
+                  <span className="text-[9px] font-bold text-slate-400 uppercase">미확인 이벤트</span>
+                  {unacknowledgedAiEventsCount > 0 && (
                     <span className="text-[8px] font-bold bg-rose-500 text-white px-1 rounded-sm animate-bounce">NEW</span>
                   )}
                 </div>
                 <div className="flex items-end gap-1.5">
                   <ShieldAlert className="w-4 h-4 text-rose-500 mb-0.5" />
-                  <span className="text-sm font-extrabold text-white">{unresolvedTenMinAlertsCount}</span>
+                  <span className="text-sm font-extrabold text-white">{unacknowledgedAiEventsCount}</span>
                   <span className="text-[9px] text-slate-500 font-bold mb-0.5">건</span>
                 </div>
               </div>
@@ -554,7 +544,7 @@ export function NurseDashboard({
           </div>
         </aside>
 
-        <main className="flex-1 flex overflow-hidden">
+        <main className="flex-1 flex overflow-hidden mb-14">
           {activeMenu === 'home' && (
             <DashboardHomeView
               acknowledgedAiEventIds={acknowledgedAiEventIds}
@@ -633,6 +623,30 @@ export function NurseDashboard({
             />
           )}
         </main>
+        
+        {/* Mobile Bottom Navigation */}
+        <nav className="absolute bottom-0 left-0 right-0 h-14 bg-[#061224] border-t border-slate-800/60 flex items-center justify-around z-50 px-2 pb-safe">
+          {ALL_MENU_ITEMS.filter((item) => !item.individualOnly || userType === 'individual').map(({ id, label, icon: Icon }) => {
+            const isActive = activeMenu === id;
+            return (
+              <button
+                key={id}
+                onClick={() => {
+                  setFocusedCameraId(null);
+                  setActiveMenu(id);
+                }}
+                className={`relative flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
+                  isActive ? 'text-blue-500' : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                <div className="relative">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className="text-[9px] font-bold">{label}</span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       {showAddCamera && (

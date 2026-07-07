@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Signal, Wifi, BatteryFull } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { ForgotPasswordPage } from '../features/auth/pages/ForgotPasswordPage';
@@ -20,6 +21,27 @@ import MonitoringDashboard from '../components/dashboard/MonitoringDashboard';
 //  추가: ViewType에 'monitoring' 상태 추가
 type ViewType = 'login' | 'personalSignUp' | 'corporateSignUp' | 'forgotPassword' | 'userDashboard' | 'adminDashboard' | 'monitoring';
 type UserType = 'individual' | 'corporate';
+
+function StatusBar() {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const hours = time.getHours().toString().padStart(2, '0');
+  const minutes = time.getMinutes().toString().padStart(2, '0');
+
+  return (
+    <div className="hidden sm:flex absolute top-0 left-0 right-0 h-14 z-[90] items-center justify-between px-6 pointer-events-none text-white font-semibold">
+      <span className="w-12 text-center text-[14px] mt-1 tracking-tight">{hours}:{minutes}</span>
+      <div className="flex gap-1.5 items-center mt-1">
+        <Signal className="w-4 h-4" />
+        <Wifi className="w-4 h-4" />
+        <BatteryFull className="w-[18px] h-[18px]" />
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>('login');
@@ -126,18 +148,41 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070e1b] text-slate-100 font-sans selection:bg-blue-500/35 selection:text-white relative">
-      <Toaster position="top-right" richColors theme="dark" />
+    <div className="min-h-[100dvh] bg-[#030712] sm:p-6 md:p-12 flex items-center justify-center">
+      <div className="relative">
+        {/* Subtle Hardware Buttons */}
+        <div className="hidden sm:block absolute -left-[3px] top-[115px] h-8 w-[3px] rounded-l-md bg-slate-800 border-l border-slate-600/50 shadow-inner z-0" />
+        <div className="hidden sm:block absolute -left-[3px] top-[175px] h-16 w-[3px] rounded-l-md bg-slate-800 border-l border-slate-600/50 shadow-inner z-0" />
+        <div className="hidden sm:block absolute -left-[3px] top-[245px] h-16 w-[3px] rounded-l-md bg-slate-800 border-l border-slate-600/50 shadow-inner z-0" />
+        <div className="hidden sm:block absolute -right-[3px] top-[190px] h-24 w-[3px] rounded-r-md bg-slate-800 border-r border-slate-600/50 shadow-inner z-0" />
 
-      {/*  개발용 임시 버튼: 로그인 없이 CCTV 화면을 바로 띄워보기 위한 버튼임. 개발 완료 후 삭제 */}
-      {currentView !== 'monitoring' && (
-        <button
-          onClick={() => setCurrentView('monitoring')}
-          className="fixed bottom-6 right-6 z-50 bg-red-600 hover:bg-red-500 text-white px-5 py-3 rounded-full shadow-2xl font-bold transition-all transform hover:scale-105"
+        {/* Outer Metallic Frame */}
+        <div 
+          className="w-full h-[100dvh] sm:h-[844px] sm:max-h-[90vh] sm:w-[390px] relative sm:rounded-[3.5rem] bg-[#070e1b] sm:bg-gradient-to-br from-slate-500 via-slate-800 to-slate-900 sm:shadow-[inset_0_0_2px_1px_rgba(255,255,255,0.4),inset_0_0_0_4px_#1e293b,-20px_20px_60px_rgba(0,0,0,0.9)] z-10"
+          style={{ transform: 'translateZ(0)' }}
         >
-          📷 CCTV 테스트 모드
-        </button>
-      )}
+          {/* Inner Black Glass Bezel */}
+          <div className="absolute inset-0 sm:inset-[4px] bg-black sm:rounded-[3.3rem] shadow-[inset_0_0_0_1px_#333]">
+            
+            {/* The Actual Screen Area */}
+            <div className="absolute inset-0 sm:inset-[10px] bg-[#070e1b] sm:rounded-[2.7rem] overflow-hidden flex flex-col shadow-[inset_0_0_20px_rgba(0,0,0,0.5)]">
+              
+              {/* Curved Screen Glare (Glass Effect) */}
+              <div className="hidden sm:block pointer-events-none absolute inset-0 z-[200] bg-gradient-to-tr from-white/[0.04] via-transparent to-white/[0.01]"></div>
+
+              {/* iOS Dynamic Island */}
+              <div className="hidden sm:flex absolute top-3 left-1/2 -translate-x-1/2 w-[120px] h-[32px] bg-black rounded-full z-[100] items-center justify-between px-2.5 shadow-[0_0_0_1px_rgba(255,255,255,0.05),inset_0_-2px_5px_rgba(255,255,255,0.1)]">
+                <div className="w-3 h-3 rounded-full bg-[#0a0a0a] shadow-[inset_0_2px_2px_rgba(255,255,255,0.15)] border border-white/5" />
+                <div className="w-3 h-3 rounded-full bg-[#0a0a0a] shadow-[inset_0_2px_2px_rgba(255,255,255,0.15)] border border-white/5" />
+              </div>
+              
+              <StatusBar />
+              
+              {/* Main App Container */}
+              <div className="h-full w-full bg-[#070e1b] text-slate-100 font-sans selection:bg-blue-500/35 selection:text-white relative overflow-hidden flex flex-col sm:pt-12">
+          <Toaster position="top-right" richColors theme="dark" />
+
+
 
       {currentView === 'login' && (
         <LoginPage
@@ -182,23 +227,12 @@ export default function App() {
         />
       )}
 
-      {/* 추가: CCTV 모니터링 테스트용 뷰 렌더링 */}
-      {currentView === 'monitoring' && (
-        <div className="flex flex-col h-screen">
-          <div className="p-4 bg-gray-800 border-b border-gray-700 flex justify-between items-center">
-            <h1 className="text-xl font-bold">CCTV 실시간 오버레이 테스트</h1>
-            <button 
-              onClick={() => setCurrentView('login')}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium"
-            >
-              돌아가기
-            </button>
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <MonitoringDashboard />
+
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

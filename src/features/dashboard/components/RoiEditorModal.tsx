@@ -276,24 +276,24 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
   const hasExistingForSelected = existingRois.some(r => selectedScenarioIds.includes(r.scenarioId));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="flex w-full max-w-4xl flex-col gap-4 rounded-2xl border border-slate-700 bg-[#0a111f] p-6 shadow-2xl">
-
-        {/* 헤더 */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-extrabold text-white">ROI 설정</h2>
-            <p className="text-xs text-slate-400">{cameraName} — 분석 영역을 지정하면 해당 영역만 AI가 감지합니다.</p>
-          </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-700 hover:text-white">
-            <X className="h-5 w-5" />
-          </button>
+    <div className="fixed inset-0 z-[100] flex flex-col bg-[#070e1b]">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between px-4 py-3 bg-[#061224] border-b border-slate-800 flex-shrink-0">
+        <div>
+          <h2 className="text-base font-extrabold text-white">ROI 설정</h2>
+          <p className="text-[10px] text-slate-400 truncate max-w-[200px]">{cameraName} — 감지 영역 지정</p>
         </div>
+        <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="flex-1 flex flex-col overflow-y-auto p-4 space-y-4">
 
         {/* 그룹 탭 */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {loading ? (
-            <span className="text-xs text-slate-500">시나리오 불러오는 중...</span>
+            <span className="text-[10px] text-slate-500">시나리오 불러오는 중...</span>
           ) : (
             ROI_GROUPS.map(group => {
               const groupScenarioIds = scenarioIdsForGroup(group.groupId, scenarios);
@@ -303,20 +303,20 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
                 <button
                   key={group.groupId}
                   onClick={() => { setSelectedGroupId(group.groupId); setError(null); }}
-                  className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors
+                  className={`flex flex-1 min-w-[70px] justify-center items-center gap-1.5 rounded-lg border px-2 py-2 text-[10px] font-bold transition-colors
                     ${isSelected
                       ? 'border-blue-500 bg-blue-500/20 text-blue-300'
-                      : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-500'
+                      : 'border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-500 hover:bg-slate-800'
                     }`}
                 >
                   {group.label}
-                  {hasRoi && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+                  {hasRoi && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 flex-shrink-0" />}
                 </button>
               );
             })
           )}
         </div>
-        <p className="text-[11px] text-slate-500">낙상·쓰러짐·실신은 하나의 분석 영역을 공유합니다.</p>
+        <p className="text-[10px] text-slate-500 leading-tight">낙상·쓰러짐·실신은 하나의 분석 영역을 공유합니다.</p>
 
         {/* 캔버스 에디터 */}
         <div
@@ -346,54 +346,51 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
         </div>
 
         {/* 안내 */}
-        <p className="text-[11px] text-slate-500">
-          클릭으로 점 추가 (최대 5개) &nbsp;·&nbsp; 드래그로 점 이동 &nbsp;·&nbsp; 우클릭으로 점 삭제 &nbsp;·&nbsp; 3개 이상 점이 있어야 저장 가능
+        <p className="text-[10px] text-slate-400 leading-tight">
+          터치하여 점 추가 (최대 5개) · 드래그로 이동 · 꾹 눌러서(우클릭) 삭제
         </p>
 
-        {error && <p className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-300">{error}</p>}
+        {error && <p className="rounded-lg bg-rose-500/15 px-3 py-2 text-[10px] font-bold text-rose-300">{error}</p>}
 
         {/* 액션 버튼 */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <button
+            onClick={() => setPoints([])}
+            disabled={points.length === 0}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/50 py-2.5 text-xs font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-40"
+          >
+            <RotateCcw className="h-4 w-4" />
+            초기화
+          </button>
+          {hasExistingForSelected ? (
             <button
-              onClick={() => setPoints([])}
-              disabled={points.length === 0}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-40"
+              onClick={() => void handleDelete()}
+              disabled={saving}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-700/60 bg-rose-900/20 py-2.5 text-xs font-bold text-rose-400 hover:bg-rose-500/20 disabled:opacity-40"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
-              초기화
+              <Trash2 className="h-4 w-4" />
+              삭제
             </button>
-            {hasExistingForSelected && (
-              <button
-                onClick={() => void handleDelete()}
-                disabled={saving}
-                className="flex items-center gap-1.5 rounded-lg border border-rose-700/60 px-3 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-500/15 disabled:opacity-40"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                ROI 삭제
-              </button>
-            )}
-          </div>
-          <div className="flex gap-2">
+          ) : (
             <button
               onClick={onClose}
-              className="rounded-lg border border-slate-700 px-4 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-700"
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/50 py-2.5 text-xs font-bold text-slate-300 hover:bg-slate-700"
             >
               닫기
             </button>
-            <button
-              onClick={() => void handleSave()}
-              disabled={saving || points.length < 3}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-40"
-            >
-              {saving ? (
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              ) : (
-                <Save className="h-3.5 w-3.5" />
-              )}
-              {hasExistingForSelected ? '수정 저장' : 'ROI 저장'}
-            </button>
-          </div>
+          )}
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving || points.length < 3}
+            className="col-span-2 flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-blue-900/20 hover:bg-blue-500 disabled:opacity-40"
+          >
+            {saving ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {hasExistingForSelected ? '수정 사항 저장하기' : 'ROI 영역 저장하기'}
+          </button>
         </div>
 
         {/* 저장된 ROI 목록 */}

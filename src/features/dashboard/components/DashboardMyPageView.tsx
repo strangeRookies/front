@@ -135,55 +135,58 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
   const pwStrength = getPasswordStrength(newPw);
 
   return (
-    <div className="flex-1 flex overflow-hidden">
-      <div className="w-52 bg-[#020817] border-r border-slate-800/50 flex flex-col flex-shrink-0 p-4">
-        <div className="flex items-center gap-2 mb-5 px-2">
-          <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-sm font-extrabold text-blue-400">
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#020817] w-full">
+      {/* Top Header & Tabs (Segment Control) */}
+      <div className="bg-[#061224] border-b border-slate-800/60 flex-shrink-0 z-10 pt-5 px-4 pb-0">
+        <div className="flex items-center gap-3 mb-5 px-2">
+          <div className="w-12 h-12 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-lg font-extrabold text-blue-400 shadow-inner">
             {(profileName || '사용자').charAt(0).toUpperCase()}
           </div>
           <div>
-            <p className="text-xs font-bold text-white leading-tight">{profileName || username}</p>
-            <p className="text-[10px] text-slate-500">{userType === 'individual' ? '개인용 대시보드' : '기업용 대시보드'}</p>
+            <p className="text-base font-extrabold text-white leading-tight mb-1">{profileName || username}</p>
+            <p className="text-[11px] text-slate-500 font-semibold">{userType === 'individual' ? '개인용 대시보드' : '기업용 대시보드'}</p>
           </div>
         </div>
-        <nav className="space-y-0.5">
+        
+        <div className="flex gap-2 border-b border-slate-800/50">
           {([
-            { id: 'profile', label: '프로필', icon: User },
-            { id: 'password', label: '비밀번호 변경', icon: Lock },
-          ] as const).map(({ id, label, icon: Icon }) => (
+            { id: 'profile', label: '프로필 수정' },
+            { id: 'password', label: '비밀번호 변경' },
+          ] as const).map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setMypageTab(id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                mypageTab === id ? 'bg-[#0758D6] text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+              className={`flex-1 py-3 text-[13px] font-bold text-center border-b-2 transition-colors cursor-pointer ${
+                mypageTab === id 
+                  ? 'border-blue-500 text-blue-400' 
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
               {label}
             </button>
           ))}
-        </nav>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-4 w-full">
         {mypageTab === 'profile' && (
           <div className="max-w-xl space-y-6">
             <div>
               <h2 className="text-base font-extrabold text-white">프로필</h2>
               <p className="text-xs text-slate-400 mt-1">계정 기본 정보를 수정합니다.</p>
             </div>
-            <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><User className="w-3 h-3" />이름</label>
-                <input value={profileName} onChange={(event) => setProfileName(event.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+            <div className="bg-[#071329] border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-5 shadow-lg">
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5"><User className="w-3.5 h-3.5" />이름</label>
+                <input value={profileName} onChange={(event) => setProfileName(event.target.value)} className="w-full px-4 py-3.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-sm text-white outline-none transition-colors" />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><Mail className="w-3 h-3" />이메일</label>
-                <input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" />이메일</label>
+                <input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} className="w-full px-4 py-3.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-sm text-white outline-none transition-colors" />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><Phone className="w-3 h-3" />연락처</label>
-                <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />연락처</label>
+                <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} className="w-full px-4 py-3.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-sm text-white outline-none transition-colors" />
               </div>
               <div className="pt-1 grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -196,13 +199,13 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
                 </div>
               </div>
             </div>
-            <button onClick={handleSaveProfile} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">저장</button>
+            <button onClick={handleSaveProfile} className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-bold rounded-xl cursor-pointer shadow-lg shadow-blue-900/20 transition-all mt-4">저장하기</button>
 
-            <div className="pt-10 space-y-6">
-              <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-6 space-y-4">
+            <div className="pt-10 space-y-6 pb-10">
+              <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-5 sm:p-6 space-y-5">
                 <div className="flex items-start gap-3">
                   <Shield className="w-5 h-5 text-rose-500 mt-0.5" />
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <h3 className="text-sm font-bold text-white">회원 탈퇴</h3>
                     <p className="text-xs text-slate-400 leading-relaxed">
                       회원 탈퇴 시 서비스 이용 권한이 즉시 회수되며, 등록된 정보는 시스템 관리 방침에 따라 처리됩니다.
@@ -211,7 +214,7 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
                 </div>
                 <button 
                   onClick={handleWithdraw}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                  className="w-full py-3 bg-rose-600/10 hover:bg-rose-600 active:bg-rose-700 text-rose-500 hover:text-white border border-rose-500/30 font-bold rounded-xl text-xs transition-all cursor-pointer"
                 >
                   서비스 탈퇴하기
                 </button>
@@ -226,50 +229,50 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
               <h2 className="text-base font-extrabold text-white">비밀번호</h2>
               <p className="text-xs text-slate-400 mt-1">로그인 비밀번호를 변경합니다.</p>
             </div>
-            <div className="bg-[#071329] border border-slate-800 rounded-2xl p-5 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400">현재 비밀번호</label>
+            <div className="bg-[#071329] border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-5 shadow-lg">
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-400">현재 비밀번호</label>
                 <div className="relative">
-                  <input type={showCurrentPw ? 'text' : 'password'} value={currentPw} onChange={(event) => setCurrentPw(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
-                  <button onClick={() => setShowCurrentPw((p) => !p)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
-                    {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <input type={showCurrentPw ? 'text' : 'password'} value={currentPw} onChange={(event) => setCurrentPw(event.target.value)} className="w-full px-4 py-3.5 pr-12 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-sm text-white outline-none transition-colors" />
+                  <button onClick={() => setShowCurrentPw((p) => !p)} className="absolute right-4 top-3.5 text-slate-500 hover:text-slate-300 cursor-pointer">
+                    {showCurrentPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400">새 비밀번호</label>
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-400">새 비밀번호</label>
                 <div className="relative">
-                  <input type={showNewPw ? 'text' : 'password'} value={newPw} onChange={(event) => setNewPw(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
-                  <button onClick={() => setShowNewPw((p) => !p)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
-                    {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <input type={showNewPw ? 'text' : 'password'} value={newPw} onChange={(event) => setNewPw(event.target.value)} className="w-full px-4 py-3.5 pr-12 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-sm text-white outline-none transition-colors" />
+                  <button onClick={() => setShowNewPw((p) => !p)} className="absolute right-4 top-3.5 text-slate-500 hover:text-slate-300 cursor-pointer">
+                    {showNewPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
                 {newPw && (
-                  <div className="space-y-1">
+                  <div className="space-y-1 mt-2">
                     <div className="flex gap-1">
                       {[1, 2, 3].map((step) => (
-                        <div key={step} className={`h-1 flex-1 rounded-full transition-colors ${pwStrength.level >= step ? pwStrength.color : 'bg-slate-800'}`} />
+                        <div key={step} className={`h-1.5 flex-1 rounded-full transition-colors ${pwStrength.level >= step ? pwStrength.color : 'bg-slate-800'}`} />
                       ))}
                     </div>
-                    <p className={`text-[10px] font-semibold ${pwStrength.level === 1 ? 'text-red-400' : pwStrength.level === 2 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    <p className={`text-[11px] font-semibold mt-1 ${pwStrength.level === 1 ? 'text-red-400' : pwStrength.level === 2 ? 'text-amber-400' : 'text-emerald-400'}`}>
                       보안 강도: {pwStrength.label}
                     </p>
                   </div>
                 )}
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400">새 비밀번호 확인</label>
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-400">새 비밀번호 확인</label>
                 <div className="relative">
-                  <input type={showConfirmPw ? 'text' : 'password'} value={confirmPw} onChange={(event) => setConfirmPw(event.target.value)} className="w-full px-3 py-2.5 pr-10 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
-                  <button onClick={() => setShowConfirmPw((p) => !p)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer">
-                    {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <input type={showConfirmPw ? 'text' : 'password'} value={confirmPw} onChange={(event) => setConfirmPw(event.target.value)} className="w-full px-4 py-3.5 pr-12 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-sm text-white outline-none transition-colors" />
+                  <button onClick={() => setShowConfirmPw((p) => !p)} className="absolute right-4 top-3.5 text-slate-500 hover:text-slate-300 cursor-pointer">
+                    {showConfirmPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
                 {confirmPw && newPw !== confirmPw && (
-                  <p className="text-[10px] text-red-400 font-semibold">새 비밀번호가 서로 일치하지 않습니다.</p>
+                  <p className="text-[11px] text-red-400 font-semibold mt-1">새 비밀번호가 서로 일치하지 않습니다.</p>
                 )}
                 {confirmPw && newPw === confirmPw && (
-                  <p className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1"><Check className="w-3 h-3" /> 새 비밀번호가 일치합니다.</p>
+                  <p className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> 일치합니다.</p>
                 )}
               </div>
             </div>
@@ -279,7 +282,7 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
                 · 변경 후 모든 기기에서 재로그인이 필요합니다.
               </p>
             </div>
-            <button onClick={handleChangePassword} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer">비밀번호 변경</button>
+            <button onClick={handleChangePassword} className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-bold rounded-xl cursor-pointer shadow-lg shadow-blue-900/20 transition-all mt-4 mb-10">비밀번호 변경하기</button>
           </div>
         )}
       </div>

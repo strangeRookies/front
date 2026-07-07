@@ -76,7 +76,6 @@ export function AiAlertCard({
   const timeMs = event.timestamp > 1e10 ? event.timestamp : event.timestamp * 1000;
   const detectedAt = new Date(timeMs);
   const timeStr = detectedAt.toLocaleString('ko-KR', {
-    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -102,7 +101,7 @@ export function AiAlertCard({
           onFocus?.(event);
         }
       }}
-      className={`relative mb-3 w-full overflow-hidden rounded-xl border p-4 text-left backdrop-blur-md transition-all ${
+      className={`relative mb-3 w-full overflow-hidden rounded-xl border p-3 text-left backdrop-blur-md transition-all ${
         acknowledged
           ? 'border-slate-700 bg-slate-900/50 opacity-60'
           : `${style.border} ${style.bg} ${style.glow}`
@@ -132,7 +131,7 @@ export function AiAlertCard({
         </div>
 
         {/* 세부 정보 그리드 (23.md 2순위: 이벤트 카드 필수 표시 정보) */}
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
           <div className="flex items-center gap-1.5 text-slate-400">
             <Camera className="h-3 w-3 flex-shrink-0 text-slate-500" />
             <span className="truncate">{event.camera_id}</span>

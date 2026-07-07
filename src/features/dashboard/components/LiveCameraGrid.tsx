@@ -97,9 +97,7 @@ function statusStyle(camera: LiveCamera, realtimeStatus?: CameraConnectionStatus
 }
 
 function gridClass(count: number) {
-  if (count <= 1) return 'grid-cols-1';
-  if (count === 2) return 'grid-cols-1 xl:grid-cols-2';
-  return 'grid-cols-1 md:grid-cols-2';
+  return 'grid-cols-1';
 }
 
 function CameraStream({ camera, overlayEvent, roiConfigs }: { camera: LiveCamera; overlayEvent?: AiEvent; roiConfigs: RoiConfigResponse[] }) {
@@ -216,21 +214,21 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
           <div
             ref={(element) => setCameraCardRef(camera.id, element)}
             key={camera.id}
-            className={`group cursor-pointer overflow-hidden rounded-xl border ${style.border} bg-[#0f172a] text-left transition-colors hover:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/60`}
+            className={`group cursor-pointer overflow-hidden rounded-2xl border ${style.border} bg-[#0a1224] text-left shadow-lg active:scale-[0.98] transition-transform`}
             onClick={() => onCameraClick?.(camera)}
             role="button"
             tabIndex={0}
             onKeyDown={(event) => handleCameraKeyDown(camera, event)}
           >
-            <div className={`relative bg-black ${compact ? 'aspect-video' : cameras.length === 1 ? 'aspect-[16/8]' : 'aspect-video'}`}>
+            <div className={`relative bg-black w-full aspect-video`}>
               <CameraStream camera={camera} overlayEvent={overlayEvent} roiConfigs={roiHidden ? [] : roiConfigs} />
 
-              <div className="absolute left-2 top-2 z-20 flex items-center gap-1.5 rounded bg-black/75 px-2 py-1 text-[10px] font-extrabold text-rose-300 backdrop-blur">
+              <div className="absolute left-2.5 top-2.5 z-20 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[9px] font-extrabold text-rose-300 backdrop-blur-md">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
-                실시간
+                LIVE
               </div>
 
-              <div className={`absolute right-2 top-2 z-20 flex items-center gap-1.5 rounded border px-2 py-1 text-[10px] font-extrabold backdrop-blur ${style.badge}`}>
+              <div className={`absolute right-2.5 top-2.5 z-20 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-extrabold backdrop-blur-md ${style.badge}`}>
                 <StatusIcon className="h-3 w-3" />
                 {style.label}
               </div>
@@ -238,51 +236,50 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
               <CameraDangerFallback camera={camera} />
             </div>
 
-            <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2 px-3 py-3 bg-[#0a1224]">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
                   <Video className="h-3.5 w-3.5 flex-shrink-0 text-blue-400" />
-                  <p className="truncate text-xs font-extrabold text-white">{camera.name}</p>
+                  <p className="truncate text-sm font-extrabold text-white">{camera.name}</p>
                 </div>
                 <p className="mt-0.5 truncate text-[10px] font-semibold text-slate-500">{camera.location}</p>
               </div>
+              
               <div className="flex flex-shrink-0 items-center gap-1.5">
-                <div className="flex items-center gap-1.5 rounded bg-slate-950/70 px-2 py-1 text-[10px] font-bold text-slate-300">
+                <div className="flex items-center gap-1.5 rounded-full bg-slate-900/80 px-2.5 py-1 text-[9px] font-bold text-slate-300">
                   <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
                   {camera.connectionStatus === 'online' ? '정상' : camera.connectionStatus === 'connecting' ? '연결 중' : '오류'}
                 </div>
+                
                 {camera.cameraDbId && (
                   <button
                     type="button"
-                    title="ROI 설정"
                     onClick={(event) => { event.stopPropagation(); setRoiCamera(camera); }}
-                    className={`flex items-center gap-1 rounded p-1.5 text-[10px] font-bold transition-colors
+                    className={`flex items-center gap-1 rounded-full p-1.5 text-[9px] font-bold transition-colors
                       ${roiGroupCount > 0
-                        ? 'bg-blue-900/40 text-blue-300 hover:bg-blue-900/60'
-                        : 'bg-slate-900 text-slate-400 hover:bg-blue-900/60 hover:text-blue-300'
+                        ? 'bg-blue-600/20 text-blue-300'
+                        : 'bg-slate-800 text-slate-400'
                       }`}
                   >
-                    <ScanLine className="h-3 w-3" />
-                    {roiGroupCount > 0 && <span>ROI {roiGroupCount}</span>}
+                    <ScanLine className="h-3.5 w-3.5" />
+                    {roiGroupCount > 0 && <span>{roiGroupCount}</span>}
                   </button>
                 )}
                 {camera.cameraDbId && roiGroupCount > 0 && (
                   <button
                     type="button"
-                    title={roiHidden ? 'ROI 표시' : 'ROI 숨기기'}
                     onClick={(event) => handleToggleRoiVisibility(camera.cameraDbId!, event)}
-                    className="rounded bg-slate-900 p-1.5 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
+                    className="rounded-full bg-slate-800 p-1.5 text-slate-400"
                   >
-                    {roiHidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    {roiHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
                 )}
                 <button
                   type="button"
-                  title={activeFullscreenCameraId === camera.id ? '전체 화면 표시 중' : '전체 화면'}
                   onClick={(event) => handleFullscreen(camera.id, event)}
-                  className="rounded bg-slate-900 p-1.5 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
+                  className="rounded-full bg-slate-800 p-1.5 text-slate-400"
                 >
-                  <Expand className="h-3 w-3" />
+                  <Expand className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>

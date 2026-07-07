@@ -234,6 +234,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* 모바일 앱 느낌을 위해 전역 스크롤바 숨김 처리 */
+  *::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
   body {
     @apply bg-background text-foreground tracking-[-0.02em];
   }
