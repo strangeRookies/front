@@ -55,16 +55,19 @@ function toLiveCameraConnectionStatus(camera: CameraResponse): CameraConnectionS
     case 'CONNECTED':
       return 'online';
     case 'RECONNECTING':
-    case 'UNKNOWN':
-      return 'connecting';
-    case 'DISCONNECTED':
     case 'ERROR':
+    case 'DISCONNECTED':
+    case 'UNKNOWN':
+      // Show as 'connecting' so the video stream remains visible while
+      // the AI worker is initializing or temporarily unavailable.
+      return 'connecting';
     case 'DISABLED':
       return 'offline';
     default:
       return 'connecting';
   }
 }
+
 
 function isVisibleLiveCamera(camera: CameraResponse) {
   return camera.status === 'ACTIVE';
@@ -325,12 +328,14 @@ export function NurseDashboard({
   // --- Handlers ---
   const handleOpenIncident = (alert: IncidentAlert) => {
     setSelectedIncident(alert);
+    setPlaybackProgress(5); // 10초 스냅샷 영상의 정중앙(5초)에서 시작
+    setIsPlaying(true);     // 자동 재생
   };
 
   const handleCameraClick = (camera: LiveCamera) => {
     setFocusedCameraId(camera.id);
     const matchingAlert = alerts.find((alert) => alert.camera === camera.location || alert.camera === camera.name);
-    if (matchingAlert) setSelectedIncident(matchingAlert);
+    if (matchingAlert) handleOpenIncident(matchingAlert);
   };
 
   const handleTriggerEmergency = () => {
@@ -422,8 +427,8 @@ export function NurseDashboard({
     ? liveCameras.find((camera) => camera.name === selectedIncident.camera || camera.location === selectedIncident.camera)
     : null;
 
-  const playbackStreamUrl = selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
-  const playbackStreamKind = selectedCameraObj?.streamKind || liveCameras[0]?.streamKind;
+  const playbackStreamUrl = selectedIncident?.clipUrl || selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
+  const playbackStreamKind = selectedIncident?.clipUrl ? 'hls' : (selectedCameraObj?.streamKind || liveCameras[0]?.streamKind);
 
   // --- Loading View ---
   if (isLoading) {

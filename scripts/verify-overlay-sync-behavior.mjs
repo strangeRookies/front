@@ -5,12 +5,17 @@ import ts from 'typescript';
 const moduleDir = mkdtempSync(join(process.cwd(), '.overlay-sync-'));
 writeTranspiledModule('src/shared/utils/overlaySync.ts', 'overlaySync.mjs');
 writeTranspiledModule('src/features/dashboard/utils/overlayGeometry.ts', 'overlayGeometry.mjs');
+writeTranspiledModule('src/features/dashboard/overlays/DetectionOverlayCanvas.tsx', 'DetectionOverlayCanvas.mjs', {
+  '../utils/overlayGeometry': './overlayGeometry.mjs',
+  './overlayTypes': './overlayTypes.mjs',
+});
 writeTranspiledModule('src/shared/utils/aiEventParsing.ts', 'aiEventParsing.mjs', {
   './logger': './logger.mjs',
   './aiEventTypes': './aiEventTypes.mjs',
 });
 writeFileSync(join(moduleDir, 'logger.mjs'), 'export const logger = { warn() {}, info() {}, error() {} };');
 writeFileSync(join(moduleDir, 'aiEventTypes.mjs'), '');
+writeFileSync(join(moduleDir, 'overlayTypes.mjs'), '');
 
 const {
   OverlaySyncBuffer,
@@ -21,6 +26,7 @@ const {
   isEventStale,
 } = await import(pathToFileUrl(join(moduleDir, 'overlaySync.mjs')));
 const { parseOverlayBox, overlayBoxes, resolveOverlayBoxDisplay, normalizeConfidence } = await import(pathToFileUrl(join(moduleDir, 'overlayGeometry.mjs')));
+const { composeOverlayLabel } = await import(pathToFileUrl(join(moduleDir, 'DetectionOverlayCanvas.mjs')));
 const { parseToAiEvent } = await import(pathToFileUrl(join(moduleDir, 'aiEventParsing.mjs')));
 
 function writeTranspiledModule(sourcePath, outputName, replacements = {}) {
@@ -33,6 +39,7 @@ function writeTranspiledModule(sourcePath, outputName, replacements = {}) {
   compilerOptions: {
     module: ts.ModuleKind.ES2022,
     target: ts.ScriptTarget.ES2022,
+    jsx: ts.JsxEmit.ReactJSX,
     strict: true,
   },
 }).outputText;
@@ -201,6 +208,9 @@ check('confidence: "17%" -> ID_1 normal', resolveOverlayBoxDisplay({ confidence:
 check('confidence: 0.33 -> ID_1 normal', resolveOverlayBoxDisplay({ confidence: 0.33 }, 0).variant === 'normal' && resolveOverlayBoxDisplay({ confidence: 0.33 }, 0).label === 'ID_1');
 check('confidence: 33 -> ID_1 normal', resolveOverlayBoxDisplay({ confidence: 33 }, 0).variant === 'normal' && resolveOverlayBoxDisplay({ confidence: 33 }, 0).label === 'ID_1');
 check('confidence: "33%" -> ID_1 normal', resolveOverlayBoxDisplay({ confidence: '33%' }, 0).variant === 'normal' && resolveOverlayBoxDisplay({ confidence: '33%' }, 0).label === 'ID_1');
+check('displayLabel is preferred over raw track id', resolveOverlayBoxDisplay({ displayLabel: 'ID 2', displayId: 2, trackId: 987654321, confidence: 0.33 }, 0).label === 'ID 2');
+check('displayId is preferred over raw track id', resolveOverlayBoxDisplay({ displayId: 3, trackId: 987654321, confidence: 0.33 }, 0).label === 'ID 3');
+check('missing tracking id does not render duplicated unknown label', composeOverlayLabel({ type: 'tracking', confidence: 0.33, trackingId: null, bbox: { x: 0, y: 0, width: 10, height: 10 } }, 0) === 'ID_1');
 
 check('confidence: 0.5 -> FAINT 50%', resolveOverlayBoxDisplay({ confidence: 0.5, type: 'faint' }, 0).variant === 'event' && resolveOverlayBoxDisplay({ confidence: 0.5, type: 'faint' }, 0).label === 'FAINT 50%');
 check('confidence: 50 -> FAINT 50%', resolveOverlayBoxDisplay({ confidence: 50, type: 'faint' }, 0).variant === 'event' && resolveOverlayBoxDisplay({ confidence: 50, type: 'faint' }, 0).label === 'FAINT 50%');

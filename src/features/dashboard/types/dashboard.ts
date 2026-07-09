@@ -10,6 +10,8 @@ export interface IncidentAlert {
   label: string;
   severity: 'critical' | 'warning' | 'info';
   status: 'new' | 'resolved';
+  snapshotUrl?: string; // S3 Presigned URL
+  clipUrl?: string; // Recorded video clip URL
 }
 
 export interface RegisteredCamera {

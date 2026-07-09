@@ -1,4 +1,6 @@
-import { Pause, Play, Volume2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Pause, Play, Volume2, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
+import Hls from 'hls.js';
 import { CameraStreamFrame } from '../components/CameraStreamFrame';
 import { streamRenderKind, type StreamRenderKind } from '../data/cameras';
 import type { IncidentAlert } from '../types/dashboard';
@@ -26,6 +28,107 @@ export function IncidentPlaybackModal({
   onTogglePlaying,
   cameraLoginId,
 }: IncidentPlaybackModalProps) {
+  const [showSnapshot, setShowSnapshot] = useState(false);
+  const [duration, setDuration] = useState(10);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+
+  // 상대 시간(MM:SS) 포맷팅 헬퍼
+  const formatRelativeTime = (secs: number): string => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // 영상의 정중앙을 탐지 시점으로 가정 (앞뒤 5초씩 총 10초 구간 설정)
+  const eventSeconds = duration / 2;
+  const startSeconds = Math.max(0, eventSeconds - 5);
+  const endSeconds = Math.min(duration, eventSeconds + 5);
+  const currentSeconds = startSeconds + Math.min(Math.max(playbackProgress, 0), 10);
+
+  // 비디오 소스 설정 (HLS 또는 일반 MP4 등)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !playbackStreamUrl || showSnapshot) return;
+
+    // 기존 HLS 정리
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (playbackStreamUrl.includes('.m3u8')) {
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = playbackStreamUrl;
+      } else if (Hls.isSupported()) {
+        const hls = new Hls({ enableWorker: true });
+        hls.loadSource(playbackStreamUrl);
+        hls.attachMedia(video);
+        hlsRef.current = hls;
+      }
+    } else {
+      video.src = playbackStreamUrl;
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [playbackStreamUrl, showSnapshot]);
+
+  // 비디오 메타데이터 로드 시 전체 길이 확인 및 초기 위치 설정
+  const handleLoadedMetadata = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const videoDuration = video.duration || 10;
+    setDuration(videoDuration);
+    
+    const eventSecs = videoDuration / 2;
+    const startSecs = Math.max(0, eventSecs - 5);
+    // 이벤트 시점(시작 시간 + 5초인 정중앙)으로 초기 탐색
+    video.currentTime = startSecs + 5;
+  };
+
+  // 재생/일시정지 상태 동기화
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || showSnapshot) return;
+
+    if (isPlaying) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [isPlaying, showSnapshot]);
+
+  // 비디오 시간 변경 시 슬라이더 진행률 업데이트 및 10초 범위 제한
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // 설정된 10초 구간(endSeconds)을 넘어가면 다시 시작 지점(startSeconds)으로 돌려 루프합니다.
+    if (video.currentTime >= endSeconds || video.currentTime < startSeconds) {
+      video.currentTime = startSeconds;
+      if (isPlaying) {
+        video.play().catch(() => {});
+      }
+    }
+    const progress = Math.max(0, video.currentTime - startSeconds);
+    onPlaybackProgressChange(progress);
+  };
+
+  // 사용자가 슬라이더를 직접 조정했을 때
+  const handleSliderChange = (val: number) => {
+    const video = videoRef.current;
+    const targetTime = startSeconds + val;
+    if (video) {
+      video.currentTime = targetTime;
+    }
+    onPlaybackProgressChange(val);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
       <div className="flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-[#071329] shadow-2xl">
@@ -37,17 +140,55 @@ export function IncidentPlaybackModal({
               {incident.camera} / {incident.time}
             </span>
           </div>
-          <button onClick={onClose} className="cursor-pointer rounded border border-slate-800 bg-[#020817] px-2 py-1 text-xs font-bold text-slate-400 hover:text-white">닫기</button>
+          <div className="flex items-center gap-2">
+            {incident.snapshotUrl && (
+              <button
+                onClick={() => setShowSnapshot(!showSnapshot)}
+                className="flex cursor-pointer items-center gap-1 rounded border border-blue-500/30 bg-blue-950/40 px-2.5 py-1 text-xs font-bold text-blue-400 hover:bg-blue-900/50 transition-all"
+              >
+                {showSnapshot ? (
+                  <>
+                    <VideoIcon className="h-3.5 w-3.5" />
+                    <span>영상 보기</span>
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    <span>스냅샷 보기</span>
+                  </>
+                )}
+              </button>
+            )}
+            <button onClick={onClose} className="cursor-pointer rounded border border-slate-800 bg-[#020817] px-2 py-1 text-xs font-bold text-slate-400 hover:text-white">닫기</button>
+          </div>
         </div>
-        <div className="relative aspect-video overflow-hidden bg-black">
-          <CameraStreamFrame
-            streamUrl={playbackStreamUrl}
-            streamKind={playbackStreamKind}
-            title="incident playback stream"
-            className="h-full w-full object-cover contrast-125 brightness-75"
-            cameraLoginId={cameraLoginId}
-          />
-          <div className="absolute left-1/3 top-1/3 flex h-1/3 w-1/3 flex-col justify-between rounded border-2 border-rose-500 bg-rose-500/5 p-2">
+        <div className="relative aspect-video overflow-hidden bg-black flex items-center justify-center">
+          {showSnapshot && incident.snapshotUrl ? (
+            <img
+              src={incident.snapshotUrl}
+              alt="이상 상황 스냅샷"
+              className="h-full w-full object-contain contrast-125"
+            />
+          ) : incident.clipUrl ? (
+            <video
+              ref={videoRef}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              className="h-full w-full object-cover contrast-125 brightness-75"
+              muted
+              playsInline
+              autoPlay
+            />
+          ) : (
+            <CameraStreamFrame
+              streamUrl={playbackStreamUrl}
+              streamKind={playbackStreamKind}
+              title="incident playback stream"
+              className="h-full w-full object-cover contrast-125 brightness-75"
+              cameraLoginId={cameraLoginId}
+            />
+          )}
+          <div className="absolute left-1/3 top-1/3 flex h-1/3 w-1/3 flex-col justify-between rounded border-2 border-rose-500 bg-rose-500/5 p-2 pointer-events-none">
             <span className="self-start rounded bg-rose-600 px-1.5 text-[9px] font-bold uppercase text-white">{incident.type}</span>
             <span className="animate-pulse text-center text-[10px] font-extrabold text-rose-400">{incident.label}</span>
           </div>
@@ -55,12 +196,20 @@ export function IncidentPlaybackModal({
         <div className="space-y-3 bg-[#061224] p-4">
           <div className="space-y-1">
             <div className="flex justify-between font-mono text-[10px] text-slate-400">
-              <span>00:{playbackProgress.toString().padStart(2, '0')}</span>
-              <span className="font-bold text-rose-400">이벤트 시점 (00:30)</span>
-              <span>01:00</span>
+              <span>{formatRelativeTime(startSeconds)}</span>
+              <span className="font-bold text-rose-400">이벤트 시점 ({formatRelativeTime(eventSeconds)})</span>
+              <span>{formatRelativeTime(endSeconds)}</span>
             </div>
             <div className="relative pt-1">
-              <input type="range" min="0" max="60" value={playbackProgress} onChange={(event) => onPlaybackProgressChange(Number(event.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-slate-800 accent-blue-500" />
+              <input
+                type="range"
+                min="0"
+                max="10"
+                step="0.1"
+                value={playbackProgress}
+                onChange={(event) => handleSliderChange(Number(event.target.value))}
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-slate-800 accent-blue-500"
+              />
               <div className="absolute left-1/2 top-1 h-2.5 w-2 -translate-x-1/2 rounded-full border border-white bg-rose-500" />
             </div>
           </div>
@@ -69,7 +218,10 @@ export function IncidentPlaybackModal({
               <button onClick={onTogglePlaying} className="cursor-pointer rounded-xl p-2 text-slate-300 hover:bg-slate-800 hover:text-white">
                 {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
               </button>
-              <div className="flex items-center gap-1.5">
+              <span className="font-mono text-xs font-bold text-slate-400 bg-slate-950/40 px-2 py-0.5 rounded border border-slate-800">
+                현재 시간: {formatRelativeTime(currentSeconds)}
+              </span>
+              <div className="flex items-center gap-1.5 ml-1">
                 <Volume2 className="h-4 w-4 text-slate-400" />
                 <span className="text-[10px] text-slate-500">오디오</span>
               </div>
