@@ -592,6 +592,8 @@ export function NurseDashboard({
               onSearchCameraChange={setSearchCamera}
               onSearchDateChange={setSearchDate}
               onSearchKeywordChange={setSearchKeyword}
+              semanticSearchFacilityId={recentAlertFacilityIds[0]}
+              userType={userType}
             />
           )}
           {activeMenu === 'cameras' && (

@@ -1,5 +1,6 @@
 import { Download, Search, Video } from 'lucide-react';
 import type { IncidentAlert } from '../types/dashboard';
+import { SemanticEventSearchPanel } from './SemanticEventSearchPanel';
 
 export interface HistoryFilters {
   searchCamera: string;
@@ -22,6 +23,8 @@ interface DashboardHistoryViewProps {
   onSearchCameraChange: (value: string) => void;
   onSearchDateChange: (value: 'today' | 'week' | 'month') => void;
   onSearchKeywordChange: (value: string) => void;
+  semanticSearchFacilityId?: number | string;
+  userType: 'individual' | 'corporate';
 }
 
 export function DashboardHistoryView({
@@ -39,6 +42,8 @@ export function DashboardHistoryView({
   onSearchCameraChange,
   onSearchDateChange,
   onSearchKeywordChange,
+  semanticSearchFacilityId,
+  userType,
 }: DashboardHistoryViewProps) {
   const displayCount = totalHistoryElements;
 
@@ -56,6 +61,11 @@ export function DashboardHistoryView({
           실제 수신된 이벤트 기록을 기간, 카메라, 키워드로 조회합니다.
         </p>
       </div>
+      <SemanticEventSearchPanel
+        facilityId={semanticSearchFacilityId}
+        userType={userType}
+        cameraId={searchCamera}
+      />
       <div className="bg-[#071329] border border-slate-800 p-4 rounded-2xl">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-2">
