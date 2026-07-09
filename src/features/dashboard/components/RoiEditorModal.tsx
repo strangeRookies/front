@@ -56,6 +56,7 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
   const [selectedGroupId, setSelectedGroupId] = useState<RoiGroupId | null>(null);
   const [points, setPoints] = useState<NormalizedPoint[]>([]);
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [hoverPos, setHoverPos] = useState<NormalizedPoint | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +136,16 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
         ctx.lineWidth = 2;
         ctx.stroke();
       }
+
+      // 러버밴드 가이드 선 (마우스 커서로 이어지는 미리보기 선)
+      if (points.length > 0 && points.length < MAX_POINTS && hoverPos && draggingIdx === null) {
+        ctx.beginPath();
+        ctx.moveTo(points[points.length - 1].x * width, points[points.length - 1].y * height);
+        ctx.lineTo(hoverPos.x * width, hoverPos.y * height);
+        ctx.strokeStyle = STROKE_COLORS[idx];
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
     }
 
     // 다른 그룹 ROI 미리보기 (점선)
@@ -159,7 +170,7 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
         ctx.setLineDash([]);
       }
     }
-  }, [points, existingRois, selectedGroupId, scenarios]);
+  }, [points, existingRois, selectedGroupId, scenarios, hoverPos, draggingIdx]);
 
   // 컨테이너 크기 변화 감지 → 캔버스 리사이즈 → 리드로우
   useEffect(() => {
@@ -209,12 +220,18 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
   }
 
   function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (draggingIdx === null) return;
     const norm = toNormalized(e);
+    setHoverPos(norm);
+    if (draggingIdx === null) return;
     setPoints(prev => prev.map((p, i) => (i === draggingIdx ? norm : p)));
   }
 
   function handleMouseUp() { setDraggingIdx(null); }
+
+  function handleMouseLeave() {
+    setDraggingIdx(null);
+    setHoverPos(null);
+  }
 
   function handleContextMenu(e: React.MouseEvent<HTMLCanvasElement>) {
     e.preventDefault();
@@ -340,7 +357,7 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
             onContextMenu={handleContextMenu}
           />
         </div>

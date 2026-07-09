@@ -90,12 +90,17 @@ export async function fetchFullAlertEventsHistory(
   });
 
   if (isRecord(data) && Array.isArray(data.content)) {
+    const pageObj = isRecord(data.page) ? data.page : data;
+    const rawTotalPages = pageObj.totalPages ?? data.totalPages;
+    const rawTotalElements = pageObj.totalElements ?? data.totalElements;
+    const rawNumber = pageObj.number ?? data.number;
+
     return {
       content: data.content.filter(isRecord),
-      totalPages: typeof data.totalPages === 'number' ? data.totalPages : 1,
-      totalElements: typeof data.totalElements === 'number' ? data.totalElements : data.content.length,
+      totalPages: rawTotalPages !== undefined ? Number(rawTotalPages) : 1,
+      totalElements: rawTotalElements !== undefined ? Number(rawTotalElements) : data.content.length,
       last: typeof data.last === 'boolean' ? data.last : true,
-      number: typeof data.number === 'number' ? data.number : 0,
+      number: rawNumber !== undefined ? Number(rawNumber) : 0,
     };
   }
 

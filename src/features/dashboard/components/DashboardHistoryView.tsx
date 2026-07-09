@@ -1,4 +1,4 @@
-import { Download, Search, Video } from 'lucide-react';
+import { Search, Video } from 'lucide-react';
 import type { IncidentAlert } from '../types/dashboard';
 import { SemanticEventSearchPanel } from './SemanticEventSearchPanel';
 
@@ -152,13 +152,6 @@ export function DashboardHistoryView({
                     className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-[10px] cursor-pointer"
                   >
                     열기
-                  </button>
-                  <button
-                    onClick={() => alert('MP4 다운로드 준비가 완료되었습니다.')}
-                    className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded border border-slate-800 cursor-pointer"
-                    title="다운로드"
-                  >
-                    <Download className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
