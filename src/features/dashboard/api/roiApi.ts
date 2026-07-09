@@ -1,6 +1,6 @@
 import { apiRequest } from '../../../shared/api/client';
 
-export type ScenarioType = 'FALL_BED' | 'COLLAPSE' | 'SYNCOPE' | 'EXIT' | 'ASSAULT';
+export type ScenarioType = 'FALL_BED' | 'COLLAPSE' | 'SYNCOPE' | 'EXIT' | 'ASSAULT' | 'HAZARD_ZONE';
 
 export const SCENARIO_LABELS: Record<ScenarioType, string> = {
   FALL_BED: '침대 낙상',
@@ -8,6 +8,7 @@ export const SCENARIO_LABELS: Record<ScenarioType, string> = {
   SYNCOPE: '실신',
   EXIT: '이탈',
   ASSAULT: '폭행',
+  HAZARD_ZONE: '위험구역 침범',
 };
 
 export interface ScenarioResponse {
@@ -22,6 +23,7 @@ export interface ScenarioResponse {
 export const ROI_GROUPS = [
   { groupId: 'FAINT', label: '이상행동 감지 (낙상·쓰러짐·실신)', scenarioTypes: ['FALL_BED', 'COLLAPSE', 'SYNCOPE'] as ScenarioType[] },
   { groupId: 'EXIT', label: '이탈 감지', scenarioTypes: ['EXIT'] as ScenarioType[] },
+  { groupId: 'HAZARD', label: '위험구역 침범', scenarioTypes: ['HAZARD_ZONE'] as ScenarioType[] },
 ] as const;
 
 export type RoiGroupId = typeof ROI_GROUPS[number]['groupId'];
