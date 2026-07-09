@@ -3,7 +3,7 @@ import type { KeyboardEvent, MouseEvent } from 'react';
 import { AlertCircle, AlertTriangle, Expand, Eye, EyeOff, RefreshCw, ScanLine, Signal, SignalZero, Video, WifiOff } from 'lucide-react';
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import { findCameraForAiEvent } from '../../../shared/utils/aiAlerts';
-import type { LiveCamera } from '../data/cameras';
+import { isOverlayRenderedInStream, type LiveCamera } from '../data/cameras';
 import { useFullscreenCamera } from '../hooks/useFullscreenCamera';
 import type { CameraConnectionStatus, CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
 import { toCameraConnectionStatusDisplay } from '../hooks/useCameraStatusWebSocket';
@@ -105,6 +105,7 @@ function gridClass(count: number) {
 function CameraStream({ camera, overlayEvent, roiConfigs }: { camera: LiveCamera; overlayEvent?: AiEvent; roiConfigs: RoiConfigResponse[] }) {
   const unavailable = camera.connectionStatus === 'offline';
   const overlayMessage = useCameraOverlay(camera);
+  const bboxRenderedInStream = isOverlayRenderedInStream(camera);
   return (
     <>
       <CameraStreamFrame
@@ -119,7 +120,7 @@ function CameraStream({ camera, overlayEvent, roiConfigs }: { camera: LiveCamera
       {!unavailable && roiConfigs.length > 0 && (
         <RoiOverlayCanvas rois={roiConfigs} />
       )}
-      {!unavailable && overlayMessage && camera.eventStatus !== 'danger' && (
+      {!bboxRenderedInStream && !unavailable && overlayMessage && camera.eventStatus !== 'danger' && (
         <DetectionOverlayCanvas message={overlayMessage} />
       )}
       {unavailable && (
