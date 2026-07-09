@@ -42,6 +42,28 @@ export interface AlertEventFilters {
   dateTo?: string;
 }
 
+export interface SemanticSearchFilters {
+  cameraId?: string | number;
+  dateFrom?: string;
+  dateTo?: string;
+  topK?: number;
+  minSimilarity?: number;
+  excludeMock?: boolean;
+}
+
+export interface SemanticSearchResult {
+  readonly alertEventId: number;
+  readonly cameraId: number;
+  readonly cameraLoginId: string;
+  readonly scenarioType: string;
+  readonly severity: string;
+  readonly detectedAt: string;
+  readonly vlmDescription: string;
+  readonly vlmJson: string;
+  readonly similarityScore: number;
+  readonly keyframeUrls: readonly string[];
+}
+
 export async function fetchFullAlertEventsHistory(
   facilityId: number | string,
   page: number = 0,
@@ -68,12 +90,17 @@ export async function fetchFullAlertEventsHistory(
   });
 
   if (isRecord(data) && Array.isArray(data.content)) {
+    const pageObj = isRecord(data.page) ? data.page : data;
+    const rawTotalPages = pageObj.totalPages ?? data.totalPages;
+    const rawTotalElements = pageObj.totalElements ?? data.totalElements;
+    const rawNumber = pageObj.number ?? data.number;
+
     return {
       content: data.content.filter(isRecord),
-      totalPages: typeof data.totalPages === 'number' ? data.totalPages : 1,
-      totalElements: typeof data.totalElements === 'number' ? data.totalElements : data.content.length,
+      totalPages: rawTotalPages !== undefined ? Number(rawTotalPages) : 1,
+      totalElements: rawTotalElements !== undefined ? Number(rawTotalElements) : data.content.length,
       last: typeof data.last === 'boolean' ? data.last : true,
-      number: typeof data.number === 'number' ? data.number : 0,
+      number: rawNumber !== undefined ? Number(rawNumber) : 0,
     };
   }
 
@@ -84,6 +111,35 @@ export async function fetchFullAlertEventsHistory(
     last: true,
     number: 0,
   };
+}
+
+export async function fetchSemanticAlertEvents(
+  facilityId: number | string,
+  query: string,
+  filters: SemanticSearchFilters = {},
+  userType: 'individual' | 'corporate' = 'individual'
+): Promise<SemanticSearchResult[]> {
+  const params = new URLSearchParams({
+    query,
+    topK: String(filters.topK ?? 10),
+    minSimilarity: String(filters.minSimilarity ?? 0.1),
+    excludeMock: String(filters.excludeMock ?? import.meta.env.PROD),
+  });
+
+  if (filters.cameraId) params.append('cameraId', filters.cameraId.toString());
+  if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+  if (filters.dateTo) params.append('dateTo', filters.dateTo);
+
+  const url = userType === 'corporate'
+    ? `/api/companies/${facilityId}/search/semantic?${params.toString()}`
+    : `/api/facilities/${facilityId}/search/semantic?${params.toString()}`;
+  const data = await apiRequest<unknown>(url, { method: 'GET' });
+
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data.filter(isSemanticSearchResult);
 }
 
 export function toIncidentAlertFromRecentEvent(
@@ -132,6 +188,23 @@ export function toIncidentAlertFromRecentEvent(
 
 function isRecord(value: unknown): value is RecentAlertEventResponse {
   return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isSemanticSearchResult(value: unknown): value is SemanticSearchResult {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return typeof value.alertEventId === 'number'
+    && typeof value.cameraId === 'number'
+    && typeof value.cameraLoginId === 'string'
+    && typeof value.scenarioType === 'string'
+    && typeof value.severity === 'string'
+    && typeof value.detectedAt === 'string'
+    && typeof value.vlmDescription === 'string'
+    && typeof value.vlmJson === 'string'
+    && typeof value.similarityScore === 'number'
+    && Array.isArray(value.keyframeUrls)
+    && value.keyframeUrls.every((url) => typeof url === 'string');
 }
 
 function readString(record: RecentAlertEventResponse, keys: string[]) {

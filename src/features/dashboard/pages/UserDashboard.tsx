@@ -6,6 +6,7 @@ import { fetchMyInquiries, createInquiry } from '../api/inquiryApi';
 import { fetchRecentAlertEvents, toIncidentAlertFromRecentEvent } from '../api/alertEventsApi';
 import { useAiAlertActions } from '../../../hooks/useAiAlertActions';
 import { useDashboardAlerts } from '../hooks/useDashboardAlerts';
+import { aiEventFingerprint } from '../../../shared/utils/aiAlerts';
 import type { MenuId, InquiryCategory, IncidentAlert } from '../types/dashboard';
 import { STREAM_MODE, cameraLoginIdFor, resolveCameraStream, type LiveCamera, type CameraConnectionStatus, type CameraEventStatus } from '../data/cameras';
 import {
@@ -272,6 +273,10 @@ export function NurseDashboard({
     onAcknowledgeAiEventOnly: handleAcknowledgeAiEventOnly,
   });
 
+  const realtimeUnresolvedCount = useMemo(() => {
+    return dangerAiEvents.filter((event) => !acknowledgedAiEventIds.has(aiEventFingerprint(event))).length;
+  }, [dangerAiEvents, acknowledgedAiEventIds]);
+
   const {
     historyAlerts,
     isLoadingHistory,
@@ -452,7 +457,7 @@ export function NurseDashboard({
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 px-3 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-            <span className="text-[10px] font-bold text-rose-400">확인 대기 이벤트 {unresolvedTenMinAlertsCount}건</span>
+            <span className="text-[10px] font-bold text-rose-400">확인 대기 이벤트 {realtimeUnresolvedCount}건</span>
           </div>
           <div
             className="flex items-center gap-2 ml-2 px-2 py-0.5 rounded text-[10px] font-bold"
@@ -489,7 +494,7 @@ export function NurseDashboard({
             <nav className="space-y-0.5">
               {ALL_MENU_ITEMS.filter((item) => !item.individualOnly || userType === 'individual').map(({ id, label, icon: Icon }) => {
                 const isActive = activeMenu === id;
-                const badge = id === 'alerts' ? unresolvedTenMinAlertsCount : undefined;
+                const badge = undefined;
                 return (
                   <button
                     key={id}
@@ -542,13 +547,13 @@ export function NurseDashboard({
               <div className="bg-[#0f172a] rounded-xl p-3 border border-slate-800/50">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[9px] font-bold text-slate-400 uppercase">확인 대기 이벤트</span>
-                  {unresolvedTenMinAlertsCount > 0 && (
+                  {realtimeUnresolvedCount > 0 && (
                     <span className="text-[8px] font-bold bg-rose-500 text-white px-1 rounded-sm animate-bounce">NEW</span>
                   )}
                 </div>
                 <div className="flex items-end gap-1.5">
                   <ShieldAlert className="w-4 h-4 text-rose-500 mb-0.5" />
-                  <span className="text-sm font-extrabold text-white">{unresolvedTenMinAlertsCount}</span>
+                  <span className="text-sm font-extrabold text-white">{realtimeUnresolvedCount}</span>
                   <span className="text-[9px] text-slate-500 font-bold mb-0.5">건</span>
                 </div>
               </div>
@@ -594,6 +599,8 @@ export function NurseDashboard({
               onSearchCameraChange={setSearchCamera}
               onSearchDateChange={setSearchDate}
               onSearchKeywordChange={setSearchKeyword}
+              semanticSearchFacilityId={recentAlertFacilityIds[0]}
+              userType={userType}
             />
           )}
           {activeMenu === 'cameras' && (

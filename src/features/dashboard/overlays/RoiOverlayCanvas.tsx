@@ -8,6 +8,7 @@ interface RoiOverlayCanvasProps {
 const GROUP_COLORS: Record<string, { fill: string; stroke: string }> = {
   FAINT: { fill: 'rgba(34,211,238,0.16)', stroke: 'rgba(34,211,238,0.8)' },
   EXIT: { fill: 'rgba(251,146,60,0.16)', stroke: 'rgba(251,146,60,0.8)' },
+  HAZARD: { fill: 'rgba(239,68,68,0.16)', stroke: 'rgba(239,68,68,0.8)' }, // Red
 };
 
 export function RoiOverlayCanvas({ rois }: RoiOverlayCanvasProps) {
