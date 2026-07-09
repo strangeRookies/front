@@ -13,6 +13,7 @@ const aiEventSequenceSchema = z.object({
 }).partial();
 
 const aiEventSchema = z.object({
+  eventId: z.string().optional(),
   camera_id: z.string(),
   camera_login_id: z.string().nullable().optional(),
   frame_idx: z.number().default(0),
@@ -22,6 +23,7 @@ const aiEventSchema = z.object({
   timestamp: z.number(),
   capturedAtMs: z.number().optional(),
   processedAtMs: z.number().optional(),
+  mqttPublishedAtMs: z.number().optional(),
   mqttReceivedAtMs: z.number().optional(),
   publishedAtMs: z.number().optional(),
   receivedAtMs: z.number().optional(),
@@ -40,6 +42,8 @@ const aiEventSchema = z.object({
   threshold: z.number().default(0),
   track_id: z.union([z.string(), z.number()]).nullable().optional(),
   severity: z.string().default('HIGH'),
+  clipUrl: z.string().optional(),
+  clipPath: z.string().optional(),
   sequence: aiEventSequenceSchema.optional(),
 });
 
@@ -47,6 +51,7 @@ export function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
   try {
     const parsed = aiEventSchema.parse(normalizeRawPayload(raw));
     return {
+      eventId: parsed.eventId,
       camera_id: parsed.camera_id,
       camera_login_id: parsed.camera_login_id ?? undefined,
       frame_idx: parsed.frame_idx,
@@ -56,6 +61,7 @@ export function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
       timestamp: parsed.timestamp,
       capturedAtMs: parsed.capturedAtMs,
       processedAtMs: parsed.processedAtMs,
+      mqttPublishedAtMs: parsed.mqttPublishedAtMs,
       mqttReceivedAtMs: parsed.mqttReceivedAtMs,
       publishedAtMs: parsed.publishedAtMs,
       receivedAtMs: parsed.receivedAtMs,
@@ -74,6 +80,8 @@ export function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
       threshold: parsed.threshold,
       track_id: parsed.track_id === null || parsed.track_id === undefined ? null : String(parsed.track_id),
       severity: parsed.severity,
+      clipUrl: parsed.clipUrl,
+      clipPath: parsed.clipPath,
       sequence: parsed.sequence,
     };
   } catch (error) {
@@ -92,6 +100,7 @@ function normalizeRawPayload(raw: Record<string, unknown>) {
     ? Math.floor(new Date(timestampSource).getTime() / 1000)
     : normalizeTimestamp(readNumber(timestampSource));
   return {
+    eventId: readString(raw.eventId ?? raw.event_id ?? raw.alertEventId ?? raw.alert_event_id ?? raw.incidentId ?? raw.incident_id ?? raw.id),
     camera_id: readString(raw.camera_id ?? raw.cameraId ?? raw.camera_login_id ?? raw.cameraLoginId) ?? '',
     camera_login_id: readString(cameraLoginId),
     event_type: readString(raw.event_type ?? raw.type ?? raw.messageType) ?? 'unknown',
@@ -102,6 +111,7 @@ function normalizeRawPayload(raw: Record<string, unknown>) {
     frameHeight: readNumber(raw.frameHeight ?? raw.frame_height),
     capturedAtMs: readNumber(raw.capturedAtMs ?? raw.captured_at_ms),
     processedAtMs: readNumber(raw.processedAtMs ?? raw.processed_at_ms),
+    mqttPublishedAtMs: readNumber(raw.mqttPublishedAtMs ?? raw.mqtt_published_at_ms),
     mqttReceivedAtMs: readNumber(raw.mqttReceivedAtMs ?? raw.mqtt_received_at_ms),
     publishedAtMs: readNumber(raw.publishedAtMs ?? raw.published_at_ms),
     severity: readString(raw.severity) ?? 'HIGH',
@@ -112,6 +122,8 @@ function normalizeRawPayload(raw: Record<string, unknown>) {
     bbox: raw.bbox ?? null,
     threshold: readNumber(raw.threshold) ?? 0,
     track_id: raw.track_id ?? raw.trackingId ?? null,
+    clipUrl: readString(raw.clipUrl ?? raw.clip_url),
+    clipPath: readString(raw.clipPath ?? raw.clip_path),
     sequence: normalizeSequence(raw.sequence),
   };
 }

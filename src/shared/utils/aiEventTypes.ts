@@ -1,4 +1,5 @@
 export interface AiEvent {
+  readonly eventId?: string;
   readonly camera_id: string;
   readonly camera_login_id?: string;
   readonly frame_idx: number;
@@ -8,6 +9,7 @@ export interface AiEvent {
   readonly timestamp: number;
   readonly capturedAtMs?: number;
   readonly processedAtMs?: number;
+  readonly mqttPublishedAtMs?: number;
   readonly mqttReceivedAtMs?: number;
   readonly publishedAtMs?: number;
   readonly receivedAtMs?: number;
@@ -26,6 +28,8 @@ export interface AiEvent {
   readonly threshold: number;
   readonly track_id: string | null;
   readonly severity: string;
+  readonly clipUrl?: string;
+  readonly clipPath?: string;
   readonly sequence?: AiEventSequence;
 }
 

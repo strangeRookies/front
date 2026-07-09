@@ -5,6 +5,9 @@ import type { AiEvent } from '../../hooks/useAiEvents';
 // timestamp를 쓰지 않으므로, 같은 실물 사건이 반복 publish돼도 동일 key가 된다.
 // ---------------------------------------------------------------------------
 export function aiEventFingerprint(event: AiEvent): string {
+  if (event.eventId) {
+    return event.eventId;
+  }
   const normalizedType = event.event_type.trim().toUpperCase();
   const normalizedCamera = event.camera_id.trim().toLowerCase();
   const normalizedTrack = event.track_id != null ? String(event.track_id).trim() : 'no-track';
@@ -33,9 +36,34 @@ export function reduceAiEventFeed(
 ): AiEvent[] {
   const activeEvents = pruneExpiredAiEvents(events, nowMs);
   const fp = aiEventFingerprint(incoming);
+  const previous = activeEvents.find((e) => aiEventFingerprint(e) === fp);
+  const merged = previous ? mergeAiEvent(previous, incoming) : incoming;
   // 동일 fingerprint의 기존 이벤트를 교체 후 최신순 유지
   const rest = activeEvents.filter((e) => aiEventFingerprint(e) !== fp);
-  return [incoming, ...rest].slice(0, 12);
+  return [merged, ...rest].slice(0, 12);
+}
+
+function mergeAiEvent(previous: AiEvent, incoming: AiEvent): AiEvent {
+  return {
+    ...previous,
+    ...incoming,
+    eventId: incoming.eventId ?? previous.eventId,
+    capturedAtMs: incoming.capturedAtMs ?? previous.capturedAtMs,
+    processedAtMs: incoming.processedAtMs ?? previous.processedAtMs,
+    mqttPublishedAtMs: incoming.mqttPublishedAtMs ?? previous.mqttPublishedAtMs,
+    mqttReceivedAtMs: incoming.mqttReceivedAtMs ?? previous.mqttReceivedAtMs,
+    publishedAtMs: incoming.publishedAtMs ?? previous.publishedAtMs,
+    receivedAtMs: incoming.receivedAtMs ?? previous.receivedAtMs,
+    networkLatencyMs: incoming.networkLatencyMs ?? previous.networkLatencyMs,
+    endToEndLatencyMs: incoming.endToEndLatencyMs ?? previous.endToEndLatencyMs,
+    overlayTimestampDeltaMs: incoming.overlayTimestampDeltaMs ?? previous.overlayTimestampDeltaMs,
+    selectedOverlayAgeMs: incoming.selectedOverlayAgeMs ?? previous.selectedOverlayAgeMs,
+    overlayBufferSize: incoming.overlayBufferSize ?? previous.overlayBufferSize,
+    overlaySyncWarning: incoming.overlaySyncWarning ?? previous.overlaySyncWarning,
+    clipUrl: incoming.clipUrl ?? previous.clipUrl,
+    clipPath: incoming.clipPath ?? previous.clipPath,
+    sequence: incoming.sequence ?? previous.sequence,
+  };
 }
 
 // ---------------------------------------------------------------------------

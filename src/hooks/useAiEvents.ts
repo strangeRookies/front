@@ -73,6 +73,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
 
     const handleIncoming = (raw: Record<string, unknown>) => {
       const receivedAtMs = Date.now();
+      logAiAlertRaw(raw, receivedAtMs);
       const parsedEvent = parseToAiEvent(raw);
       if (!parsedEvent) {
         logger.warn('[useAiEvents] Failed to parse event or it was filtered out.');
@@ -201,18 +202,25 @@ function logAiAlertLatency(event: AiEvent, raw: Record<string, unknown>, receive
     return;
   }
 
+  const classification = classifyAiAlertPayload(event);
   const rawTimestampMs = readLatencyNumber(raw.timestampMs ?? raw.timestamp_ms);
   const rawTimestamp = readLatencyNumber(raw.timestamp);
   const capturedAtMs = event.capturedAtMs;
   const processedAtMs = event.processedAtMs;
+  const mqttPublishedAtMs = event.mqttPublishedAtMs;
   const mqttReceivedAtMs = event.mqttReceivedAtMs;
   const publishedAtMs = event.publishedAtMs;
   const eventTimestampMs = timestampToMs(event.timestamp);
 
-  logger.info(`[ai-alert-latency] ${JSON.stringify({
+  logger.info(`[ai-alert-latency:${classification.kind}] ${JSON.stringify({
+    eventId: event.eventId ?? null,
     cameraId: event.camera_id,
     cameraLoginId: event.camera_login_id ?? null,
     eventType: event.event_type,
+    isRealtimeEvent: classification.isRealtimeEvent,
+    isClipEvent: classification.isClipEvent,
+    clipUrl: event.clipUrl ?? null,
+    clipPath: event.clipPath ?? null,
     severity: event.severity,
     frameId: event.frameId ?? null,
     trackId: event.track_id,
@@ -223,18 +231,65 @@ function logAiAlertLatency(event: AiEvent, raw: Record<string, unknown>, receive
     eventTimestampMs,
     capturedAtMs: capturedAtMs ?? null,
     processedAtMs: processedAtMs ?? null,
+    mqttPublishedAtMs: mqttPublishedAtMs ?? null,
     mqttReceivedAtMs: mqttReceivedAtMs ?? null,
     publishedAtMs: publishedAtMs ?? null,
     aiProcessingDelayMs: diffMs(processedAtMs, capturedAtMs),
+    mqttPublishDelayMs: diffMs(mqttPublishedAtMs, processedAtMs),
+    mqttDeliveryDelayMs: diffMs(mqttReceivedAtMs, mqttPublishedAtMs),
     mqttBridgeDelayMs: diffMs(mqttReceivedAtMs, processedAtMs),
     backendPublishDelayMs: diffMs(publishedAtMs, mqttReceivedAtMs),
     stompReceiveDelayMs: publishedAtMs === undefined ? null : receivedAtMs - publishedAtMs,
     lagFromEventTimestampMs: eventTimestampMs === null ? null : receivedAtMs - eventTimestampMs,
     lagFromCapturedMs: capturedAtMs === undefined ? null : receivedAtMs - capturedAtMs,
     lagFromProcessedMs: processedAtMs === undefined ? null : receivedAtMs - processedAtMs,
+    lagFromMqttPublishedMs: mqttPublishedAtMs === undefined ? null : receivedAtMs - mqttPublishedAtMs,
     lagFromMqttReceivedMs: mqttReceivedAtMs === undefined ? null : receivedAtMs - mqttReceivedAtMs,
     lagFromPublishedMs: publishedAtMs === undefined ? null : receivedAtMs - publishedAtMs,
   })}`);
+}
+
+function logAiAlertRaw(raw: Record<string, unknown>, receivedAtMs: number): void {
+  const eventType = readLatencyString(raw.event_type ?? raw.type ?? raw.messageType) ?? 'unknown';
+  if (eventType.trim().toLowerCase() === 'overlay') {
+    return;
+  }
+
+  const capturedAtMs = readLatencyNumber(raw.capturedAtMs ?? raw.captured_at_ms);
+  const processedAtMs = readLatencyNumber(raw.processedAtMs ?? raw.processed_at_ms);
+  const clipUrl = readLatencyString(raw.clipUrl ?? raw.clip_url);
+  const clipPath = readLatencyString(raw.clipPath ?? raw.clip_path);
+  const isClipEvent = !!clipUrl || !!clipPath;
+  const isRealtimeEvent = capturedAtMs !== null && processedAtMs !== null && !isClipEvent;
+
+  logger.info(`[ai-alert-raw] ${JSON.stringify({
+    receivedAtMs,
+    eventId: readLatencyString(raw.eventId ?? raw.event_id ?? raw.alertEventId ?? raw.alert_event_id ?? raw.incidentId ?? raw.incident_id ?? raw.id),
+    eventType,
+    cameraId: readLatencyString(raw.camera_id ?? raw.cameraId ?? raw.camera_login_id ?? raw.cameraLoginId),
+    cameraLoginId: readLatencyString(raw.camera_login_id ?? raw.cameraLoginId),
+    capturedAtMs,
+    processedAtMs,
+    clipUrl: clipUrl ?? null,
+    clipPath: clipPath ?? null,
+    isRealtimeEvent,
+    isClipEvent,
+    raw,
+  })}`);
+}
+
+function classifyAiAlertPayload(event: AiEvent): {
+  kind: 'realtime' | 'clip' | 'unknown';
+  isRealtimeEvent: boolean;
+  isClipEvent: boolean;
+} {
+  const isClipEvent = !!event.clipUrl || !!event.clipPath;
+  const isRealtimeEvent = event.capturedAtMs !== undefined && event.processedAtMs !== undefined && !isClipEvent;
+  return {
+    kind: isRealtimeEvent ? 'realtime' : isClipEvent ? 'clip' : 'unknown',
+    isRealtimeEvent,
+    isClipEvent,
+  };
 }
 
 function diffMs(end: number | undefined, start: number | undefined): number | null {
@@ -257,6 +312,10 @@ function readLatencyNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function readLatencyString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 
 function sequenceLabel(event: AiEvent): string {
