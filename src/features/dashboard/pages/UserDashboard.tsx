@@ -429,8 +429,8 @@ export function NurseDashboard({
     ? liveCameras.find((camera) => camera.name === selectedIncident.camera || camera.location === selectedIncident.camera)
     : null;
 
-  const playbackStreamUrl = selectedIncident?.clipUrl || selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
-  const playbackStreamKind = selectedIncident?.clipUrl ? 'hls' : (selectedCameraObj?.streamKind || liveCameras[0]?.streamKind);
+  const playbackStreamUrl = selectedIncident?.snapshotUrl || selectedIncident?.clipUrl || selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
+  const playbackStreamKind = (selectedIncident?.snapshotUrl || selectedIncident?.clipUrl) ? 'hls' : (selectedCameraObj?.streamKind || liveCameras[0]?.streamKind);
 
   // --- Loading View ---
   if (isLoading) {
