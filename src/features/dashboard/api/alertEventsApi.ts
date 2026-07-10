@@ -1,5 +1,6 @@
 import { apiRequest } from '../../../shared/api/client';
 import type { LiveCamera } from '../data/cameras';
+import mockVlmIncidents from '../data/mockVlmIncidents.json';
 import type { IncidentAlert } from '../types/dashboard';
 import { getEventTypeKorean, getSeverityTone } from '../../../shared/utils/aiAlerts';
 
@@ -119,6 +120,10 @@ export async function fetchSemanticAlertEvents(
   filters: SemanticSearchFilters = {},
   userType: 'individual' | 'corporate' = 'individual'
 ): Promise<SemanticSearchResult[]> {
+  if (import.meta.env.VITE_VLM_MOCK_SEARCH === 'true') {
+    return readMockSemanticResults(query, filters);
+  }
+
   const params = new URLSearchParams({
     query,
     topK: String(filters.topK ?? 10),
@@ -140,6 +145,75 @@ export async function fetchSemanticAlertEvents(
   }
 
   return data.filter(isSemanticSearchResult);
+}
+
+interface MockVlmIncidentResult {
+  readonly incidentId: string;
+  readonly cameraLoginId: string;
+  readonly status: string;
+  readonly detectedAt: string;
+  readonly timeline: readonly string[];
+  readonly summary: string;
+  readonly similarityScore: number;
+}
+
+function readMockSemanticResults(_query: string, filters: SemanticSearchFilters): SemanticSearchResult[] {
+  if (!isRecord(mockVlmIncidents) || !Array.isArray(mockVlmIncidents.results)) {
+    return [];
+  }
+
+  return mockVlmIncidents.results
+    .filter(isMockVlmIncidentResult)
+    .filter((result) => matchesMockSemanticFilters(result, filters))
+    .slice(0, Math.max(1, filters.topK ?? 10))
+    .map((result, index) => ({
+      alertEventId: stablePositiveId(result.incidentId),
+      cameraId: stablePositiveId(result.cameraLoginId),
+      cameraLoginId: result.cameraLoginId,
+      scenarioType: result.timeline[0] ?? 'NORMAL',
+      severity: result.status,
+      detectedAt: result.detectedAt,
+      vlmDescription: result.summary,
+      vlmJson: JSON.stringify(result),
+      similarityScore: result.similarityScore,
+      keyframeUrls: [],
+    }))
+    .filter((result, index, results) =>
+      results.findIndex((candidate) => candidate.alertEventId === result.alertEventId) === index
+    );
+}
+
+function matchesMockSemanticFilters(
+  result: MockVlmIncidentResult,
+  filters: SemanticSearchFilters,
+) {
+  const cameraMatches = !filters.cameraId || normalizeCameraToken(String(filters.cameraId)) === normalizeCameraToken(result.cameraLoginId);
+  const fromMatches = !filters.dateFrom || result.detectedAt >= filters.dateFrom;
+  const toMatches = !filters.dateTo || result.detectedAt <= filters.dateTo;
+  const similarityMatches = result.similarityScore >= (filters.minSimilarity ?? 0);
+  return cameraMatches && fromMatches && toMatches && similarityMatches;
+}
+
+function isMockVlmIncidentResult(value: unknown): value is MockVlmIncidentResult {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return typeof value.incidentId === 'string'
+    && typeof value.cameraLoginId === 'string'
+    && typeof value.status === 'string'
+    && typeof value.detectedAt === 'string'
+    && Array.isArray(value.timeline)
+    && value.timeline.every((eventType) => typeof eventType === 'string')
+    && typeof value.summary === 'string'
+    && typeof value.similarityScore === 'number';
+}
+
+function stablePositiveId(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.imul(31, hash) + value.charCodeAt(index);
+  }
+  return hash >>> 0;
 }
 
 export function toIncidentAlertFromRecentEvent(
