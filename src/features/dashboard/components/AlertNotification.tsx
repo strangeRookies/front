@@ -1,5 +1,7 @@
 import { AlertTriangle, X } from 'lucide-react';
 import { useEffect } from 'react';
+import { VlmSnapshotAssistPanel } from './VlmSnapshotAssistPanel';
+import type { VlmSnapshotAssistResult } from '../types/vlmSnapshotAssist';
 
 declare global {
   interface Window {
@@ -11,9 +13,12 @@ interface AlertNotificationProps {
   message: string;
   cameraId: string;
   onClose: () => void;
+  /** Optional side-channel VLM snapshot assist (never blocks alert UI). */
+  eventId?: string | null;
+  vlmAssist?: VlmSnapshotAssistResult | null;
 }
 
-export function AlertNotification({ message, cameraId, onClose }: AlertNotificationProps) {
+export function AlertNotification({ message, cameraId, onClose, eventId, vlmAssist }: AlertNotificationProps) {
   useEffect(() => {
     const AudioContextConstructor = window.AudioContext ?? window.webkitAudioContext;
     if (!AudioContextConstructor) return;
@@ -69,6 +74,9 @@ export function AlertNotification({ message, cameraId, onClose }: AlertNotificat
               <h4 className="font-bold mb-1">안전 이벤트 알림</h4>
               <p className="text-sm mb-1">{message}</p>
               <p className="text-xs opacity-90">카메라: {cameraId}</p>
+              <div className="mt-2 rounded bg-red-700/40 p-2 text-left text-xs">
+                <VlmSnapshotAssistPanel eventId={eventId} assist={vlmAssist} />
+              </div>
             </div>
             <button
               onClick={onClose}
