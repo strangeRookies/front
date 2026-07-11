@@ -53,6 +53,21 @@ export function DashboardHistoryView({
   const endPage = Math.min(totalPages, startPage + 5);
   const visiblePages = Array.from({ length: endPage - startPage }, (_, i) => startPage + i);
 
+  /** Prefer explicit clipUrl; reject legacy video keys mistakenly stored as snapshot images. */
+  const resolveClipUrl = (alert: IncidentAlert): string | null => {
+    if (alert.clipUrl && alert.clipUrl.trim()) {
+      return alert.clipUrl;
+    }
+    const snap = alert.snapshotUrl?.trim() ?? '';
+    if (snap && (/\.(mp4|mov|avi|webm)(\?|$)/i.test(snap) || /\/clips\//i.test(snap))) {
+      return snap;
+    }
+    return null;
+  };
+
+  const historyClipUrl =
+    historyAlerts.map(resolveClipUrl).find((url): url is string => Boolean(url)) ?? null;
+
   return (
     <div className="flex-1 p-6 space-y-6 overflow-y-auto max-w-5xl flex flex-col">
       <div>
@@ -65,6 +80,8 @@ export function DashboardHistoryView({
         facilityId={semanticSearchFacilityId}
         userType={userType}
         cameraId={searchCamera}
+        selectedClipUrl={historyClipUrl}
+        historyAlerts={historyAlerts}
       />
       <div className="bg-[#071329] border border-slate-800 p-4 rounded-2xl">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

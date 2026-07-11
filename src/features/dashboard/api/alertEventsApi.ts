@@ -337,3 +337,16 @@ function normalizeCameraToken(value?: string) {
 export async function acknowledgeAlertEvent(alertEventId: string | number): Promise<void> {
   await apiRequest(`/api/alert-events/${alertEventId}/acknowledge`, { method: 'PATCH' });
 }
+
+export async function fetchAlertEventDetail(
+  alertEventId: string | number
+): Promise<Record<string, unknown>> {
+  const data = await apiRequest<unknown>(`/api/alert-events/${alertEventId}`, {
+    method: 'GET',
+  });
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    return data as Record<string, unknown>;
+  }
+  return {};
+}
+
