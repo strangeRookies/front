@@ -1,0 +1,44 @@
+{
+  "query": "출입문에서 쓰러진 뒤 움직임이 낮고 회복된 사람",
+  "filters": {
+    "cameraLoginIds": ["cam_02"],
+    "eventTypes": ["NEW_FALL", "RECOVERED"],
+    "incidentStatuses": ["RECOVERED", "OPEN"],
+    "topK": 5,
+    "minSimilarity": 0.01
+  },
+  "results": [
+    {
+      "incidentId": "incident-demo-001",
+      "cameraLoginId": "cam_02",
+      "locationName": "출입문 D",
+      "status": "RECOVERED",
+      "detectedAt": "2026-07-10T12:30:00",
+      "timeline": ["NEW_FALL", "RECOVERED"],
+      "summary": "보행 중 쓰러진 뒤 일정 시간 움직임이 낮았으나 이후 회복했습니다.",
+      "movementAfterEvent": "medium",
+      "recoveryObserved": true,
+      "estimatedLyingDurationSec": 4,
+      "keyframePlaceholders": [2, 3, 4, 6, 7],
+      "similarityScore": 0.42
+    },
+    {
+      "incidentId": "incident-demo-002",
+      "cameraLoginId": "cam_02",
+      "locationName": "복도 B",
+      "status": "OPEN",
+      "detectedAt": "2026-07-10T12:42:00",
+      "timeline": ["NEW_FALL", "FAINT_SUSPECTED"],
+      "summary": "보행 중 쓰러진 뒤 낮은 움직임이 관찰되어 추가 확인이 필요합니다.",
+      "movementAfterEvent": "low",
+      "recoveryObserved": false,
+      "estimatedLyingDurationSec": 18,
+      "keyframePlaceholders": [2, 3, 4, 6, 7],
+      "similarityScore": 0.31
+    }
+  ],
+  "emptyState": {
+    "query": "정상 보행 제외",
+    "results": []
+  }
+}

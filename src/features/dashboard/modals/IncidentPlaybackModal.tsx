@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Pause, Play, Volume2, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
+import { Pause, Play, Volume2 } from 'lucide-react';
 import Hls from 'hls.js';
 import { CameraStreamFrame } from '../components/CameraStreamFrame';
 import { streamRenderKind, type StreamRenderKind } from '../data/cameras';
@@ -28,7 +28,6 @@ export function IncidentPlaybackModal({
   onTogglePlaying,
   cameraLoginId,
 }: IncidentPlaybackModalProps) {
-  const [showSnapshot, setShowSnapshot] = useState(false);
   const [duration, setDuration] = useState(10);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -49,7 +48,7 @@ export function IncidentPlaybackModal({
   // 비디오 소스 설정 (HLS 또는 일반 MP4 등)
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !playbackStreamUrl || showSnapshot) return;
+    if (!video || !playbackStreamUrl) return;
 
     // 기존 HLS 정리
     if (hlsRef.current) {
@@ -76,7 +75,7 @@ export function IncidentPlaybackModal({
         hlsRef.current = null;
       }
     };
-  }, [playbackStreamUrl, showSnapshot]);
+  }, [playbackStreamUrl]);
 
   // 비디오 메타데이터 로드 시 전체 길이 확인 및 초기 위치 설정
   const handleLoadedMetadata = () => {
@@ -94,14 +93,14 @@ export function IncidentPlaybackModal({
   // 재생/일시정지 상태 동기화
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || showSnapshot) return;
+    if (!video) return;
 
     if (isPlaying) {
       video.play().catch(() => {});
     } else {
       video.pause();
     }
-  }, [isPlaying, showSnapshot]);
+  }, [isPlaying]);
 
   // 비디오 시간 변경 시 슬라이더 진행률 업데이트 및 10초 범위 제한
   const handleTimeUpdate = () => {
@@ -141,35 +140,11 @@ export function IncidentPlaybackModal({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {incident.snapshotUrl && (
-              <button
-                onClick={() => setShowSnapshot(!showSnapshot)}
-                className="flex cursor-pointer items-center gap-1 rounded border border-blue-500/30 bg-blue-950/40 px-2.5 py-1 text-xs font-bold text-blue-400 hover:bg-blue-900/50 transition-all"
-              >
-                {showSnapshot ? (
-                  <>
-                    <VideoIcon className="h-3.5 w-3.5" />
-                    <span>영상 보기</span>
-                  </>
-                ) : (
-                  <>
-                    <ImageIcon className="h-3.5 w-3.5" />
-                    <span>스냅샷 보기</span>
-                  </>
-                )}
-              </button>
-            )}
             <button onClick={onClose} className="cursor-pointer rounded border border-slate-800 bg-[#020817] px-2 py-1 text-xs font-bold text-slate-400 hover:text-white">닫기</button>
           </div>
         </div>
         <div className="relative aspect-video overflow-hidden bg-black flex items-center justify-center">
-          {showSnapshot && incident.snapshotUrl ? (
-            <img
-              src={incident.snapshotUrl}
-              alt="이상 상황 스냅샷"
-              className="h-full w-full object-contain contrast-125"
-            />
-          ) : incident.clipUrl ? (
+          {incident.snapshotUrl || incident.clipUrl ? (
             <video
               ref={videoRef}
               onTimeUpdate={handleTimeUpdate}
