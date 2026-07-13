@@ -312,6 +312,11 @@ export function NurseDashboard({
 
   useEffect(() => {
     void loadRecentAlerts();
+    // 실시간 알림으로 먼저 뜬 카드에 스냅샷이 뒤늦게(최대 수십 초) 붙는 경우를 반영하기 위한 주기적 재조회
+    const intervalId = setInterval(() => {
+      void loadRecentAlerts();
+    }, 15000);
+    return () => clearInterval(intervalId);
   }, [loadRecentAlerts]);
 
   const previousConnectionStateRef = useRef(connectionState);

@@ -40,8 +40,13 @@ export function useDashboardAlerts({
       let changed = false;
 
       for (const alert of recentAlerts) {
-        if (!merged.has(alert.id)) {
+        const existing = merged.get(alert.id);
+        if (!existing) {
           merged.set(alert.id, alert);
+          changed = true;
+        } else if ((alert.snapshotUrl || alert.clipUrl) && !(existing.snapshotUrl || existing.clipUrl)) {
+          // 실시간 WS로 먼저 들어온 항목엔 스냅샷이 없는데, 재조회 결과엔 이제 붙어있는 경우 갱신
+          merged.set(alert.id, { ...existing, snapshotUrl: alert.snapshotUrl, clipUrl: alert.clipUrl });
           changed = true;
         }
       }
