@@ -26,8 +26,9 @@ jobs:
         echo "VITE_BACKEND_BASE_URL=${{ secrets.VITE_BACKEND_BASE_URL }}" >> .env.production
         echo "VITE_BACKEND_WS_URL=${{ secrets.VITE_BACKEND_WS_URL }}" >> .env.production
         echo "VITE_S3_BUCKET_URL=${{ secrets.VITE_S3_BUCKET_URL }}" >> .env.production
-        # 향후 AI 스트리밍 서버 주소가 확정되면 아래처럼 추가
-        # echo "VITE_STREAM_BASE_URL=${{ secrets.VITE_STREAM_BASE_URL }}" >> .env.production
+        echo "VITE_WEBRTC_BASE_URL=${{ secrets.VITE_WEBRTC_BASE_URL }}" >> .env.production
+        echo "VITE_HLS_BASE_URL=${{ secrets.VITE_HLS_BASE_URL }}" >> .env.production
+        echo "VITE_MJPEG_BASE_URL=${{ secrets.VITE_MJPEG_BASE_URL }}" >> .env.production
 
     - name: 리액트(Vite) 프로젝트 빌드
       run: npm run build
