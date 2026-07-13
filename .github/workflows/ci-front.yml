@@ -1,46 +1,68 @@
-name: Deploy Frontend to S3
+name: Deploy Frontend to ECR & Update Infra
 
 on:
   push:
-    branches: [ "main" ] # 배포를 트리거할 브랜치명 (필요시 수정)
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: smart-safety-frontend
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
-    - name: 소스코드 가져오기
+    - name: 1. 소스코드 가져오기
       uses: actions/checkout@v4
 
-    - name: Node.js 환경 세팅
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-
-    - name: 패키지 설치
-      run: npm install
-
-    - name: 빌드 전 환경 변수(.env.production) 생성 및 주입
-      run: |
-        echo "VITE_BACKEND_BASE_URL=${{ secrets.VITE_BACKEND_BASE_URL }}" >> .env.production
-        echo "VITE_BACKEND_WS_URL=${{ secrets.VITE_BACKEND_WS_URL }}" >> .env.production
-        echo "VITE_S3_BUCKET_URL=${{ secrets.VITE_S3_BUCKET_URL }}" >> .env.production
-        echo "VITE_WEBRTC_BASE_URL=${{ secrets.VITE_WEBRTC_BASE_URL }}" >> .env.production
-        echo "VITE_HLS_BASE_URL=${{ secrets.VITE_HLS_BASE_URL }}" >> .env.production
-        echo "VITE_MJPEG_BASE_URL=${{ secrets.VITE_MJPEG_BASE_URL }}" >> .env.production
-
-    - name: 리액트(Vite) 프로젝트 빌드
-      run: npm run build
-
-    - name: AWS 인증 정보 설정
+    - name: 2. AWS 인증 정보 설정
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ap-northeast-2
+        aws-region: ${{ env.AWS_REGION }}
 
-    - name: 빌드된 결과물(dist)을 S3 버킷에 동기화 (기존 파일 덮어쓰기/삭제)
+    - name: 3. Amazon ECR 로그인
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: 4. 도커 이미지 빌드 및 ECR 푸시 (환경 변수 빌드 주입 포함)
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
       run: |
-        aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }} --delete
-        echo "==== 프론트엔드 S3 배포 완료! ===="
+        docker build \
+          --build-arg VITE_BACKEND_BASE_URL="${{ secrets.VITE_BACKEND_BASE_URL }}" \
+          --build-arg VITE_BACKEND_WS_URL="${{ secrets.VITE_BACKEND_WS_URL }}" \
+          --build-arg VITE_S3_BUCKET_URL="${{ secrets.VITE_S3_BUCKET_URL }}" \
+          --build-arg VITE_WEBRTC_BASE_URL="${{ secrets.VITE_WEBRTC_BASE_URL }}" \
+          --build-arg VITE_HLS_BASE_URL="${{ secrets.VITE_HLS_BASE_URL }}" \
+          --build-arg VITE_MJPEG_BASE_URL="${{ secrets.VITE_MJPEG_BASE_URL }}" \
+          --build-arg VITE_STREAM_MODE="mjpeg" \
+          -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+        echo "ECR_REGISTRY=$ECR_REGISTRY" >> $GITHUB_ENV
+
+    - name: 5. 인프라(Infra) 레포지토리 체크아웃
+      uses: actions/checkout@v4
+      with:
+        repository: strangeRookies/infra 
+        token: ${{ secrets.PAT_TOKEN }}
+        path: infra-repo
+
+    - name: 6. 쿠버네티스 설정 파일 업데이트 및 커밋
+      run: |
+        cd infra-repo
+        sed -i "s|image: .*/smart-safety-frontend:.*|image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}|g" k8s/frontend/deployment.yaml
+        
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add k8s/frontend/deployment.yaml
+        git commit -m "🚀 Update frontend image tag to ${{ env.IMAGE_TAG }}"
+        git push origin main
