@@ -12,6 +12,7 @@ export interface IncidentAlert {
   status: 'new' | 'resolved';
   snapshotUrl?: string; // S3 Presigned URL
   clipUrl?: string; // Recorded video clip URL
+  clipPath?: string;
 }
 
 export interface RegisteredCamera {

@@ -21,7 +21,7 @@ import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
 import { STREAM_MODE, cameraLoginIdFor, resolveCameraStream, type LiveCamera } from '../data/cameras';
 import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, updateAdminMember, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse } from '../api/adminApi';
 import { useAiEvents } from '../../../hooks/useAiEvents';
-import { isDangerAiEvent, getSeverityTone, getEventTypeKorean, aiEventFingerprint } from '../../../shared/utils/aiAlerts';
+import { isDangerAiEvent, getScenarioPresentation, aiEventFingerprint } from '../../../shared/utils/aiAlerts';
 import { fetchAllInquiries, fetchMyInquiries, createInquiry, answerInquiry } from '../api/inquiryApi';
 import { logger } from '../../../shared/utils/logger';
 
@@ -280,15 +280,16 @@ const [isPlaying, setIsPlaying] = useState(true);
     .filter(isDangerAiEvent)
     .map(event => {
       const fingerprint = aiEventFingerprint(event);
-      const eventType = event.event_type.toUpperCase();
+      const eventType = event.scenarioType!;
+      const presentation = getScenarioPresentation(eventType);
       return {
         id: fingerprint,
         time: new Date(event.timestamp * 1000).toTimeString().split(' ')[0],
         timestamp: event.timestamp * 1000,
         camera: event.camera_login_id ?? event.camera_id,
         type: eventType,
-        label: `${eventType} (${getEventTypeKorean(event.event_type)}) 감지`,
-        severity: getSeverityTone(event.severity),
+        label: presentation.label,
+        severity: presentation.tone,
         status: resolvedTestAlertIds.has(fingerprint) ? 'resolved' as const : 'new' as const,
       };
     }), [testAiFeed.events, resolvedTestAlertIds]);

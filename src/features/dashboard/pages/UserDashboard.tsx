@@ -293,6 +293,15 @@ export function NurseDashboard({
     userType,
   });
 
+  useEffect(() => {
+    if (!selectedIncident) return;
+    const refreshed = alerts.find((alert) => alert.id === selectedIncident.id)
+      ?? historyAlerts.find((alert) => alert.id === selectedIncident.id);
+    if (refreshed && refreshed !== selectedIncident) {
+      setSelectedIncident(refreshed);
+    }
+  }, [alerts, historyAlerts, selectedIncident]);
+
   const loadRecentAlerts = useCallback(async () => {
     if (recentAlertFacilityIds.length === 0) return;
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { logger } from './logger';
-import type { AiEvent, AiEventSequence } from './aiEventTypes';
+import { AI_SCENARIO_TYPES, type AiEvent, type AiEventSequence, type AiScenarioType } from './aiEventTypes';
 
 const unknownRecordSchema = z.record(z.string(), z.unknown());
 const aiEventSequenceSchema = z.object({
@@ -34,6 +34,7 @@ const aiEventSchema = z.object({
   overlayBufferSize: z.number().optional(),
   overlaySyncWarning: z.boolean().optional(),
   event_type: z.string(),
+  scenarioType: z.enum(AI_SCENARIO_TYPES).optional(),
   messageType: z.string().optional(),
   score: z.number().default(0),
   confidence: z.number().default(0),
@@ -48,8 +49,18 @@ const aiEventSchema = z.object({
 });
 
 export function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
+  const normalized = normalizeRawPayload(raw);
+  if (!isOverlayPayload(normalized) && !isSupportedScenarioType(normalized.scenarioType)) {
+    console.warn('[ai-alert] Ignoring alert without a supported scenarioType.', {
+      eventId: normalized.eventId ?? null,
+      eventType: normalized.event_type,
+      scenarioType: normalized.scenarioType ?? null,
+    });
+    return null;
+  }
+
   try {
-    const parsed = aiEventSchema.parse(normalizeRawPayload(raw));
+    const parsed = aiEventSchema.parse(normalized);
     return {
       eventId: parsed.eventId,
       camera_id: parsed.camera_id,
@@ -72,6 +83,7 @@ export function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
       overlayBufferSize: parsed.overlayBufferSize,
       overlaySyncWarning: parsed.overlaySyncWarning,
       event_type: parsed.event_type,
+      scenarioType: parsed.scenarioType,
       messageType: parsed.messageType,
       score: parsed.score,
       confidence: parsed.confidence,
@@ -104,6 +116,7 @@ function normalizeRawPayload(raw: Record<string, unknown>) {
     camera_id: readString(raw.camera_id ?? raw.cameraId ?? raw.camera_login_id ?? raw.cameraLoginId) ?? '',
     camera_login_id: readString(cameraLoginId),
     event_type: readString(raw.event_type ?? raw.type ?? raw.messageType) ?? 'unknown',
+    scenarioType: readString(raw.scenarioType ?? raw.scenario_type)?.trim().toUpperCase(),
     messageType: readString(raw.messageType),
     timestamp,
     frameId: readNumber(raw.frameId ?? raw.frame_id),
@@ -126,6 +139,14 @@ function normalizeRawPayload(raw: Record<string, unknown>) {
     clipPath: readString(raw.clipPath ?? raw.clip_path),
     sequence: normalizeSequence(raw.sequence),
   };
+}
+
+function isOverlayPayload(payload: { event_type: string; messageType?: string }): boolean {
+  return payload.messageType === 'overlay' || payload.event_type === 'overlay';
+}
+
+function isSupportedScenarioType(value: unknown): value is AiScenarioType {
+  return typeof value === 'string' && (AI_SCENARIO_TYPES as readonly string[]).includes(value);
 }
 
 function normalizeTimestamp(value: number | undefined): number {

@@ -1,28 +1,46 @@
 import type { LiveCamera } from '../../features/dashboard/data/cameras';
 import type { AiEvent } from '../../hooks/useAiEvents';
+import type { AiScenarioType } from './aiEventTypes';
 
 export type AiAlertPage = 'admin' | 'company' | 'personal';
+
+export interface ScenarioPresentation {
+  readonly label: string;
+  readonly tone: 'critical' | 'warning' | 'info';
+  readonly icon: 'collapse' | 'syncope' | 'fall' | 'exit' | 'hazard';
+}
+
+const SCENARIO_PRESENTATIONS: Record<AiScenarioType, ScenarioPresentation> = {
+  COLLAPSE: { label: '쓰러짐 감지', tone: 'warning', icon: 'collapse' },
+  SYNCOPE: { label: '실신(미회복) 감지', tone: 'critical', icon: 'syncope' },
+  FALL_BED: { label: '낙상 감지', tone: 'warning', icon: 'fall' },
+  EXIT: { label: '이탈 감지', tone: 'info', icon: 'exit' },
+  HAZARD_ZONE: { label: '위험구역 진입', tone: 'critical', icon: 'hazard' },
+};
 
 export function isAiAlertEnabledRoute(page: AiAlertPage) {
   return page !== 'admin';
 }
 
 export function isDangerAiEvent(event: AiEvent) {
-  return event.event_type !== 'Normal';
+  return event.scenarioType !== undefined;
 }
 
 export function aiEventKey(event: AiEvent) {
   const trackId = event.track_id ?? 'no-track';
   const cameraKey = event.camera_login_id ?? event.camera_id;
-  return `${cameraKey}:${event.event_type}:${event.timestamp}:${trackId}`;
+  return `${cameraKey}:${event.scenarioType ?? 'no-scenario'}:${event.timestamp}:${trackId}`;
 }
 
 export { aiEventFingerprint } from './aiEventFeed';
 
+export function getScenarioPresentation(scenarioType: AiScenarioType): ScenarioPresentation {
+  return SCENARIO_PRESENTATIONS[scenarioType];
+}
+
 export function formatAiEventLabel(event: AiEvent): string {
-  const upper = event.event_type.trim().toUpperCase();
-  const korean = getEventTypeKorean(event.event_type);
-  return `${upper} (${korean}) 감지${formatOverlayDebugSuffix(event)}`;
+  const presentation = event.scenarioType ? getScenarioPresentation(event.scenarioType) : undefined;
+  return `${presentation?.label ?? 'AI 알림'}${formatOverlayDebugSuffix(event)}`;
 }
 
 export function getSeverityTone(severity: string): 'critical' | 'warning' | 'info' {
@@ -50,18 +68,6 @@ export function findCameraForAiEvent(cameras: readonly LiveCamera[], event: AiEv
     ].filter(Boolean));
     return eventTokens.some((token) => cameraTokens.has(token));
   });
-}
-
-export function getEventTypeKorean(type: string): string {
-  const upper = type.toUpperCase();
-  if (upper.includes('FALL')) return '낙상';
-  if (upper.includes('FAINT') || upper.includes('SYNCOPE') || upper.includes('UNCONSCIOUS')) return '실신';
-  if (upper.includes('COLLAPSE')) return '쓰러짐';
-  if (upper.includes('VIOLENCE') || upper.includes('FIGHT')) return '폭력';
-  if (upper.includes('CROWD')) return '군중';
-  if (upper.includes('FIRE')) return '화재';
-  if (upper.includes('UNAUTHORIZED_EXIT')) return '무단 이탈';
-  return type;
 }
 
 export function markAiDangerCameras(cameras: readonly LiveCamera[], events: readonly AiEvent[]) {
@@ -105,7 +111,7 @@ function formatOverlayDebugSuffix(event: AiEvent): string {
     event.endToEndLatencyMs !== undefined ? `e2e ${Math.round(event.endToEndLatencyMs)}ms` : undefined,
     formatSequenceRange(event),
   ].filter(Boolean);
-  return parts.length === 0 ? '' : ` · ${parts.join(' · ')}`;
+  return parts.length === 0 ? '' : ` | ${parts.join(' | ')}`;
 }
 
 function formatSequenceRange(event: AiEvent): string | undefined {
