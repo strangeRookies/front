@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { ForgotPasswordPage } from '../features/auth/pages/ForgotPasswordPage';
@@ -14,11 +14,7 @@ import {
   saveAuthSession,
 } from '../features/auth/api/authApi';
 
-//  추가: MonitoringDashboard 컴포넌트 임포트 
-import MonitoringDashboard from '../components/dashboard/MonitoringDashboard';
-
-//  추가: ViewType에 'monitoring' 상태 추가
-type ViewType = 'login' | 'personalSignUp' | 'corporateSignUp' | 'forgotPassword' | 'userDashboard' | 'adminDashboard' | 'monitoring';
+type ViewType = 'login' | 'personalSignUp' | 'corporateSignUp' | 'forgotPassword' | 'userDashboard' | 'adminDashboard';
 type UserType = 'individual' | 'corporate';
 
 export default function App() {
@@ -36,6 +32,7 @@ export default function App() {
         if (cancelled) {
           return;
         }
+
         saveAuthSession(session);
         const role = roleToFrontendAccountType(session.user.role, 'individual');
         const displayName = session.user.name || session.user.email || '';
@@ -129,16 +126,6 @@ export default function App() {
     <div className="min-h-screen bg-[#070e1b] text-slate-100 font-sans selection:bg-blue-500/35 selection:text-white relative">
       <Toaster position="top-right" richColors theme="dark" />
 
-      {/*  개발용 임시 버튼: 로그인 없이 CCTV 화면을 바로 띄워보기 위한 버튼임. 개발 완료 후 삭제 */}
-      {currentView !== 'monitoring' && (
-        <button
-          onClick={() => setCurrentView('monitoring')}
-          className="fixed bottom-6 right-6 z-50 bg-red-600 hover:bg-red-500 text-white px-5 py-3 rounded-full shadow-2xl font-bold transition-all transform hover:scale-105"
-        >
-          📷 CCTV 테스트 모드
-        </button>
-      )}
-
       {currentView === 'login' && (
         <LoginPage
           onLogin={handleLogin}
@@ -177,27 +164,7 @@ export default function App() {
       )}
 
       {currentView === 'adminDashboard' && (
-        <IntegratedDashboard
-          onLogout={handleLogout}
-        />
-      )}
-
-      {/* 추가: CCTV 모니터링 테스트용 뷰 렌더링 */}
-      {currentView === 'monitoring' && (
-        <div className="flex flex-col h-screen">
-          <div className="p-4 bg-gray-800 border-b border-gray-700 flex justify-between items-center">
-            <h1 className="text-xl font-bold">CCTV 실시간 오버레이 테스트</h1>
-            <button 
-              onClick={() => setCurrentView('login')}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium"
-            >
-              돌아가기
-            </button>
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <MonitoringDashboard />
-          </div>
-        </div>
+        <IntegratedDashboard onLogout={handleLogout} />
       )}
     </div>
   );

@@ -79,6 +79,7 @@ export function useAiEvents(input: string | UseAiEventsOptions = {}): AiEventFee
         logger.warn('[useAiEvents] Failed to parse event or it was filtered out.');
         return;
       }
+      logAiAlertSyncCheck(parsedEvent, receivedAtMs);
       logAiAlertLatency(parsedEvent, raw, receivedAtMs);
       const enrichedEvent = enrichOverlayPayload(parsedEvent, receivedAtMs);
       const selected = overlayBufferRef.current.push(enrichedEvent, receivedAtMs);
@@ -249,6 +250,22 @@ function logAiAlertLatency(event: AiEvent, raw: Record<string, unknown>, receive
   })}`);
 }
 
+function logAiAlertSyncCheck(event: AiEvent, receivedAtMs: number): void {
+  if (isOverlayEvent(event)) {
+    return;
+  }
+
+  const eventCapturedAtMs = event.capturedAtMs;
+
+  logger.info(`[ai-alert-sync-check] ${JSON.stringify({
+    eventId: event.eventId ?? aiEventFingerprint(event),
+    eventFrameId: event.frameId ?? null,
+    eventCapturedAtMs: eventCapturedAtMs ?? null,
+    receivedAtMs,
+    ageMs: eventCapturedAtMs === undefined ? null : receivedAtMs - eventCapturedAtMs,
+  })}`);
+}
+
 function logAiAlertRaw(raw: Record<string, unknown>, receivedAtMs: number): void {
   const eventType = readLatencyString(raw.event_type ?? raw.type ?? raw.messageType) ?? 'unknown';
   if (eventType.trim().toLowerCase() === 'overlay') {
@@ -256,6 +273,7 @@ function logAiAlertRaw(raw: Record<string, unknown>, receivedAtMs: number): void
   }
 
   const capturedAtMs = readLatencyNumber(raw.capturedAtMs ?? raw.captured_at_ms);
+  const frameId = readLatencyNumber(raw.frameId ?? raw.frame_id);
   const processedAtMs = readLatencyNumber(raw.processedAtMs ?? raw.processed_at_ms);
   const clipUrl = readLatencyString(raw.clipUrl ?? raw.clip_url);
   const clipPath = readLatencyString(raw.clipPath ?? raw.clip_path);
@@ -268,6 +286,7 @@ function logAiAlertRaw(raw: Record<string, unknown>, receivedAtMs: number): void
     eventType,
     cameraId: readLatencyString(raw.camera_id ?? raw.cameraId ?? raw.camera_login_id ?? raw.cameraLoginId),
     cameraLoginId: readLatencyString(raw.camera_login_id ?? raw.cameraLoginId),
+    frameId,
     capturedAtMs,
     processedAtMs,
     clipUrl: clipUrl ?? null,
