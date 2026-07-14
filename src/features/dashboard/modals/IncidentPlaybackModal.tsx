@@ -5,6 +5,17 @@ import { CameraStreamFrame } from '../components/CameraStreamFrame';
 import { streamRenderKind, type StreamRenderKind } from '../data/cameras';
 import type { IncidentAlert } from '../types/dashboard';
 
+// 감지 유형별 한글 표시 문구 (백엔드 ScenarioType 매핑 규칙과 동일한 패턴)
+function getDetectionReasonLabel(type: string, fallback: string): string {
+  const upper = type.toUpperCase();
+  if (upper.includes('FALL')) return '낙상 감지';
+  if (upper.includes('COLLAPSE')) return '쓰러짐 감지';
+  if (upper.includes('SYNCOPE') || upper.includes('FAINT')) return '실신 감지';
+  if (upper.includes('EXIT')) return '이탈 감지';
+  if (upper.includes('ASSAULT') || upper.includes('VIOLENCE') || upper.includes('FIGHT')) return '폭행 감지';
+  return fallback;
+}
+
 interface IncidentPlaybackModalProps {
   incident: IncidentAlert;
   isPlaying: boolean;
@@ -163,9 +174,8 @@ export function IncidentPlaybackModal({
               cameraLoginId={cameraLoginId}
             />
           )}
-          <div className="absolute left-1/3 top-1/3 flex h-1/3 w-1/3 flex-col justify-between rounded border-2 border-rose-500 bg-rose-500/5 p-2 pointer-events-none">
-            <span className="self-start rounded bg-rose-600 px-1.5 text-[9px] font-bold uppercase text-white">{incident.type}</span>
-            <span className="animate-pulse text-center text-[10px] font-extrabold text-rose-400">{incident.label}</span>
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 py-3 pointer-events-none">
+            <span className="text-sm font-bold text-white">{getDetectionReasonLabel(incident.type, incident.label)}</span>
           </div>
         </div>
         <div className="space-y-3 bg-[#061224] p-4">
