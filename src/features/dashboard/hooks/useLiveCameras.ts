@@ -27,6 +27,19 @@ function isFrontendVisibleCamera(camera: CameraResponse): boolean {
 function activeCameraToLiveCamera(camera: CameraResponse): LiveCamera {
   const cameraLoginId = cameraLoginIdFor(camera.cameraLoginId, camera.cameraId);
   const resolvedStream = resolveCameraStream(cameraLoginId, camera);
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.info('[camera-stream-resolve]', {
+      id: cameraLoginId,
+      cameraLoginId,
+      cameraDbId: camera.cameraId,
+      overlayUrl: camera.overlayUrl ?? null,
+      resolvedStreamUrl: resolvedStream.streamUrl,
+      streamKind: resolvedStream.streamKind,
+      assignedVideoPath: camera.assignedVideoPath ?? null,
+      rtspUrl: camera.rtspUrl ?? null,
+    });
+  }
   return {
     id: cameraLoginId,
     cameraLoginId,
@@ -42,6 +55,45 @@ function activeCameraToLiveCamera(camera: CameraResponse): LiveCamera {
     overlayStreamType: camera.overlayStreamType,
     overlayRenderedInStream: camera.overlayRenderedInStream,
   };
+}
+
+function warnDuplicateStreamBindings(cameras: LiveCamera[]): void {
+  if (!import.meta.env.DEV || cameras.length === 0) {
+    return;
+  }
+  const byOverlay = new Map<string, string[]>();
+  const byStream = new Map<string, string[]>();
+  for (const camera of cameras) {
+    const loginId = camera.cameraLoginId || camera.id;
+    if (camera.overlayUrl) {
+      const list = byOverlay.get(camera.overlayUrl) ?? [];
+      list.push(loginId);
+      byOverlay.set(camera.overlayUrl, list);
+    }
+    if (camera.streamUrl) {
+      const list = byStream.get(camera.streamUrl) ?? [];
+      list.push(loginId);
+      byStream.set(camera.streamUrl, list);
+    }
+  }
+  for (const [overlayUrl, loginIds] of byOverlay) {
+    if (loginIds.length > 1) {
+      // eslint-disable-next-line no-console
+      console.warn('[camera-stream-resolve][warning] duplicate overlayUrl bound to multiple cards', {
+        overlayUrl,
+        cameras: loginIds,
+      });
+    }
+  }
+  for (const [streamUrl, loginIds] of byStream) {
+    if (loginIds.length > 1) {
+      // eslint-disable-next-line no-console
+      console.warn('[camera-stream-resolve][warning] duplicate resolved streamUrl bound to multiple cards', {
+        streamUrl,
+        cameras: loginIds,
+      });
+    }
+  }
 }
 
 
@@ -61,6 +113,7 @@ export function useLiveCameras(refreshMs = 5000) {
           .map(activeCameraToLiveCamera);
         if (!cancelled) {
           consecutiveFailures = 0;
+          warnDuplicateStreamBindings(activeLiveCameras);
           setCameras(activeLiveCameras);
         }
       } catch {
@@ -68,7 +121,11 @@ export function useLiveCameras(refreshMs = 5000) {
           consecutiveFailures++;
           try {
             const activeCameras = await fetchActiveCameras();
-            setCameras(activeCameras.filter(isFrontendVisibleCamera).map(activeCameraToLiveCamera));
+            const activeLiveCameras = activeCameras
+              .filter(isFrontendVisibleCamera)
+              .map(activeCameraToLiveCamera);
+            warnDuplicateStreamBindings(activeLiveCameras);
+            setCameras(activeLiveCameras);
           } catch {
             setCameras([]);
           }
