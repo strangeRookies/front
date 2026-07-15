@@ -54,7 +54,8 @@ export async function fetchScenarios(): Promise<ScenarioResponse[]> {
 }
 
 export async function fetchRoiConfigs(cameraId: number): Promise<RoiConfigResponse[]> {
-  return apiRequest<RoiConfigResponse[]>(`/api/cameras/${cameraId}/roi-configs`);
+  const ts = new Date().getTime();
+  return apiRequest<RoiConfigResponse[]>(`/api/cameras/${cameraId}/roi-configs?t=${ts}`);
 }
 
 export async function createRoiConfig(
