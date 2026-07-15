@@ -1,6 +1,7 @@
 import { Search, Video } from 'lucide-react';
-import type { IncidentAlert } from '../types/dashboard';
+import { ALL_CAMERAS_VALUE, type IncidentAlert } from '../types/dashboard';
 import { SemanticEventSearchPanel } from './SemanticEventSearchPanel';
+import type { SemanticSearchScope } from '../api/semanticSearch';
 
 export interface HistoryFilters {
   searchCamera: string;
@@ -23,8 +24,7 @@ interface DashboardHistoryViewProps {
   onSearchCameraChange: (value: string) => void;
   onSearchDateChange: (value: 'today' | 'week' | 'month') => void;
   onSearchKeywordChange: (value: string) => void;
-  semanticSearchFacilityId?: number | string;
-  userType: 'individual' | 'corporate';
+  semanticSearchScope?: SemanticSearchScope;
 }
 
 export function DashboardHistoryView({
@@ -42,8 +42,7 @@ export function DashboardHistoryView({
   onSearchCameraChange,
   onSearchDateChange,
   onSearchKeywordChange,
-  semanticSearchFacilityId,
-  userType,
+  semanticSearchScope,
 }: DashboardHistoryViewProps) {
   const displayCount = totalHistoryElements;
 
@@ -62,9 +61,11 @@ export function DashboardHistoryView({
         </p>
       </div>
       <SemanticEventSearchPanel
-        facilityId={semanticSearchFacilityId}
-        userType={userType}
+        scope={semanticSearchScope}
         cameraId={searchCamera}
+        datePeriod={searchDate}
+        cameraOptions={cameraOptions}
+        onOpenIncident={onOpenIncident}
       />
       <div className="bg-[#071329] border border-slate-800 p-4 rounded-2xl">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -97,7 +98,7 @@ export function DashboardHistoryView({
               onChange={(event) => onSearchCameraChange(event.target.value)}
               className="w-full px-3 py-2 bg-[#020817] border border-slate-800 rounded-lg text-xs text-slate-300"
             >
-              <option value="전체">전체 카메라</option>
+              <option value={ALL_CAMERAS_VALUE}>전체 카메라</option>
               {cameraOptions.map((camera) => (
                 <option key={camera.id} value={camera.id}>
                   {camera.name}

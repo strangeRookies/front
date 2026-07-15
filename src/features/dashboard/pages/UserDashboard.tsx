@@ -7,7 +7,7 @@ import { fetchRecentAlertEvents, toIncidentAlertFromRecentEvent } from '../api/a
 import { useAiAlertActions } from '../../../hooks/useAiAlertActions';
 import { useDashboardAlerts } from '../hooks/useDashboardAlerts';
 import { aiEventFingerprint } from '../../../shared/utils/aiAlerts';
-import type { MenuId, InquiryCategory, IncidentAlert } from '../types/dashboard';
+import { ALL_CAMERAS_VALUE, type MenuId, type InquiryCategory, type IncidentAlert } from '../types/dashboard';
 import { STREAM_MODE, cameraLoginIdFor, resolveCameraStream, type LiveCamera, type CameraConnectionStatus, type CameraEventStatus } from '../data/cameras';
 import {
   ALL_MENU_ITEMS,
@@ -88,7 +88,7 @@ export function NurseDashboard({
   // --- UI States ---
   const [activeMenu, setActiveMenu] = useState<MenuId>('home');
   const [searchDate, setSearchDate] = useState<'today' | 'week' | 'month'>('month');
-  const [searchCamera, setSearchCamera] = useState('전체');
+  const [searchCamera, setSearchCamera] = useState(ALL_CAMERAS_VALUE);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedIncident, setSelectedIncident] = useState<IncidentAlert | null>(null);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -613,8 +613,10 @@ export function NurseDashboard({
               onSearchCameraChange={setSearchCamera}
               onSearchDateChange={setSearchDate}
               onSearchKeywordChange={setSearchKeyword}
-              semanticSearchFacilityId={recentAlertFacilityIds[0]}
-              userType={userType}
+              semanticSearchScope={recentAlertFacilityIds[0] === undefined ? undefined : {
+                type: userType === 'corporate' ? 'company' : 'facility',
+                id: recentAlertFacilityIds[0],
+              }}
             />
           )}
           {activeMenu === 'cameras' && (

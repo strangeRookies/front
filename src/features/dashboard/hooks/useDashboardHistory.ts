@@ -4,7 +4,7 @@ import { aiEventFingerprint, findCameraForAiEvent, getScenarioPresentation } fro
 import { fetchFullAlertEventsHistory, toIncidentAlertFromRecentEvent } from '../api/alertEventsApi';
 import type { HistoryFilters } from '../components/DashboardHistoryView';
 import type { LiveCamera } from '../data/cameras';
-import type { IncidentAlert } from '../types/dashboard';
+import { ALL_CAMERAS_VALUE, type IncidentAlert } from '../types/dashboard';
 
 interface UseDashboardHistoryParams {
   facilityIds: (number | string)[];
@@ -39,9 +39,11 @@ export function useDashboardHistory({ facilityIds, liveCameras, dangerAiEvents, 
         : searchDate === 'week'
           ? new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
           : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const cameraId = searchCamera && searchCamera !== ALL_CAMERAS_VALUE ? searchCamera : undefined;
+      const keyword = debouncedKeyword.trim() || undefined;
       const response = await fetchFullAlertEventsHistory(
         facilityIds[0], pageNumber, 50,
-        { cameraId: searchCamera && searchCamera !== '전체' ? searchCamera : undefined, keyword: debouncedKeyword.trim() || undefined, dateFrom },
+        { cameraId, keyword, dateFrom },
         userType,
       );
       setHistoryAlerts(response.content.map((event) => toIncidentAlertFromRecentEvent(event, liveCameras)).filter((event): event is IncidentAlert => !!event));

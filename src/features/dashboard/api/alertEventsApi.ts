@@ -2,8 +2,17 @@ import { apiRequest } from '../../../shared/api/client';
 import { getScenarioPresentation } from '../../../shared/utils/aiAlerts';
 import { AI_SCENARIO_TYPES, type AiScenarioType } from '../../../shared/utils/aiEventTypes';
 import type { LiveCamera } from '../data/cameras';
-import mockVlmIncidents from '../data/mockVlmIncidents.json';
 import type { IncidentAlert } from '../types/dashboard';
+import {
+  buildSemanticSearchPath,
+  filterSemanticMockResults,
+  parseSemanticSearchResponse,
+  type SemanticSearchQueryFilters,
+  type SemanticSearchResult,
+  type SemanticSearchScope,
+} from './semanticSearch';
+
+export type { SemanticSearchResult, SemanticSearchScope } from './semanticSearch';
 
 export type RecentAlertEventResponse = Record<string, unknown>;
 
@@ -22,27 +31,7 @@ export interface AlertEventFilters {
   dateTo?: string;
 }
 
-export interface SemanticSearchFilters {
-  cameraId?: string | number;
-  dateFrom?: string;
-  dateTo?: string;
-  topK?: number;
-  minSimilarity?: number;
-  excludeMock?: boolean;
-}
-
-export interface SemanticSearchResult {
-  readonly alertEventId: number;
-  readonly cameraId: number;
-  readonly cameraLoginId: string;
-  readonly scenarioType: string;
-  readonly severity: string;
-  readonly detectedAt: string;
-  readonly vlmDescription: string;
-  readonly vlmJson: string;
-  readonly similarityScore: number;
-  readonly keyframeUrls: readonly string[];
-}
+export type SemanticSearchFilters = SemanticSearchQueryFilters;
 
 export async function fetchRecentAlertEvents(facilityId: number | string, userType: 'individual' | 'corporate' = 'individual'): Promise<RecentAlertEventResponse[]> {
   const url = userType === 'corporate'
@@ -84,98 +73,23 @@ export async function fetchFullAlertEventsHistory(
 }
 
 export async function fetchSemanticAlertEvents(
-  facilityId: number | string,
+  scope: SemanticSearchScope,
   query: string,
   filters: SemanticSearchFilters = {},
-  userType: 'individual' | 'corporate' = 'individual',
+  signal?: AbortSignal,
 ): Promise<SemanticSearchResult[]> {
-  if (import.meta.env.VITE_VLM_MOCK_SEARCH === 'true') {
-    return readMockSemanticResults(query, filters);
+  const effectiveFilters = {
+    ...filters,
+    excludeMock: filters.excludeMock ?? import.meta.env.PROD,
+  };
+
+  if (import.meta.env.DEV && import.meta.env.VITE_VLM_MOCK_SEARCH === 'true') {
+    return filterSemanticMockResults(createSemanticMockCandidates(), query, effectiveFilters);
   }
 
-  const params = new URLSearchParams({
-    query,
-    topK: String(filters.topK ?? 10),
-    minSimilarity: String(filters.minSimilarity ?? 0.1),
-    excludeMock: String(filters.excludeMock ?? import.meta.env.PROD),
-  });
-  if (filters.cameraId) params.append('cameraId', String(filters.cameraId));
-  if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-  if (filters.dateTo) params.append('dateTo', filters.dateTo);
-  const url = userType === 'corporate'
-    ? `/api/companies/${facilityId}/search/semantic?${params.toString()}`
-    : `/api/facilities/${facilityId}/search/semantic?${params.toString()}`;
-  const data = await apiRequest<unknown>(url, { method: 'GET' });
-  return Array.isArray(data) ? data.filter(isSemanticSearchResult) : [];
-}
-
-interface MockVlmIncidentResult {
-  readonly incidentId: string;
-  readonly cameraLoginId: string;
-  readonly status: string;
-  readonly detectedAt: string;
-  readonly timeline: readonly string[];
-  readonly summary: string;
-  readonly similarityScore: number;
-}
-
-function readMockSemanticResults(_query: string, filters: SemanticSearchFilters): SemanticSearchResult[] {
-  if (!isRecord(mockVlmIncidents) || !Array.isArray(mockVlmIncidents.results)) {
-    return [];
-  }
-
-  return mockVlmIncidents.results
-    .filter(isMockVlmIncidentResult)
-    .filter((result) => matchesMockSemanticFilters(result, filters))
-    .slice(0, Math.max(1, filters.topK ?? 10))
-    .map((result, index) => ({
-      alertEventId: stablePositiveId(result.incidentId),
-      cameraId: stablePositiveId(result.cameraLoginId),
-      cameraLoginId: result.cameraLoginId,
-      scenarioType: result.timeline[0] ?? 'NORMAL',
-      severity: result.status,
-      detectedAt: result.detectedAt,
-      vlmDescription: result.summary,
-      vlmJson: JSON.stringify(result),
-      similarityScore: result.similarityScore,
-      keyframeUrls: [],
-    }))
-    .filter((result, index, results) =>
-      results.findIndex((candidate) => candidate.alertEventId === result.alertEventId) === index
-    );
-}
-
-function matchesMockSemanticFilters(
-  result: MockVlmIncidentResult,
-  filters: SemanticSearchFilters,
-) {
-  const cameraMatches = !filters.cameraId || normalizeCameraToken(String(filters.cameraId)) === normalizeCameraToken(result.cameraLoginId);
-  const fromMatches = !filters.dateFrom || result.detectedAt >= filters.dateFrom;
-  const toMatches = !filters.dateTo || result.detectedAt <= filters.dateTo;
-  const similarityMatches = result.similarityScore >= (filters.minSimilarity ?? 0);
-  return cameraMatches && fromMatches && toMatches && similarityMatches;
-}
-
-function isMockVlmIncidentResult(value: unknown): value is MockVlmIncidentResult {
-  if (!isRecord(value)) {
-    return false;
-  }
-  return typeof value.incidentId === 'string'
-    && typeof value.cameraLoginId === 'string'
-    && typeof value.status === 'string'
-    && typeof value.detectedAt === 'string'
-    && Array.isArray(value.timeline)
-    && value.timeline.every((eventType) => typeof eventType === 'string')
-    && typeof value.summary === 'string'
-    && typeof value.similarityScore === 'number';
-}
-
-function stablePositiveId(value: string) {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = Math.imul(31, hash) + value.charCodeAt(index);
-  }
-  return hash >>> 0;
+  const url = buildSemanticSearchPath(scope, query, effectiveFilters);
+  const data = await apiRequest<unknown>(url, { method: 'GET', signal });
+  return parseSemanticSearchResponse(data);
 }
 
 export function toIncidentAlertFromRecentEvent(
@@ -221,19 +135,46 @@ function isRecord(value: unknown): value is RecentAlertEventResponse {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function isSemanticSearchResult(value: unknown): value is SemanticSearchResult {
-  return isRecord(value)
-    && typeof value.alertEventId === 'number'
-    && typeof value.cameraId === 'number'
-    && typeof value.cameraLoginId === 'string'
-    && typeof value.scenarioType === 'string'
-    && typeof value.severity === 'string'
-    && typeof value.detectedAt === 'string'
-    && typeof value.vlmDescription === 'string'
-    && typeof value.vlmJson === 'string'
-    && typeof value.similarityScore === 'number'
-    && Array.isArray(value.keyframeUrls)
-    && value.keyframeUrls.every((url) => typeof url === 'string');
+function createSemanticMockCandidates(now = Date.now()): SemanticSearchResult[] {
+  const detectedAt = (hoursAgo: number) => new Date(now - hoursAgo * 60 * 60 * 1000).toISOString();
+  return [
+    {
+      alertEventId: 900001,
+      cameraId: 1,
+      cameraLoginId: 'mock-hallway-01',
+      scenarioType: 'FALL_DETECTED',
+      severity: 'HIGH',
+      detectedAt: detectedAt(2),
+      vlmDescription: '복도에서 노란 안전모를 쓴 작업자가 쓰러진 상황',
+      vlmJson: '{}',
+      similarityScore: 0,
+      keyframeUrls: [],
+    },
+    {
+      alertEventId: 900002,
+      cameraId: 2,
+      cameraLoginId: 'mock-ward-02',
+      scenarioType: 'WANDERING',
+      severity: 'WARNING',
+      detectedAt: detectedAt(26),
+      vlmDescription: '병실 출입구 주변을 반복해서 배회하는 사람',
+      vlmJson: '{}',
+      similarityScore: 0,
+      keyframeUrls: [],
+    },
+    {
+      alertEventId: 900003,
+      cameraId: 3,
+      cameraLoginId: 'mock-lobby-03',
+      scenarioType: 'INTRUSION',
+      severity: 'INFO',
+      detectedAt: detectedAt(120),
+      vlmDescription: '로비 제한 구역에 진입한 방문자',
+      vlmJson: '{}',
+      similarityScore: 0,
+      keyframeUrls: [],
+    },
+  ];
 }
 
 function readString(record: RecentAlertEventResponse, keys: readonly string[]): string {

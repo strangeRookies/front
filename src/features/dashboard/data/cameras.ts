@@ -124,7 +124,7 @@ export function isValidBrowserOverlayUrl(value?: string | null): value is string
 
 export function isMjpegOverlayStream(
   overlay: BackendOverlayState,
-): overlay is BackendOverlayState & { readonly overlayUrl: string } {
+): overlay is BackendOverlayState & { overlayStreamType: 'MJPEG'; overlayUrl: string } {
   return overlay.overlayStreamType === 'MJPEG' && isValidBrowserOverlayUrl(overlay.overlayUrl);
 }
 
