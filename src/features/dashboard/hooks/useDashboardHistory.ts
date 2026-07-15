@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { IncidentAlert } from '../types/dashboard';
+import { ALL_CAMERAS_VALUE, type IncidentAlert } from '../types/dashboard';
 import type { LiveCamera } from '../data/cameras';
 import { fetchFullAlertEventsHistory, toIncidentAlertFromRecentEvent } from '../api/alertEventsApi';
 import type { HistoryFilters } from '../components/DashboardHistoryView';
@@ -55,7 +55,7 @@ export function useDashboardHistory({
       }
 
       let cameraId = undefined;
-      if (searchCamera && searchCamera !== '전체') {
+      if (searchCamera && searchCamera !== ALL_CAMERAS_VALUE) {
         // searchCamera is already the cameraDbId string from mappedCamerasForMgmt
         cameraId = searchCamera;
       }

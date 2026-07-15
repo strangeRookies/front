@@ -2,6 +2,16 @@ import { apiRequest } from '../../../shared/api/client';
 import type { LiveCamera } from '../data/cameras';
 import type { IncidentAlert } from '../types/dashboard';
 import { getEventTypeKorean, getSeverityTone } from '../../../shared/utils/aiAlerts';
+import {
+  buildSemanticSearchPath,
+  filterSemanticMockResults,
+  parseSemanticSearchResponse,
+  type SemanticSearchQueryFilters,
+  type SemanticSearchResult,
+  type SemanticSearchScope,
+} from './semanticSearch';
+
+export type { SemanticSearchResult, SemanticSearchScope } from './semanticSearch';
 
 export type RecentAlertEventResponse = Record<string, unknown>;
 
@@ -42,27 +52,7 @@ export interface AlertEventFilters {
   dateTo?: string;
 }
 
-export interface SemanticSearchFilters {
-  cameraId?: string | number;
-  dateFrom?: string;
-  dateTo?: string;
-  topK?: number;
-  minSimilarity?: number;
-  excludeMock?: boolean;
-}
-
-export interface SemanticSearchResult {
-  readonly alertEventId: number;
-  readonly cameraId: number;
-  readonly cameraLoginId: string;
-  readonly scenarioType: string;
-  readonly severity: string;
-  readonly detectedAt: string;
-  readonly vlmDescription: string;
-  readonly vlmJson: string;
-  readonly similarityScore: number;
-  readonly keyframeUrls: readonly string[];
-}
+export type SemanticSearchFilters = SemanticSearchQueryFilters;
 
 export async function fetchFullAlertEventsHistory(
   facilityId: number | string,
@@ -114,32 +104,23 @@ export async function fetchFullAlertEventsHistory(
 }
 
 export async function fetchSemanticAlertEvents(
-  facilityId: number | string,
+  scope: SemanticSearchScope,
   query: string,
   filters: SemanticSearchFilters = {},
-  userType: 'individual' | 'corporate' = 'individual'
+  signal?: AbortSignal,
 ): Promise<SemanticSearchResult[]> {
-  const params = new URLSearchParams({
-    query,
-    topK: String(filters.topK ?? 10),
-    minSimilarity: String(filters.minSimilarity ?? 0.1),
-    excludeMock: String(filters.excludeMock ?? import.meta.env.PROD),
-  });
+  const effectiveFilters = {
+    ...filters,
+    excludeMock: filters.excludeMock ?? import.meta.env.PROD,
+  };
 
-  if (filters.cameraId) params.append('cameraId', filters.cameraId.toString());
-  if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-  if (filters.dateTo) params.append('dateTo', filters.dateTo);
-
-  const url = userType === 'corporate'
-    ? `/api/companies/${facilityId}/search/semantic?${params.toString()}`
-    : `/api/facilities/${facilityId}/search/semantic?${params.toString()}`;
-  const data = await apiRequest<unknown>(url, { method: 'GET' });
-
-  if (!Array.isArray(data)) {
-    return [];
+  if (import.meta.env.DEV && import.meta.env.VITE_VLM_MOCK_SEARCH === 'true') {
+    return filterSemanticMockResults(createSemanticMockCandidates(), query, effectiveFilters);
   }
 
-  return data.filter(isSemanticSearchResult);
+  const url = buildSemanticSearchPath(scope, query, effectiveFilters);
+  const data = await apiRequest<unknown>(url, { method: 'GET', signal });
+  return parseSemanticSearchResponse(data);
 }
 
 export function toIncidentAlertFromRecentEvent(
@@ -190,21 +171,46 @@ function isRecord(value: unknown): value is RecentAlertEventResponse {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function isSemanticSearchResult(value: unknown): value is SemanticSearchResult {
-  if (!isRecord(value)) {
-    return false;
-  }
-  return typeof value.alertEventId === 'number'
-    && typeof value.cameraId === 'number'
-    && typeof value.cameraLoginId === 'string'
-    && typeof value.scenarioType === 'string'
-    && typeof value.severity === 'string'
-    && typeof value.detectedAt === 'string'
-    && typeof value.vlmDescription === 'string'
-    && typeof value.vlmJson === 'string'
-    && typeof value.similarityScore === 'number'
-    && Array.isArray(value.keyframeUrls)
-    && value.keyframeUrls.every((url) => typeof url === 'string');
+function createSemanticMockCandidates(now = Date.now()): SemanticSearchResult[] {
+  const detectedAt = (hoursAgo: number) => new Date(now - hoursAgo * 60 * 60 * 1000).toISOString();
+  return [
+    {
+      alertEventId: 900001,
+      cameraId: 1,
+      cameraLoginId: 'mock-hallway-01',
+      scenarioType: 'FALL_DETECTED',
+      severity: 'HIGH',
+      detectedAt: detectedAt(2),
+      vlmDescription: '복도에서 노란 안전모를 쓴 작업자가 쓰러진 상황',
+      vlmJson: '{}',
+      similarityScore: 0,
+      keyframeUrls: [],
+    },
+    {
+      alertEventId: 900002,
+      cameraId: 2,
+      cameraLoginId: 'mock-ward-02',
+      scenarioType: 'WANDERING',
+      severity: 'WARNING',
+      detectedAt: detectedAt(26),
+      vlmDescription: '병실 출입구 주변을 반복해서 배회하는 사람',
+      vlmJson: '{}',
+      similarityScore: 0,
+      keyframeUrls: [],
+    },
+    {
+      alertEventId: 900003,
+      cameraId: 3,
+      cameraLoginId: 'mock-lobby-03',
+      scenarioType: 'INTRUSION',
+      severity: 'INFO',
+      detectedAt: detectedAt(120),
+      vlmDescription: '로비 제한 구역에 진입한 방문자',
+      vlmJson: '{}',
+      similarityScore: 0,
+      keyframeUrls: [],
+    },
+  ];
 }
 
 function readString(record: RecentAlertEventResponse, keys: string[]) {

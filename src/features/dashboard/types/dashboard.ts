@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import type { Inquiry } from '../../../shared/types/inquiry';
+export const ALL_CAMERAS_VALUE = '전체';
 
 export interface IncidentAlert {
   id: string;
