@@ -1,3 +1,13 @@
+export const AI_SCENARIO_TYPES = [
+  'COLLAPSE',
+  'SYNCOPE',
+  'FALL_BED',
+  'EXIT',
+  'HAZARD_ZONE',
+] as const;
+
+export type AiScenarioType = typeof AI_SCENARIO_TYPES[number];
+
 export interface AiEvent {
   readonly eventId?: string;
   readonly camera_id: string;
@@ -20,6 +30,8 @@ export interface AiEvent {
   readonly overlayBufferSize?: number;
   readonly overlaySyncWarning?: boolean;
   readonly event_type: string;
+  /** Backend-normalized type used for every user-facing alert decision. */
+  readonly scenarioType?: AiScenarioType;
   readonly messageType?: string;
   readonly score: number;
   readonly confidence: number;

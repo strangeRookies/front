@@ -1,7 +1,8 @@
 import { apiRequest } from '../../../shared/api/client';
+import { getScenarioPresentation } from '../../../shared/utils/aiAlerts';
+import { AI_SCENARIO_TYPES, type AiScenarioType } from '../../../shared/utils/aiEventTypes';
 import type { LiveCamera } from '../data/cameras';
 import type { IncidentAlert } from '../types/dashboard';
-import { getEventTypeKorean, getSeverityTone } from '../../../shared/utils/aiAlerts';
 import {
   buildSemanticSearchPath,
   filterSemanticMockResults,
@@ -14,28 +15,6 @@ import {
 export type { SemanticSearchResult, SemanticSearchScope } from './semanticSearch';
 
 export type RecentAlertEventResponse = Record<string, unknown>;
-
-export async function fetchRecentAlertEvents(
-  facilityId: number | string,
-  userType: 'individual' | 'corporate' = 'individual'
-): Promise<RecentAlertEventResponse[]> {
-  const url = userType === 'corporate' 
-    ? `/api/companies/${facilityId}/alert-events/recent` 
-    : `/api/facilities/${facilityId}/alert-events/recent`;
-  const data = await apiRequest<unknown>(url, {
-    method: 'GET',
-  });
-
-  if (Array.isArray(data)) {
-    return data.filter(isRecord);
-  }
-
-  if (isRecord(data) && Array.isArray(data.content)) {
-    return data.content.filter(isRecord);
-  }
-
-  return [];
-}
 
 export interface PaginatedAlertEventsResponse {
   content: RecentAlertEventResponse[];
@@ -54,53 +33,43 @@ export interface AlertEventFilters {
 
 export type SemanticSearchFilters = SemanticSearchQueryFilters;
 
+export async function fetchRecentAlertEvents(facilityId: number | string, userType: 'individual' | 'corporate' = 'individual'): Promise<RecentAlertEventResponse[]> {
+  const url = userType === 'corporate'
+    ? `/api/companies/${facilityId}/alert-events/recent`
+    : `/api/facilities/${facilityId}/alert-events/recent`;
+  const data = await apiRequest<unknown>(url, { method: 'GET' });
+  if (Array.isArray(data)) return data.filter(isRecord);
+  if (isRecord(data) && Array.isArray(data.content)) return data.content.filter(isRecord);
+  return [];
+}
+
 export async function fetchFullAlertEventsHistory(
   facilityId: number | string,
-  page: number = 0,
-  size: number = 20,
+  page = 0,
+  size = 20,
   filters?: AlertEventFilters,
-  userType: 'individual' | 'corporate' = 'individual'
+  userType: 'individual' | 'corporate' = 'individual',
 ): Promise<PaginatedAlertEventsResponse> {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    size: size.toString(),
-    sort: 'detectedAt,desc',
-  });
-
-  if (filters?.cameraId) params.append('cameraId', filters.cameraId.toString());
+  const params = new URLSearchParams({ page: String(page), size: String(size), sort: 'detectedAt,desc' });
+  if (filters?.cameraId) params.append('cameraId', String(filters.cameraId));
   if (filters?.keyword) params.append('keyword', filters.keyword);
   if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
   if (filters?.dateTo) params.append('dateTo', filters.dateTo);
-
   const url = userType === 'corporate'
     ? `/api/companies/${facilityId}/alert-events?${params.toString()}`
     : `/api/facilities/${facilityId}/alert-events?${params.toString()}`;
-  const data = await apiRequest<unknown>(url, {
-    method: 'GET',
-  });
-
+  const data = await apiRequest<unknown>(url, { method: 'GET' });
   if (isRecord(data) && Array.isArray(data.content)) {
-    const pageObj = isRecord(data.page) ? data.page : data;
-    const rawTotalPages = pageObj.totalPages ?? data.totalPages;
-    const rawTotalElements = pageObj.totalElements ?? data.totalElements;
-    const rawNumber = pageObj.number ?? data.number;
-
+    const pageData = isRecord(data.page) ? data.page : data;
     return {
       content: data.content.filter(isRecord),
-      totalPages: rawTotalPages !== undefined ? Number(rawTotalPages) : 1,
-      totalElements: rawTotalElements !== undefined ? Number(rawTotalElements) : data.content.length,
+      totalPages: numberValue(pageData.totalPages ?? data.totalPages, 1),
+      totalElements: numberValue(pageData.totalElements ?? data.totalElements, data.content.length),
       last: typeof data.last === 'boolean' ? data.last : true,
-      number: rawNumber !== undefined ? Number(rawNumber) : 0,
+      number: numberValue(pageData.number ?? data.number, 0),
     };
   }
-
-  return {
-    content: [],
-    totalPages: 0,
-    totalElements: 0,
-    last: true,
-    number: 0,
-  };
+  return { content: [], totalPages: 0, totalElements: 0, last: true, number: 0 };
 }
 
 export async function fetchSemanticAlertEvents(
@@ -128,43 +97,38 @@ export function toIncidentAlertFromRecentEvent(
   liveCameras: readonly LiveCamera[],
 ): IncidentAlert | null {
   const timestamp = readTimestamp(event, ['occurredAt', 'eventTimestamp', 'detectedAt', 'createdAt', 'timestamp']);
-  if (!timestamp) {
-    return null;
-  }
-
-  const eventType = readString(event, ['scenarioType', 'scenario_type', 'eventType', 'event_type', 'type']) || 'UNKNOWN';
-  const normalizedEventType = eventType.toUpperCase();
+  const scenarioType = readString(event, ['scenarioType', 'scenario_type']).toUpperCase();
+  if (!timestamp || !isAiScenarioType(scenarioType)) return null;
   const cameraKey = readString(event, ['cameraLoginId', 'camera_login_id', 'cameraId', 'camera_id']);
   const cameraName = readString(event, ['cameraName', 'camera_name', 'camera', 'location']);
   const matchedCamera = findLiveCamera(liveCameras, cameraKey, cameraName);
-
-  // 현재 회원의 카메라 목록(liveCameras)에 없는 남의 카메라 이벤트는 필터링(무시)
-  if (!matchedCamera) {
-    return null;
-  }
-
-  const severity = getSeverityTone(readString(event, ['severity', 'level']) || '');
-  const statusRaw = readString(event, ['status', 'state'])?.toUpperCase();
-  const acknowledged = readBoolean(event, ['acknowledged', 'acknowledgedYn', 'resolved'])
-    || statusRaw === 'ACKNOWLEDGED'
-    || statusRaw === 'RESOLVED'
-    || statusRaw === 'COMPLETED'
-    || statusRaw === 'CONFIRMED';
-
+  if (!matchedCamera) return null;
+  const status = readString(event, ['status', 'state']).toUpperCase();
+  const acknowledged = readBoolean(event, ['acknowledged', 'acknowledgedYn', 'resolved']) || ['ACKNOWLEDGED', 'RESOLVED', 'COMPLETED', 'CONFIRMED'].includes(status);
+  const presentation = getScenarioPresentation(scenarioType);
+  const snapshotUrl = readString(event, ['snapshotUrl', 'snapshot_url']) || undefined;
+  const clipUrl = readString(event, ['clipUrl', 'clip_url']) || (snapshotUrl?.includes('.mp4') || snapshotUrl?.includes('/clips/') ? snapshotUrl : undefined);
   return {
-    id: readString(event, ['eventId', 'event_id', 'alertEventId', 'alert_event_id', 'incidentId', 'id'])
-      || `${cameraKey || cameraName || 'unknown'}:${normalizedEventType}:${timestamp}`,
+    id: readString(event, ['eventId', 'event_id', 'alertEventId', 'alert_event_id', 'incidentId', 'id']) || `${cameraKey || cameraName || 'unknown'}:${scenarioType}:${timestamp}`,
     time: new Date(timestamp).toTimeString().split(' ')[0],
     timestamp,
-    camera: matchedCamera?.name || cameraName || cameraKey || '-',
-    type: normalizedEventType,
-    label: readString(event, ['message', 'label', 'description'])
-      || `${normalizedEventType} 감지`,
-    severity,
+    camera: matchedCamera.name || cameraName || cameraKey || '-',
+    type: scenarioType,
+    label: presentation.label,
+    severity: presentation.tone,
     status: acknowledged ? 'resolved' : 'new',
-    snapshotUrl: readString(event, ['snapshotUrl', 'snapshot_url']),
-    clipUrl: readString(event, ['clipUrl', 'clip_url']) || (readString(event, ['snapshotUrl', 'snapshot_url']).includes('.mp4') || readString(event, ['snapshotUrl', 'snapshot_url']).includes('/clips/') ? readString(event, ['snapshotUrl', 'snapshot_url']) : ''),
+    snapshotUrl,
+    clipUrl,
+    clipPath: readString(event, ['clipPath', 'clip_path']) || undefined,
   };
+}
+
+export async function acknowledgeAlertEvent(alertEventId: string | number): Promise<void> {
+  await apiRequest(`/api/alert-events/${alertEventId}/acknowledge`, { method: 'PATCH' });
+}
+
+function isAiScenarioType(value: string): value is AiScenarioType {
+  return (AI_SCENARIO_TYPES as readonly string[]).includes(value);
 }
 
 function isRecord(value: unknown): value is RecentAlertEventResponse {
@@ -213,59 +177,43 @@ function createSemanticMockCandidates(now = Date.now()): SemanticSearchResult[] 
   ];
 }
 
-function readString(record: RecentAlertEventResponse, keys: string[]) {
+function readString(record: RecentAlertEventResponse, keys: readonly string[]): string {
   for (const key of keys) {
     const value = record[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return String(value);
-    }
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   }
   return '';
 }
 
-function readBoolean(record: RecentAlertEventResponse, keys: string[]) {
+function readBoolean(record: RecentAlertEventResponse, keys: readonly string[]): boolean {
   return keys.some((key) => record[key] === true || record[key] === 'true' || record[key] === 'Y');
 }
 
-function readTimestamp(record: RecentAlertEventResponse, keys: string[]) {
+function readTimestamp(record: RecentAlertEventResponse, keys: readonly string[]): number {
   for (const key of keys) {
     const value = record[key];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value > 1e12 ? value : value * 1000;
-    }
+    if (typeof value === 'number' && Number.isFinite(value)) return value > 1e12 ? value : value * 1000;
     if (typeof value === 'string' && value.trim()) {
-      let dateStr = value.trim();
-      // Append Z to treat as UTC if it lacks a timezone offset
-      if (/T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(dateStr)) {
-        dateStr += 'Z';
-      }
-      const parsed = Date.parse(dateStr);
-      if (Number.isFinite(parsed)) {
-        return parsed;
-      }
+      const source = value.trim();
+      const dateString = /T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(source) ? `${source}Z` : source;
+      const parsed = Date.parse(dateString);
+      if (Number.isFinite(parsed)) return parsed;
     }
   }
   return 0;
 }
 
+function numberValue(value: unknown, fallback: number): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
 function findLiveCamera(liveCameras: readonly LiveCamera[], cameraKey?: string, cameraName?: string) {
   const normalizedKeys = new Set([cameraKey, cameraName].map(normalizeCameraToken).filter(Boolean));
-  return liveCameras.find((camera) => [
-    camera.cameraLoginId,
-    camera.cameraDbId,
-    camera.id,
-    camera.name,
-    camera.location,
-  ].some((value) => normalizedKeys.has(normalizeCameraToken(value))));
+  return liveCameras.find((camera) => [camera.cameraLoginId, camera.cameraDbId, camera.id, camera.name, camera.location].some((value) => normalizedKeys.has(normalizeCameraToken(value))));
 }
 
-function normalizeCameraToken(value?: string) {
-  return value?.toLowerCase().replace(/[^a-z0-9가-힣]/g, '') || '';
-}
-
-export async function acknowledgeAlertEvent(alertEventId: string | number): Promise<void> {
-  await apiRequest(`/api/alert-events/${alertEventId}/acknowledge`, { method: 'PATCH' });
+function normalizeCameraToken(value?: string): string {
+  return value?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
 }

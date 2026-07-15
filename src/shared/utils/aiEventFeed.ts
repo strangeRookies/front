@@ -8,7 +8,7 @@ export function aiEventFingerprint(event: AiEvent): string {
   if (event.eventId) {
     return event.eventId;
   }
-  const normalizedType = event.event_type.trim().toUpperCase();
+  const normalizedType = event.scenarioType ?? 'no-scenario';
   const normalizedCamera = event.camera_id.trim().toLowerCase();
   const normalizedTrack = event.track_id != null ? String(event.track_id).trim() : 'no-track';
   const bboxKey = Array.isArray(event.bbox) ? (event.bbox as number[]).map((n) => n.toFixed(1)).join(',') : 'no-bbox';

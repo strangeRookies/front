@@ -3,13 +3,11 @@ import type { KeyboardEvent, MouseEvent } from 'react';
 import { AlertCircle, AlertTriangle, Expand, Eye, EyeOff, RefreshCw, ScanLine, Signal, SignalZero, Video, WifiOff } from 'lucide-react';
 import type { AiEvent } from '../../../hooks/useAiEvents';
 import { findCameraForAiEvent } from '../../../shared/utils/aiAlerts';
-import { isOverlayRenderedInStream, type LiveCamera } from '../data/cameras';
+import type { LiveCamera } from '../data/cameras';
 import { useFullscreenCamera } from '../hooks/useFullscreenCamera';
 import type { CameraConnectionStatus, CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
 import { toCameraConnectionStatusDisplay } from '../hooks/useCameraStatusWebSocket';
-import { DetectionOverlayCanvas } from '../overlays/DetectionOverlayCanvas';
 import { RoiOverlayCanvas } from '../overlays/RoiOverlayCanvas';
-import { useCameraOverlay } from '../overlays/overlayStore';
 import { CameraStreamFrame } from './CameraStreamFrame';
 import { RoiEditorModal } from './RoiEditorModal';
 import { ROI_GROUPS, fetchRoiConfigs, type RoiConfigResponse } from '../api/roiApi';
@@ -104,8 +102,6 @@ function gridClass(count: number) {
 
 function CameraStream({ camera, overlayEvent, roiConfigs }: { camera: LiveCamera; overlayEvent?: AiEvent; roiConfigs: RoiConfigResponse[] }) {
   const unavailable = camera.connectionStatus === 'offline';
-  const overlayMessage = useCameraOverlay(camera);
-  const bboxRenderedInStream = isOverlayRenderedInStream(camera);
   return (
     <>
       <CameraStreamFrame
@@ -119,9 +115,6 @@ function CameraStream({ camera, overlayEvent, roiConfigs }: { camera: LiveCamera
       />
       {!unavailable && roiConfigs.length > 0 && (
         <RoiOverlayCanvas rois={roiConfigs} />
-      )}
-      {!bboxRenderedInStream && !unavailable && overlayMessage && camera.eventStatus !== 'danger' && (
-        <DetectionOverlayCanvas message={overlayMessage} />
       )}
       {unavailable && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030712]/90 text-slate-500">

@@ -293,6 +293,15 @@ export function NurseDashboard({
     userType,
   });
 
+  useEffect(() => {
+    if (!selectedIncident) return;
+    const refreshed = alerts.find((alert) => alert.id === selectedIncident.id)
+      ?? historyAlerts.find((alert) => alert.id === selectedIncident.id);
+    if (refreshed && refreshed !== selectedIncident) {
+      setSelectedIncident(refreshed);
+    }
+  }, [alerts, historyAlerts, selectedIncident]);
+
   const loadRecentAlerts = useCallback(async () => {
     if (recentAlertFacilityIds.length === 0) return;
 
@@ -312,6 +321,11 @@ export function NurseDashboard({
 
   useEffect(() => {
     void loadRecentAlerts();
+    // 실시간 알림으로 먼저 뜬 카드에 스냅샷이 뒤늦게(최대 수십 초) 붙는 경우를 반영하기 위한 주기적 재조회
+    const intervalId = setInterval(() => {
+      void loadRecentAlerts();
+    }, 15000);
+    return () => clearInterval(intervalId);
   }, [loadRecentAlerts]);
 
   const previousConnectionStateRef = useRef(connectionState);
@@ -429,8 +443,8 @@ export function NurseDashboard({
     ? liveCameras.find((camera) => camera.name === selectedIncident.camera || camera.location === selectedIncident.camera)
     : null;
 
-  const playbackStreamUrl = selectedIncident?.clipUrl || selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
-  const playbackStreamKind = selectedIncident?.clipUrl ? 'hls' : (selectedCameraObj?.streamKind || liveCameras[0]?.streamKind);
+  const playbackStreamUrl = selectedIncident?.snapshotUrl || selectedIncident?.clipUrl || selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
+  const playbackStreamKind = (selectedIncident?.snapshotUrl || selectedIncident?.clipUrl) ? 'hls' : (selectedCameraObj?.streamKind || liveCameras[0]?.streamKind);
 
   // --- Loading View ---
   if (isLoading) {
