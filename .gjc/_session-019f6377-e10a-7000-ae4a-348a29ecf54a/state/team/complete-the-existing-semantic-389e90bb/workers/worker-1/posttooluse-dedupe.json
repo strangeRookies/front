@@ -1,0 +1,6 @@
+{
+  "last_requested_fingerprint": "9e35676733867fd5cc0c487bffc25327243de0c7:eligible:rc/features/dashboard/api/alertEventsApi.ts\u0000src/features/dashboard/components/DashboardHistoryView.tsx\u0000src/features/dashboard/components/SemanticEventSearchPanel.tsx\u0000src/features/dashboard/data/cameras.ts\u0000src/features/dashboard/hooks/useDashboardHistory.ts\u0000src/features/dashboard/pages/UserDashboard.tsx\u0000src/features/dashboard/types/dashboard.ts\u0000scripts/verify-semantic-search-contract.mjs\u0000src/features/dashboard/api/semanticSearch.ts",
+  "last_requested_head": "9e35676733867fd5cc0c487bffc25327243de0c7",
+  "last_requested_status": "eligible",
+  "last_requested_at": "2026-07-15T05:44:45.306Z"
+}

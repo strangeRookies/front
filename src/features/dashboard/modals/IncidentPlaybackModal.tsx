@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Pause, Play, Volume2 } from 'lucide-react';
 import Hls from 'hls.js';
 import { CameraStreamFrame } from '../components/CameraStreamFrame';
+import { fetchAlertEventDetail } from '../api/alertEventsApi';
 import { streamRenderKind, type StreamRenderKind } from '../data/cameras';
 import type { IncidentAlert } from '../types/dashboard';
 
@@ -40,9 +41,26 @@ export function IncidentPlaybackModal({
   cameraLoginId,
 }: IncidentPlaybackModalProps) {
   const [duration, setDuration] = useState(10);
+  const [vlmSummary, setVlmSummary] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
+  useEffect(() => {
+    const numericId = Number(incident.id);
+    if (!Number.isSafeInteger(numericId) || numericId <= 0) {
+      setVlmSummary(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchAlertEventDetail(numericId).then(({ vlmDescription }) => {
+      if (!cancelled) {
+        setVlmSummary(vlmDescription);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [incident.id]);
   // 상대 시간(MM:SS) 포맷팅 헬퍼
   const formatRelativeTime = (secs: number): string => {
     const m = Math.floor(secs / 60);
@@ -177,6 +195,14 @@ export function IncidentPlaybackModal({
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 py-3 pointer-events-none">
             <span className="text-sm font-bold text-white">{getDetectionReasonLabel(incident.type, incident.label)}</span>
           </div>
+        </div>
+
+        <div className="border-t border-slate-800 bg-[#061224] px-4 py-3">
+          <p className="text-[10px] font-bold tracking-wide text-blue-400">AI 장면 분석 (VLM)</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-200">
+            {vlmSummary
+              ?? `규칙 기반 감지: ${getDetectionReasonLabel(incident.type, incident.label)}. 클립 VLM 분석이 완료되면 여기에 요약이 표시됩니다.`}
+          </p>
         </div>
         <div className="space-y-3 bg-[#061224] p-4">
           <div className="space-y-1">

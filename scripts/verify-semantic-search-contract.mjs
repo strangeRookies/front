@@ -23,6 +23,7 @@ const validResult = {
   vlmJson: '{}',
   similarityScore: 0.84,
   keyframeUrls: ['https://preview.example.test/deidentified/12.jpg'],
+  snapshotUrl: 'https://preview.example.test/snapshots/12.jpg',
 };
 
 const facilityPath = contract.buildSemanticSearchPath(
