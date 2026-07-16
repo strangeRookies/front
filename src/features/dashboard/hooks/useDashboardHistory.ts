@@ -97,6 +97,7 @@ function mergeRealtimeHistory(current: readonly IncidentAlert[], events: readonl
       status: acknowledgedIds.has(id) ? 'resolved' : 'new',
       clipUrl: event.clipUrl,
       clipPath: event.clipPath,
+      sourceEventId: event.eventId,
     };
     const previous = merged.get(id);
     merged.set(id, previous ? {

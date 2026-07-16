@@ -16,6 +16,7 @@ const SCENARIO_PRESENTATIONS: Record<AiScenarioType, ScenarioPresentation> = {
   FALL_BED: { label: '낙상 감지', tone: 'warning', icon: 'fall' },
   EXIT: { label: '이탈 감지', tone: 'info', icon: 'exit' },
   HAZARD_ZONE: { label: '위험구역 진입', tone: 'critical', icon: 'hazard' },
+  ASSAULT: { label: '폭행 감지', tone: 'critical', icon: 'hazard' },
 };
 
 export function isAiAlertEnabledRoute(page: AiAlertPage) {

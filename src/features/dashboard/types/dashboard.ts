@@ -14,6 +14,8 @@ export interface IncidentAlert {
   snapshotUrl?: string; // S3 Presigned URL
   clipUrl?: string; // Recorded video clip URL
   clipPath?: string;
+  sourceEventId?: string;
+  vlmDescription?: string;
 }
 
 export interface RegisteredCamera {

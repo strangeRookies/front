@@ -111,7 +111,7 @@ const sourceChecks = [
   ['dashboard passes incident flow', historySource.includes('onOpenIncident={onOpenIncident}')],
   ['dashboard builds explicit scope', dashboardSource.includes("type: userType === 'corporate' ? 'company' : 'facility'")],
   ['full VLM JSON is not rendered', !panelSource.includes('{result.vlmJson}')],
-  ['original CCTV fallback is absent', !panelSource.includes('snapshotUrl: result.') && !panelSource.includes('clipUrl: result.')],
+  ['snapshot preview is passed without original clip fallback', panelSource.includes('snapshotUrl: result.snapshotUrl') && !panelSource.includes('clipUrl: result.')],
 ];
 
 for (const [name, passed] of sourceChecks) {

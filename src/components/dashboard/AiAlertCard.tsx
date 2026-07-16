@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import type { AiEvent } from '../../hooks/useAiEvents';
 import { formatAiEventLabel, getScenarioPresentation } from '../../shared/utils/aiAlerts';
+import { VlmSnapshotAssistPanel } from '../../features/dashboard/components/VlmSnapshotAssistPanel';
+import type { VlmSnapshotAssistResult } from '../../features/dashboard/types/vlmSnapshotAssist';
 
 function getScenarioStyle(tone: 'critical' | 'warning' | 'info') {
   if (tone === 'critical') {
@@ -59,6 +61,7 @@ interface AiAlertCardProps {
   readonly onFocus?: (event: AiEvent) => void;
   readonly onConfirm?: (event: AiEvent) => void;
   readonly onFeedback?: (event: AiEvent, feedback: FeedbackType) => void;
+  readonly vlmAssist?: VlmSnapshotAssistResult;
 }
 
 export function AiAlertCard({
@@ -67,6 +70,7 @@ export function AiAlertCard({
   onFocus,
   onConfirm,
   onFeedback,
+  vlmAssist,
 }: AiAlertCardProps) {
   if (!event.scenarioType) {
     return null;
@@ -123,6 +127,12 @@ export function AiAlertCard({
           {confidencePct && <div className="flex items-center gap-1.5 text-slate-400"><Shield className="h-3 w-3 flex-shrink-0 text-slate-500" /><span>신뢰도: <span className="font-bold text-white">{confidencePct}</span></span></div>}
           {event.track_id && <div className="flex items-center gap-1.5 text-slate-400"><span className="text-slate-500 font-mono text-[10px]">ID:</span><span className="font-mono text-white">{event.track_id}</span></div>}
         </div>
+
+        {event.eventId && (
+          <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 p-2">
+            <VlmSnapshotAssistPanel eventId={event.eventId} assist={vlmAssist} />
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/50">
           <span className={`text-[10px] font-semibold uppercase tracking-wide ${acknowledged ? 'text-emerald-400' : 'text-amber-400'}`}>{acknowledged ? '확인 완료' : '미확인'}</span>

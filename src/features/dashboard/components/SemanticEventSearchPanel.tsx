@@ -117,6 +117,7 @@ export function SemanticEventSearchPanel({
       severity: getSeverityTone(result.severity),
       status: 'new',
       snapshotUrl: result.snapshotUrl,
+      vlmDescription: result.vlmDescription,
     });
   };
 
