@@ -40,6 +40,7 @@ jobs:
           --build-arg VITE_HLS_BASE_URL="${{ secrets.VITE_HLS_BASE_URL }}" \
           --build-arg VITE_MJPEG_BASE_URL="${{ secrets.VITE_MJPEG_BASE_URL }}" \
           --build-arg VITE_STREAM_MODE="mjpeg" \
+          --build-arg VITE_MJPEG_PROXY_MODE="true" \
           -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
