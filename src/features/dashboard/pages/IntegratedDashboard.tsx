@@ -277,6 +277,8 @@ const [isPlaying, setIsPlaying] = useState(true);
 
   const isTestMode = activeMenu === 'test';
   const testAiFeed = useAiEvents({ enabled: activeMenu === 'test' });
+
+  const selectedSpace = useMemo(() => spaces.find(s => s.id === selectedSpaceId), [spaces, selectedSpaceId]);
   const tAlerts: TestIncidentAlert[] = useMemo(() => testAiFeed.events
     .filter(isDangerAiEvent)
     .map(event => {
@@ -712,8 +714,6 @@ const handleSubmitReply = async () => {
 
           {/* HOME view */}
           {activeMenu === 'home' && (() => {
-            const selectedSpace = spaces.find(s => s.id === selectedSpaceId);
-
             // ── 기업 공간 뷰 ──────────────────────────────────────────
             if (selectedSpace?.type === 'corporate') {
               const corpCameras = spaceViewCameras as CorporateCameraResponse[];
