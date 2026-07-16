@@ -19,7 +19,7 @@ import { CCTVRegistration } from '../components/CCTVRegistration';
 import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
 import { STREAM_MODE, cameraLoginIdFor, resolveCameraStream, type LiveCamera } from '../data/cameras';
-import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, updateAdminMember, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse } from '../api/adminApi';
+import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminFalsePositiveRate, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, updateAdminMember, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse, type AdminFalsePositiveRateResponse } from '../api/adminApi';
 import { useAiEvents } from '../../../hooks/useAiEvents';
 import { isDangerAiEvent, getScenarioPresentation, aiEventFingerprint } from '../../../shared/utils/aiAlerts';
 import { fetchAllInquiries, fetchMyInquiries, createInquiry, answerInquiry } from '../api/inquiryApi';
@@ -217,6 +217,7 @@ export function IntegratedDashboard({ onLogout }: IntegratedDashboardProps) {
   const [spaceSearch, setSpaceSearch] = useState('');
   const [cameraStats, setCameraStats] = useState<{ totalCount: number; connectedCount: number } | null>(null);
   const [todayAlertCount, setTodayAlertCount] = useState(0);
+  const [falsePositiveRate, setFalsePositiveRate] = useState<AdminFalsePositiveRateResponse | null>(null);
   const [spaceViewCameras, setSpaceViewCameras] = useState<CorporateCameraResponse[] | AdminFacilityCameraResponse[]>([]);
   const [spaceViewLoading, setSpaceViewLoading] = useState(false);
   const [spaceSelectedCameraId, setSpaceSelectedCameraId] = useState<string | null>(null);
@@ -400,10 +401,11 @@ const [isPlaying, setIsPlaying] = useState(true);
   }, [selectedSpaceId]);
 
   useEffect(() => {
-    Promise.all([fetchAdminCameraStats(), fetchAdminTodayAlertCount()])
-      .then(([stats, alertData]) => {
+    Promise.all([fetchAdminCameraStats(), fetchAdminTodayAlertCount(), fetchAdminFalsePositiveRate()])
+      .then(([stats, alertData, fpRate]) => {
         setCameraStats(stats);
         setTodayAlertCount(alertData.count);
+        setFalsePositiveRate(fpRate);
       })
       .catch((err: unknown) => console.error('[Stats] fetch failed:', err));
   }, []);
@@ -1827,6 +1829,8 @@ const handleSubmitReply = async () => {
             activeFeedsCount={cameraStats?.connectedCount ?? 0}
             totalFeedsCount={cameraStats?.totalCount ?? 0}
             alertsCount={todayAlertCount}
+            falsePositiveRatePercent={falsePositiveRate?.ratePercent ?? null}
+            falsePositiveRateDeltaPercent={falsePositiveRate?.deltaPercent ?? null}
           />
         </div>
       )}
