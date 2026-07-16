@@ -21,6 +21,7 @@ interface RoiEditorModalProps {
   cameraDbId: number;
   cameraName: string;
   cameraLoginId: string;
+  isCorporate?: boolean;
   onClose: () => void;
 }
 
@@ -47,7 +48,7 @@ function scenarioIdsForGroup(groupId: RoiGroupId, scenarios: ScenarioResponse[])
   return scenarios.filter(s => types.includes(s.scenarioType)).map(s => s.scenarioId);
 }
 
-export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose }: RoiEditorModalProps) {
+export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, isCorporate, onClose }: RoiEditorModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +72,7 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
       try {
         const [scenariosData, roisData] = await Promise.all([
           fetchScenarios(),
-          fetchRoiConfigs(cameraDbId),
+          fetchRoiConfigs(cameraDbId, isCorporate),
         ]);
         if (cancelled) return;
         setScenarios(scenariosData);
@@ -255,7 +256,7 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
           const existing = existingRois.find(r => r.scenarioId === scenarioId);
           return existing
             ? updateRoiConfig(existing.roiConfigId, { polygonPoints })
-            : createRoiConfig(cameraDbId, { scenarioId, polygonPoints });
+            : createRoiConfig(cameraDbId, { scenarioId, polygonPoints }, isCorporate);
         })
       );
       setExistingRois(prev => {

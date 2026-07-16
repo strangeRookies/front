@@ -154,7 +154,7 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
     let cancelled = false;
     Promise.all(
       targets.map(c =>
-        fetchRoiConfigs(Number(c.cameraDbId))
+        fetchRoiConfigs(Number(c.cameraDbId), c.isCorporate)
           .then(rois => ({ id: c.cameraDbId!, rois: rois.filter(r => r.isActive) }))
           .catch(() => ({ id: c.cameraDbId!, rois: [] as RoiConfigResponse[] }))
       )
@@ -294,6 +294,7 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
           cameraDbId={Number(roiCamera.cameraDbId)}
           cameraName={roiCamera.name}
           cameraLoginId={roiCamera.cameraLoginId ?? roiCamera.id}
+          isCorporate={roiCamera.isCorporate}
           onClose={() => { setRoiCamera(null); setRoiRefreshKey(k => k + 1); }}
         />
       )}

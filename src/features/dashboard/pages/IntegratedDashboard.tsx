@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Shield, Bell, ChevronDown, Folder, ChevronRight,
   Play, Pause, Volume2, Maximize2, Check,
@@ -737,6 +737,7 @@ const handleSubmitReply = async () => {
                 overlayUrl: selectedCorp.overlayUrl,
                 overlayStreamType: selectedCorp.overlayStreamType,
                 overlayRenderedInStream: selectedCorp.overlayRenderedInStream,
+                isCorporate: true,
               } : null;
 
               return (
@@ -821,6 +822,7 @@ const handleSubmitReply = async () => {
                   overlayUrl: cam.overlayUrl,
                   overlayStreamType: cam.overlayStreamType,
                   overlayRenderedInStream: cam.overlayRenderedInStream,
+                  isCorporate: false,
                 };
               });
 

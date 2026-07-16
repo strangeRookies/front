@@ -18,6 +18,7 @@ export interface LiveCamera {
   overlayUrl?: string | null;
   overlayStreamType?: 'MJPEG' | string | null;
   overlayRenderedInStream?: boolean | null;
+  isCorporate?: boolean;
 }
 
 const env = import.meta.env;

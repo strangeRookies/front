@@ -21,6 +21,8 @@ export interface CameraResponse {
   overlayUrl?: string | null;
   overlayStreamType?: 'MJPEG' | string | null;
   overlayRenderedInStream?: boolean | null;
+  isCorporate?: boolean;
+  corporate?: boolean;
 }
 
 export interface RegisterCameraRequest {

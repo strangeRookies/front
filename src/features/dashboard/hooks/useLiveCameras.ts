@@ -54,6 +54,7 @@ function activeCameraToLiveCamera(camera: CameraResponse): LiveCamera {
     overlayUrl: camera.overlayUrl,
     overlayStreamType: camera.overlayStreamType,
     overlayRenderedInStream: camera.overlayRenderedInStream,
+    isCorporate: camera.isCorporate ?? camera.corporate,
   };
 }
 
