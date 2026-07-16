@@ -49,6 +49,13 @@ jobs:
         echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
         echo "ECR_REGISTRY=$ECR_REGISTRY" >> $GITHUB_ENV
 
+    - name: 4-1. CloudFront용 S3 버킷에 최신 빌드 파일 업로드
+      run: |
+        id=$(docker create ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }})
+        docker cp $id:/usr/share/nginx/html ./dist-cloudfront
+        docker rm -v $id
+        aws s3 sync ./dist-cloudfront s3://safety-web-dashboard-bucket --delete
+
     - name: 5. 인프라(Infra) 레포지토리 체크아웃
       uses: actions/checkout@v4
       with:
