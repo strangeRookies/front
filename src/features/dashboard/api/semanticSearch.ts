@@ -25,6 +25,7 @@ export interface SemanticSearchResult {
   readonly vlmJson: string;
   readonly similarityScore: number;
   readonly keyframeUrls: readonly string[];
+  readonly snapshotUrl?: string;
 }
 
 export class SemanticSearchContractError extends Error {
@@ -164,9 +165,9 @@ function isSemanticSearchResult(value: unknown): value is SemanticSearchResult {
     && typeof value.vlmDescription === 'string'
     && typeof value.vlmJson === 'string'
     && typeof value.similarityScore === 'number' && Number.isFinite(value.similarityScore)
-    && value.similarityScore >= 0 && value.similarityScore <= 1
     && Array.isArray(value.keyframeUrls)
-    && value.keyframeUrls.every(isAllowedSemanticPreviewUrl);
+    && value.keyframeUrls.every(isAllowedSemanticPreviewUrl)
+    && (value.snapshotUrl === undefined || value.snapshotUrl === null || isAllowedSemanticPreviewUrl(value.snapshotUrl));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

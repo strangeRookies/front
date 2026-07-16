@@ -116,6 +116,7 @@ export function SemanticEventSearchPanel({
       label: result.vlmDescription || `${result.scenarioType} 감지`,
       severity: getSeverityTone(result.severity),
       status: 'new',
+      snapshotUrl: result.snapshotUrl,
     });
   };
 
@@ -169,8 +170,13 @@ export function SemanticEventSearchPanel({
       {results.length > 0 && (
         <div className="space-y-3">
           {results.map((result) => {
+
+            const previewUrls = [
+              ...(result.snapshotUrl ? [result.snapshotUrl] : []),
+              ...result.keyframeUrls,
+            ];
+            const visibleKeyframes = previewUrls.filter((url) => !failedImages.has(url));
             const cameraName = cameraOptions.find((camera) => camera.id === String(result.cameraId))?.name;
-            const visibleKeyframes = result.keyframeUrls.filter((url) => !failedImages.has(url));
             return (
               <button
                 type="button"

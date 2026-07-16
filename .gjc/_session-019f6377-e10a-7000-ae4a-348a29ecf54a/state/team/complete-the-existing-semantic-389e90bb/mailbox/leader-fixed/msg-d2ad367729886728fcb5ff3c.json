@@ -1,0 +1,7 @@
+{
+  "message_id": "msg-d2ad367729886728fcb5ff3c",
+  "from_worker": "worker-1",
+  "to_worker": "leader-fixed",
+  "body": "INTEGRATION REQUESTED: worker-1 has eligible git changes at 9e3567673386.",
+  "created_at": "2026-07-15T05:37:19.631Z"
+}

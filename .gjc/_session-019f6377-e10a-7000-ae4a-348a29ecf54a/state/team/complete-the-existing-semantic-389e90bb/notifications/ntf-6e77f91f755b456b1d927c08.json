@@ -1,0 +1,17 @@
+{
+  "id": "ntf-6e77f91f755b456b1d927c08",
+  "kind": "mailbox_message",
+  "team_name": "complete-the-existing-semantic-389e90bb",
+  "recipient": "leader-fixed",
+  "source": {
+    "type": "message",
+    "id": "msg-6342993dc01e99f27f0dc856"
+  },
+  "delivery_state": "queued",
+  "created_at": "2026-07-15T05:35:34.783Z",
+  "updated_at": "2026-07-15T05:49:10.998Z",
+  "replay_count": 2,
+  "pane_attempt_result": "queued",
+  "pane_attempt_reason": "tmux_delivery_recorded_without_injection",
+  "pane_attempt_at": "2026-07-15T05:49:10.998Z"
+}
