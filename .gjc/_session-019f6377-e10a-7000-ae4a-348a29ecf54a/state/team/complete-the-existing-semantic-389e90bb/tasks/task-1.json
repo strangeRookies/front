@@ -1,0 +1,56 @@
+{
+  "id": "task-1",
+  "subject": "Execute team brief (worker-1)",
+  "description": "Complete the existing semantic event search frontend on branch codex/live-camera-streams. Modify only this strange_front repository; do not modify or merge strange_ai, strange_back, or root contract files. Read ../AGENTS.md, ../PROJECT_CONTRACT.md, and ../README.md before editing.\n\nUse the existing SemanticEventSearchPanel, DashboardHistoryView, alertEventsApi client, and existing incident playback/detail flow. Do not create duplicate panels or modals.\n\nBackend contract:\n- GET /api/facilities/{facilityId}/search/semantic\n- GET /api/companies/{companyProfileId}/search/semantic\n- query params: query string; topK 1..50; minSimilarity 0..1; optional dateFrom/dateTo ISO datetime; optional numeric DB cameraId; optional excludeMock.\n- response items: alertEventId and cameraId finite numbers; nonempty cameraLoginId; scenarioType; severity; valid detectedAt; vlmDescription; vlmJson; similarityScore 0..1; keyframeUrls string array containing only allowed http/https de-identified preview URLs.\n\nImplementation requirements:\n1. Define an explicit discriminated SemanticSearchScope ({type:'facility'|'company', id}) and build API paths by scope type. Invalid scope IDs must block the request and show an unavailable state.\n2. Feed current DashboardHistoryView filters into semantic search: today/week/month date range, numeric DB cameraId only, omit cameraId for the single canonical all-camera value, trim query, topK default 10, explicit/default minSimilarity, production excludeMock=true. Never pass cameraLoginId as numeric cameraId. Remove the corrupted '?꾩껜' comparison and centralize the actual all-camera select value.\n3. Keep Korean UI: title 'AI 사고 영상 검색', natural-language explanation and examples, form submit/Enter, spinner, blank query, no-results, auth/permission, server-error, and backend-not-ready states. Prevent stale requests from overwriting newer results using AbortController or a sequence guard; avoid unmount state updates and duplicate in-flight submits.\n4. Result cards show description, camera name/login ID, scenario, severity, time, similarity percent, and only de-identified keyframe thumbnails. Do not render full vlmJson or embeddings. Empty keyframe URLs show no-preview; image load failures are handled; never fall back to original CCTV/image URLs; use privacy-neutral alt text. Clicking a result reuses the existing incident opening/playback flow.\n5. Runtime-validate API response items and preserve the existing apiRequest data-unwrapping pattern. Reject/filter malformed IDs, cameraLoginId, dates, similarity, arrays, and non-http(s) URLs without hiding transport/backend errors as empty results.\n6. Preserve VITE_VLM_MOCK_SEARCH=true only in development. Mock results must deterministically depend on query and apply date/camera/minSimilarity/topK filters, deduplicate results, and never activate accidentally in production.\n7. Preserve accessibility: form/submit, labels or aria-label, aria-live for loading/errors/count, keyboard navigation, disabled states, focus styles, and safe image alt text.\n8. Do not add Vitest. Extract pure URL/query/response validation logic and follow existing Node verification-script conventions. Add or update scripts/verify-semantic-search-contract.mjs as appropriate.\n\nVerification required before completion:\n- npm run typecheck\n- npm run build\n- node scripts/verify-semantic-search-contract.mjs\n- git diff --check\nVerify facility/company URLs, URL encoding, all-camera omission, numeric camera IDs, date ranges, malformed-response handling, similarity bounds, deterministic mock matching, stale request protection, no-keyframe and failed-image behavior, backend error states, and dashboard build regression.\n\nDo not commit or push. Return changed files, behavior summary, and exact command results as completion evidence.",
+  "title": "Execute team brief (worker-1)",
+  "objective": "Complete the existing semantic event search frontend on branch codex/live-camera-streams. Modify only this strange_front repository; do not modify or merge strange_ai, strange_back, or root contract files. Read ../AGENTS.md, ../PROJECT_CONTRACT.md, and ../README.md before editing.\n\nUse the existing SemanticEventSearchPanel, DashboardHistoryView, alertEventsApi client, and existing incident playback/detail flow. Do not create duplicate panels or modals.\n\nBackend contract:\n- GET /api/facilities/{facilityId}/search/semantic\n- GET /api/companies/{companyProfileId}/search/semantic\n- query params: query string; topK 1..50; minSimilarity 0..1; optional dateFrom/dateTo ISO datetime; optional numeric DB cameraId; optional excludeMock.\n- response items: alertEventId and cameraId finite numbers; nonempty cameraLoginId; scenarioType; severity; valid detectedAt; vlmDescription; vlmJson; similarityScore 0..1; keyframeUrls string array containing only allowed http/https de-identified preview URLs.\n\nImplementation requirements:\n1. Define an explicit discriminated SemanticSearchScope ({type:'facility'|'company', id}) and build API paths by scope type. Invalid scope IDs must block the request and show an unavailable state.\n2. Feed current DashboardHistoryView filters into semantic search: today/week/month date range, numeric DB cameraId only, omit cameraId for the single canonical all-camera value, trim query, topK default 10, explicit/default minSimilarity, production excludeMock=true. Never pass cameraLoginId as numeric cameraId. Remove the corrupted '?꾩껜' comparison and centralize the actual all-camera select value.\n3. Keep Korean UI: title 'AI 사고 영상 검색', natural-language explanation and examples, form submit/Enter, spinner, blank query, no-results, auth/permission, server-error, and backend-not-ready states. Prevent stale requests from overwriting newer results using AbortController or a sequence guard; avoid unmount state updates and duplicate in-flight submits.\n4. Result cards show description, camera name/login ID, scenario, severity, time, similarity percent, and only de-identified keyframe thumbnails. Do not render full vlmJson or embeddings. Empty keyframe URLs show no-preview; image load failures are handled; never fall back to original CCTV/image URLs; use privacy-neutral alt text. Clicking a result reuses the existing incident opening/playback flow.\n5. Runtime-validate API response items and preserve the existing apiRequest data-unwrapping pattern. Reject/filter malformed IDs, cameraLoginId, dates, similarity, arrays, and non-http(s) URLs without hiding transport/backend errors as empty results.\n6. Preserve VITE_VLM_MOCK_SEARCH=true only in development. Mock results must deterministically depend on query and apply date/camera/minSimilarity/topK filters, deduplicate results, and never activate accidentally in production.\n7. Preserve accessibility: form/submit, labels or aria-label, aria-live for loading/errors/count, keyboard navigation, disabled states, focus styles, and safe image alt text.\n8. Do not add Vitest. Extract pure URL/query/response validation logic and follow existing Node verification-script conventions. Add or update scripts/verify-semantic-search-contract.mjs as appropriate.\n\nVerification required before completion:\n- npm run typecheck\n- npm run build\n- node scripts/verify-semantic-search-contract.mjs\n- git diff --check\nVerify facility/company URLs, URL encoding, all-camera omission, numeric camera IDs, date ranges, malformed-response handling, similarity bounds, deterministic mock matching, stale request protection, no-keyframe and failed-image behavior, backend error states, and dashboard build regression.\n\nDo not commit or push. Return changed files, behavior summary, and exact command results as completion evidence.",
+  "status": "completed",
+  "owner": "worker-1",
+  "version": 6,
+  "created_at": "2026-07-15T05:31:47.273Z",
+  "updated_at": "2026-07-15T05:47:56.301Z",
+  "assignee": "worker-1",
+  "completed_at": "2026-07-15T05:47:56.301Z",
+  "completion_evidence": {
+    "summary": "Completed and verified the existing semantic event search frontend contract and dashboard integration.",
+    "items": [
+      {
+        "kind": "command",
+        "status": "passed",
+        "summary": "TypeScript compilation passed.",
+        "command": "npm run typecheck"
+      },
+      {
+        "kind": "command",
+        "status": "passed",
+        "summary": "Production dashboard build passed with 1812 modules transformed.",
+        "command": "npm run build"
+      },
+      {
+        "kind": "command",
+        "status": "passed",
+        "summary": "All semantic search contract and behavior checks passed.",
+        "command": "node scripts/verify-semantic-search-contract.mjs"
+      },
+      {
+        "kind": "command",
+        "status": "passed",
+        "summary": "Diff whitespace validation passed.",
+        "command": "git diff --check"
+      }
+    ],
+    "recorded_by": "worker-1",
+    "recorded_at": "2026-07-15T05:47:56.301Z",
+    "files": [
+      "scripts/verify-semantic-search-contract.mjs",
+      "src/features/dashboard/api/alertEventsApi.ts",
+      "src/features/dashboard/api/semanticSearch.ts",
+      "src/features/dashboard/components/DashboardHistoryView.tsx",
+      "src/features/dashboard/components/SemanticEventSearchPanel.tsx",
+      "src/features/dashboard/data/cameras.ts",
+      "src/features/dashboard/hooks/useDashboardHistory.ts",
+      "src/features/dashboard/pages/UserDashboard.tsx",
+      "src/features/dashboard/types/dashboard.ts"
+    ]
+  }
+}

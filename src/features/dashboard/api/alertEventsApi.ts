@@ -108,8 +108,10 @@ export function toIncidentAlertFromRecentEvent(
   const presentation = getScenarioPresentation(scenarioType);
   const snapshotUrl = readString(event, ['snapshotUrl', 'snapshot_url']) || undefined;
   const clipUrl = readString(event, ['clipUrl', 'clip_url']) || (snapshotUrl?.includes('.mp4') || snapshotUrl?.includes('/clips/') ? snapshotUrl : undefined);
+  const alertEventId = readNumber(event, ['alertEventId', 'alert_event_id']);
+  const eventIdString = readString(event, ['eventId', 'event_id', 'incidentId', 'id']);
   return {
-    id: readString(event, ['eventId', 'event_id', 'alertEventId', 'alert_event_id', 'incidentId', 'id']) || `${cameraKey || cameraName || 'unknown'}:${scenarioType}:${timestamp}`,
+    id: alertEventId != null ? String(alertEventId) : eventIdString || `${cameraKey || cameraName || 'unknown'}:${scenarioType}:${timestamp}`,
     time: new Date(timestamp).toTimeString().split(' ')[0],
     timestamp,
     camera: matchedCamera.name || cameraName || cameraKey || '-',
@@ -120,6 +122,16 @@ export function toIncidentAlertFromRecentEvent(
     snapshotUrl,
     clipUrl,
     clipPath: readString(event, ['clipPath', 'clip_path']) || undefined,
+  };
+}
+export async function fetchAlertEventDetail(alertEventId: number): Promise<{ vlmDescription: string | null }> {
+  const data = await apiRequest<unknown>(`/api/alert-events/${alertEventId}`, { method: 'GET' });
+  if (!isRecord(data)) {
+    return { vlmDescription: null };
+  }
+  const text = data.vlmDescription;
+  return {
+    vlmDescription: typeof text === 'string' && text.trim().length > 0 ? text.trim() : null,
   };
 }
 
@@ -204,6 +216,14 @@ function readTimestamp(record: RecentAlertEventResponse, keys: readonly string[]
   return 0;
 }
 
+function readNumber(record: RecentAlertEventResponse, keys: readonly string[]): number | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return value;
+    if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim());
+  }
+  return null;
+}
 function numberValue(value: unknown, fallback: number): number {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
