@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Pause, Play, Volume2 } from 'lucide-react';
 import Hls from 'hls.js';
 import { CameraStreamFrame } from '../components/CameraStreamFrame';
-import { fetchAlertEventDetail } from '../api/alertEventsApi';
+import { fetchAlertEventDetail, fetchVlmSnapshotAssist } from '../api/alertEventsApi';
 import { streamRenderKind, type StreamRenderKind } from '../data/cameras';
 import type { IncidentAlert } from '../types/dashboard';
 
@@ -41,26 +41,55 @@ export function IncidentPlaybackModal({
   cameraLoginId,
 }: IncidentPlaybackModalProps) {
   const [duration, setDuration] = useState(10);
-  const [vlmSummary, setVlmSummary] = useState<string | null>(null);
+  const [clipVlmSummary, setClipVlmSummary] = useState<string | null>(incident.vlmDescription ?? null);
+  const [snapshotVlmSummary, setSnapshotVlmSummary] = useState<string | null>(null);
+  const [snapshotVlmStatus, setSnapshotVlmStatus] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
   useEffect(() => {
     const numericId = Number(incident.id);
-    if (!Number.isSafeInteger(numericId) || numericId <= 0) {
-      setVlmSummary(null);
-      return;
-    }
     let cancelled = false;
-    void fetchAlertEventDetail(numericId).then(({ vlmDescription }) => {
-      if (!cancelled) {
-        setVlmSummary(vlmDescription);
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+
+    setClipVlmSummary(incident.vlmDescription ?? null);
+    setSnapshotVlmSummary(null);
+    setSnapshotVlmStatus(null);
+
+    if (Number.isSafeInteger(numericId) && numericId > 0) {
+      void fetchAlertEventDetail(numericId)
+        .then(({ vlmDescription }) => {
+          if (!cancelled && vlmDescription) setClipVlmSummary(vlmDescription);
+        })
+        .catch(() => undefined);
+    }
+
+    const pollSnapshotAssist = async () => {
+      if (!incident.sourceEventId || cancelled) return;
+      try {
+        const assist = await fetchVlmSnapshotAssist(incident.sourceEventId);
+        if (cancelled) return;
+        if (assist) {
+          setSnapshotVlmStatus(assist.status);
+          const summary = assist.summaryKo?.trim();
+          if (assist.status === 'SUCCESS' && summary) {
+            setSnapshotVlmSummary(summary);
+            return;
+          }
+          if (assist.status === 'FAILED') return;
+        }
+      } catch {
+        if (cancelled) return;
       }
-    });
+      pollTimer = setTimeout(() => void pollSnapshotAssist(), 2000);
+    };
+    void pollSnapshotAssist();
+
     return () => {
       cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [incident.id]);
+  }, [incident.id, incident.sourceEventId, incident.vlmDescription]);
   // 상대 시간(MM:SS) 포맷팅 헬퍼
   const formatRelativeTime = (secs: number): string => {
     const m = Math.floor(secs / 60);
@@ -173,7 +202,7 @@ export function IncidentPlaybackModal({
           </div>
         </div>
         <div className="relative aspect-video overflow-hidden bg-black flex items-center justify-center">
-          {incident.snapshotUrl || incident.clipUrl ? (
+          {incident.clipUrl ? (
             <video
               ref={videoRef}
               onTimeUpdate={handleTimeUpdate}
@@ -182,6 +211,12 @@ export function IncidentPlaybackModal({
               muted
               playsInline
               autoPlay
+            />
+          ) : incident.snapshotUrl ? (
+            <img
+              src={incident.snapshotUrl}
+              alt="이벤트 스냅샷"
+              className="h-full w-full object-contain"
             />
           ) : (
             <CameraStreamFrame
@@ -200,8 +235,13 @@ export function IncidentPlaybackModal({
         <div className="border-t border-slate-800 bg-[#061224] px-4 py-3">
           <p className="text-[10px] font-bold tracking-wide text-blue-400">AI 장면 분석 (VLM)</p>
           <p className="mt-1.5 text-xs leading-relaxed text-slate-200">
-            {vlmSummary
-              ?? `규칙 기반 감지: ${getDetectionReasonLabel(incident.type, incident.label)}. 클립 VLM 분석이 완료되면 여기에 요약이 표시됩니다.`}
+            {clipVlmSummary
+              ?? snapshotVlmSummary
+              ?? (snapshotVlmStatus === 'PENDING'
+                ? '이벤트 스냅샷을 Gemini가 분석하고 있습니다.'
+                : snapshotVlmStatus === 'FAILED'
+                  ? `스냅샷 VLM 분석에 실패했습니다. 규칙 기반 감지: ${getDetectionReasonLabel(incident.type, incident.label)}`
+                  : `규칙 기반 감지: ${getDetectionReasonLabel(incident.type, incident.label)}. 클립 또는 스냅샷 VLM 분석이 완료되면 여기에 요약이 표시됩니다.`)}
           </p>
         </div>
         <div className="space-y-3 bg-[#061224] p-4">
