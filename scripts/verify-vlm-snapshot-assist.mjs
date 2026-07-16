@@ -22,7 +22,7 @@ assert.match(types, /vlm_snapshot_assist/);
 assert.match(types, /isVlmSnapshotAssistMessage/);
 
 const panel = fs.readFileSync(panelPath, 'utf8');
-assert.match(panel, /VLM 스냅샷 분석/);
+assert.match(panel, /AI 감지 근거/);
 assert.match(panel, /FAILED/);
 
 const hook = fs.readFileSync(hookPath, 'utf8');
