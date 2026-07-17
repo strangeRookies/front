@@ -14,13 +14,16 @@ import {
   serializePolygon,
   updateRoiConfig,
 } from '../api/roiApi';
-import { HLS_BASE_URL } from '../data/cameras';
+import type { StreamRenderKind } from '../data/cameras';
 import { CameraStreamFrame } from './CameraStreamFrame';
 
 interface RoiEditorModalProps {
   cameraDbId: number;
   cameraName: string;
   cameraLoginId: string;
+  isCorporate?: boolean;
+  streamUrl: string;
+  streamKind: StreamRenderKind;
   onClose: () => void;
 }
 
@@ -47,7 +50,15 @@ function scenarioIdsForGroup(groupId: RoiGroupId, scenarios: ScenarioResponse[])
   return scenarios.filter(s => types.includes(s.scenarioType)).map(s => s.scenarioId);
 }
 
-export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose }: RoiEditorModalProps) {
+export function RoiEditorModal({
+  cameraDbId,
+  cameraName,
+  cameraLoginId,
+  isCorporate,
+  streamUrl,
+  streamKind,
+  onClose,
+}: RoiEditorModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -61,9 +72,6 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // HLS raw stream URL (MediaMTX) — AI 오버레이 없는 원본 영상
-  const hlsUrl = `${HLS_BASE_URL}/${cameraLoginId}/index.m3u8`;
-
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -71,7 +79,7 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
       try {
         const [scenariosData, roisData] = await Promise.all([
           fetchScenarios(),
-          fetchRoiConfigs(cameraDbId),
+          fetchRoiConfigs(cameraDbId, isCorporate),
         ]);
         if (cancelled) return;
         setScenarios(scenariosData);
@@ -255,7 +263,7 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
           const existing = existingRois.find(r => r.scenarioId === scenarioId);
           return existing
             ? updateRoiConfig(existing.roiConfigId, { polygonPoints })
-            : createRoiConfig(cameraDbId, { scenarioId, polygonPoints });
+            : createRoiConfig(cameraDbId, { scenarioId, polygonPoints }, isCorporate);
         })
       );
       setExistingRois(prev => {
@@ -340,10 +348,9 @@ export function RoiEditorModal({ cameraDbId, cameraName, cameraLoginId, onClose 
           ref={containerRef}
           className="relative aspect-video select-none overflow-hidden rounded-xl border border-slate-700 bg-black"
         >
-          {/* HLS raw stream — AI 오버레이 없는 MediaMTX 원본 영상 */}
           <CameraStreamFrame
-            streamUrl={hlsUrl}
-            streamKind="hls"
+            streamUrl={streamUrl}
+            streamKind={streamKind}
             title={`${cameraName} live`}
             className="absolute inset-0 h-full w-full object-contain"
             cameraLoginId={cameraLoginId}

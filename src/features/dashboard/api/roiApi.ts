@@ -53,16 +53,19 @@ export async function fetchScenarios(): Promise<ScenarioResponse[]> {
   return apiRequest<ScenarioResponse[]>('/api/scenarios');
 }
 
-export async function fetchRoiConfigs(cameraId: number): Promise<RoiConfigResponse[]> {
+export async function fetchRoiConfigs(cameraId: number, isCorporate?: boolean): Promise<RoiConfigResponse[]> {
   const ts = new Date().getTime();
-  return apiRequest<RoiConfigResponse[]>(`/api/cameras/${cameraId}/roi-configs?t=${ts}`);
+  const basePath = isCorporate ? `/api/corporate-cameras/${cameraId}` : `/api/cameras/${cameraId}`;
+  return apiRequest<RoiConfigResponse[]>(`${basePath}/roi-configs?t=${ts}`);
 }
 
 export async function createRoiConfig(
   cameraId: number,
   request: CreateRoiConfigRequest,
+  isCorporate?: boolean,
 ): Promise<RoiConfigResponse> {
-  return apiRequest<RoiConfigResponse>(`/api/cameras/${cameraId}/roi-configs`, {
+  const basePath = isCorporate ? `/api/corporate-cameras/${cameraId}` : `/api/cameras/${cameraId}`;
+  return apiRequest<RoiConfigResponse>(`${basePath}/roi-configs`, {
     method: 'POST',
     body: request,
   });

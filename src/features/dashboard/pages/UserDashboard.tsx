@@ -135,6 +135,7 @@ export function NurseDashboard({
           overlayUrl: camera.overlayUrl,
           overlayStreamType: camera.overlayStreamType,
           overlayRenderedInStream: camera.overlayRenderedInStream,
+          isCorporate: userType === 'corporate' || (camera.isCorporate ?? camera.corporate),
         };
       });
   }, [registeredCameras]);

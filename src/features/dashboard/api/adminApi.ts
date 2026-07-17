@@ -102,6 +102,16 @@ export async function fetchAdminTodayAlertCount(): Promise<AdminTodayAlertCountR
   return apiRequest<AdminTodayAlertCountResponse>('/api/admin/alert-events/today-count');
 }
 
+export interface AdminFalsePositiveRateResponse {
+  ratePercent: number | null;
+  deltaPercent: number | null;
+  sampleSize: number;
+}
+
+export async function fetchAdminFalsePositiveRate(): Promise<AdminFalsePositiveRateResponse> {
+  return apiRequest<AdminFalsePositiveRateResponse>('/api/admin/alert-events/false-positive-rate');
+}
+
 // ── 기업용 카메라 관리 ─────────────────────────────────────
 
 export interface CorporateCameraRequest {
