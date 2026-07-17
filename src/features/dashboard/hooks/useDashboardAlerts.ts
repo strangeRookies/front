@@ -106,6 +106,7 @@ function toIncidentAlert(event: AiEvent, liveCameras: readonly LiveCamera[], ack
     time: new Date(timestamp).toTimeString().split(' ')[0],
     timestamp,
     camera: camera?.name || event.camera_login_id || event.camera_id || '-',
+    cameraLoginId: event.camera_login_id || (event as AiEvent & { cameraLoginId?: string }).cameraLoginId || camera?.cameraLoginId,
     type: event.scenarioType!,
     label: presentation.label,
     severity: presentation.tone,

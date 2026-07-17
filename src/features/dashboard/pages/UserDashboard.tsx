@@ -443,11 +443,11 @@ export function NurseDashboard({
   }, [registeredCameras]);
 
   const selectedCameraObj = selectedIncident
-    ? liveCameras.find((camera) => camera.name === selectedIncident.camera || camera.location === selectedIncident.camera)
+    ? liveCameras.find((camera) => camera.cameraLoginId === selectedIncident.cameraLoginId)
     : null;
 
-  const playbackStreamUrl = selectedIncident?.clipUrl || selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
-  const playbackStreamKind = selectedIncident?.clipUrl ? 'hls' : (selectedCameraObj?.streamKind || liveCameras[0]?.streamKind);
+  const playbackStreamUrl = selectedIncident?.clipUrl || selectedCameraObj?.streamUrl;
+  const playbackStreamKind = selectedIncident?.clipUrl ? 'hls' : selectedCameraObj?.streamKind;
 
   // --- Loading View ---
   if (isLoading) {

@@ -181,6 +181,7 @@ export function IncidentPlaybackModal({
           {incident.clipUrl ? (
             <video
               ref={videoRef}
+              poster={primarySnapshot}
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               className="h-full w-full object-cover contrast-125 brightness-75"
@@ -188,15 +189,22 @@ export function IncidentPlaybackModal({
               playsInline
               autoPlay
             />
-          ) : primarySnapshot ? (
-            <img
-              src={primarySnapshot}
-              alt="이벤트 스냅샷"
-              className="h-full w-full object-contain"
-            />
+          ) : playbackStreamUrl && cameraLoginId ? (
+            <div className="h-full w-full">
+              <CameraStreamFrame
+                streamUrl={playbackStreamUrl}
+                streamKind={playbackStreamKind}
+                title={`${incident.camera} 현재 라이브`}
+                cameraLoginId={cameraLoginId}
+                className="h-full w-full"
+              />
+              <div className="absolute left-3 top-3 rounded bg-amber-600/95 px-3 py-1.5 text-xs font-bold text-white">
+                녹화 클립 준비 중 — 현재 라이브 영상입니다
+              </div>
+            </div>
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-slate-950 text-slate-500 text-sm">
-              스냅샷 없음
+              녹화 클립 준비 중
             </div>
           )}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 py-3 pointer-events-none">

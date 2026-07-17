@@ -119,6 +119,7 @@ export function toIncidentAlertFromRecentEvent(
     time: new Date(timestamp).toTimeString().split(' ')[0],
     timestamp,
     camera: matchedCamera?.name || cameraName || cameraKey || '-',
+    cameraLoginId: cameraKey || matchedCamera?.cameraLoginId,
     type: scenarioType,
     label: presentation.label,
     severity: presentation.tone,

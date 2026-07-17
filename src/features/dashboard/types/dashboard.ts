@@ -15,6 +15,7 @@ export interface IncidentAlert {
   primarySnapshotUrl?: string; // representative JPEG snapshot for primary UI display
   clipUrl?: string; // Recorded video clip URL
   clipPath?: string;
+  cameraLoginId?: string;
   sourceEventId?: string;
   vlmDescription?: string;
 }
