@@ -35,6 +35,7 @@ export function SemanticEventSearchPanel({
   const [message, setMessage] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [failedImages, setFailedImages] = useState<ReadonlySet<string>>(new Set());
+  const [includeTestData, setIncludeTestData] = useState(false);
   const mountedRef = useRef(true);
   const requestSequenceRef = useRef(0);
   const activeRequestRef = useRef<{ key: string; controller: AbortController } | null>(null);
@@ -84,7 +85,7 @@ export function SemanticEventSearchPanel({
           ...dateRange,
           topK: DEFAULT_SEMANTIC_TOP_K,
           minSimilarity: DEFAULT_MIN_SIMILARITY,
-          excludeMock: import.meta.env.PROD ? true : undefined,
+          excludeMock: includeTestData ? false : true,
         },
         controller.signal,
       );
@@ -116,6 +117,7 @@ export function SemanticEventSearchPanel({
       label: result.vlmDescription || `${result.scenarioType} 감지`,
       severity: getSeverityTone(result.severity),
       status: 'new',
+      primarySnapshotUrl: result.snapshotUrl,
       snapshotUrl: result.snapshotUrl,
       vlmDescription: result.vlmDescription,
     });
@@ -156,6 +158,19 @@ export function SemanticEventSearchPanel({
       </form>
       <p id="semantic-search-help" className="sr-only">Enter 키 또는 검색 버튼으로 검색합니다.</p>
 
+      <div className="flex items-center gap-2 text-[11px]">
+        <label className="inline-flex items-center gap-1.5 text-slate-300 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeTestData}
+            onChange={(e) => setIncludeTestData(e.target.checked)}
+            className="accent-blue-600"
+          />
+          테스트 데이터 포함
+        </label>
+        <span className="text-[10px] text-slate-500">(기본: 테스트 데이터 제외)</span>
+      </div>
+
       <div aria-live="polite" aria-atomic="true">
         {!scopeAvailable && <p className="text-[11px] text-amber-400">현재 계정에서는 AI 영상 검색을 사용할 수 없습니다.</p>}
         {isLoading && <p className="text-[11px] text-slate-400">AI가 유사한 사고 영상을 검색하고 있습니다.</p>}
@@ -171,11 +186,10 @@ export function SemanticEventSearchPanel({
       {results.length > 0 && (
         <div className="space-y-3">
           {results.map((result) => {
-
-            const previewUrls = [
-              ...(result.snapshotUrl ? [result.snapshotUrl] : []),
-              ...result.keyframeUrls,
-            ];
+            // Separate primary snapshot from VLM keyframe previews
+            const vlmKeyframeUrls = result.keyframeUrls ?? [];
+            const primarySnapshot = result.snapshotUrl;
+            const previewUrls = primarySnapshot ? [primarySnapshot, ...vlmKeyframeUrls] : vlmKeyframeUrls;
             const visibleKeyframes = previewUrls.filter((url) => !failedImages.has(url));
             const cameraName = cameraOptions.find((camera) => camera.id === String(result.cameraId))?.name;
             return (

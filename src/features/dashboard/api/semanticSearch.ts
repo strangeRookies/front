@@ -86,7 +86,7 @@ export function buildSemanticSearchPath(
     query: trimmedQuery,
     topK: String(topK),
     minSimilarity: String(minSimilarity),
-    excludeMock: String(filters.excludeMock ?? false),
+    excludeMock: String(filters.excludeMock ?? true),
   });
   appendIsoDate(params, 'dateFrom', filters.dateFrom);
   appendIsoDate(params, 'dateTo', filters.dateTo);

@@ -105,6 +105,8 @@ function mergeRealtimeHistory(current: readonly IncidentAlert[], events: readonl
       ...next,
       status: previous.status,
       clipUrl: next.clipUrl ?? previous.clipUrl,
+      primarySnapshotUrl: previous.primarySnapshotUrl,
+      snapshotUrl: previous.snapshotUrl,
       clipPath: next.clipPath ?? previous.clipPath,
     } : next);
   }

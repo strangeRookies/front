@@ -32,9 +32,14 @@ export function useDashboardAlerts({
         if (!existing) {
           merged.set(alert.id, alert);
           changed = true;
-        } else if ((alert.snapshotUrl || alert.clipUrl) && !(existing.snapshotUrl || existing.clipUrl)) {
+        } else if ((alert.primarySnapshotUrl || alert.snapshotUrl || alert.clipUrl) && !(existing.primarySnapshotUrl || existing.snapshotUrl || existing.clipUrl)) {
           // 실시간 WS로 먼저 들어온 항목엔 스냅샷이 없는데, 재조회 결과엔 이제 붙어있는 경우 갱신
-          merged.set(alert.id, { ...existing, snapshotUrl: alert.snapshotUrl, clipUrl: alert.clipUrl });
+          merged.set(alert.id, {
+            ...existing,
+            snapshotUrl: alert.snapshotUrl,
+            primarySnapshotUrl: alert.primarySnapshotUrl ?? alert.snapshotUrl,
+            clipUrl: alert.clipUrl,
+          });
           changed = true;
         }
       }
@@ -102,6 +107,8 @@ function mergeIncidentAlerts(current: readonly IncidentAlert[], incoming: readon
       ...alert,
       status: previous.status,
       clipUrl: alert.clipUrl ?? previous.clipUrl,
+      primarySnapshotUrl: alert.primarySnapshotUrl ?? previous.primarySnapshotUrl,
+      snapshotUrl: alert.snapshotUrl ?? previous.snapshotUrl,
       clipPath: alert.clipPath ?? previous.clipPath,
     } : alert);
   }

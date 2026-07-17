@@ -46,10 +46,18 @@ assert.match(card, /VlmSnapshotAssistPanel/);
 assert.match(card, /vlmAssist/);
 
 const modal = fs.readFileSync(modalPath, 'utf8');
-assert.match(modal, /fetchVlmSnapshotAssist/);
-assert.match(modal, /snapshotVlmSummary/);
-assert.match(modal, /incident\.clipUrl \?/);
-assert.match(modal, /incident\.snapshotUrl \?/);
+// Modal MUST NOT call fetchVlmSnapshotAssist for primary snapshot display
+assert.doesNotMatch(modal, /fetchVlmSnapshotAssist/);
+// Modal MUST NOT drive snapshot summary/status from snapshot-assist REST polling
+assert.doesNotMatch(modal, /snapshotVlmSummary/);
+assert.doesNotMatch(modal, /snapshotVlmStatus/);
+// Primary snapshot image uses primarySnapshotUrl ?? snapshotUrl; never clip/mp4 as img src
+assert.match(modal, /primarySnapshot = incident\.primarySnapshotUrl \?\? incident\.snapshotUrl/);
+assert.match(modal, /primarySnapshot \?[\s\S]*?<img/);
+// When no primary snapshot, show quiet placeholder (not live stream)
+assert.match(modal, /스냅샷 없음/);
+// Clip drives video only; clipUrl never used as snapshot img src
+assert.match(modal, /incident\.clipUrl \?[\s\S]*?<video/);
 
 const api = fs.readFileSync(apiPath, 'utf8');
 assert.match(api, /sourceEventId/);
