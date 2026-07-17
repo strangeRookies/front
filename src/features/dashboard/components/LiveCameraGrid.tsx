@@ -295,6 +295,8 @@ export function LiveCameraGrid({ cameras, className = '', compact = false, onCam
           cameraName={roiCamera.name}
           cameraLoginId={roiCamera.cameraLoginId ?? roiCamera.id}
           isCorporate={roiCamera.isCorporate}
+          streamUrl={roiCamera.streamUrl}
+          streamKind={roiCamera.streamKind}
           onClose={() => { setRoiCamera(null); setRoiRefreshKey(k => k + 1); }}
         />
       )}
