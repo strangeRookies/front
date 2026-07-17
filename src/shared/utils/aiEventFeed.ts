@@ -5,8 +5,10 @@ import type { AiEvent } from '../../hooks/useAiEvents';
 // timestamp를 쓰지 않으므로, 같은 실물 사건이 반복 publish돼도 동일 key가 된다.
 // ---------------------------------------------------------------------------
 export function aiEventFingerprint(event: AiEvent): string {
-  if (event.eventId) {
-    return event.eventId;
+  // Prefer stable incident id: originalEventId (legacy dual-id case) or eventId
+  const stableId = event.originalEventId || event.eventId;
+  if (stableId) {
+    return stableId;
   }
   const normalizedType = event.scenarioType ?? 'no-scenario';
   const normalizedCamera = event.camera_id.trim().toLowerCase();
@@ -44,7 +46,7 @@ export function reduceAiEventFeed(
 }
 
 function mergeAiEvent(previous: AiEvent, incoming: AiEvent): AiEvent {
-  return {
+  const merged: AiEvent = {
     ...previous,
     ...incoming,
     eventId: incoming.eventId ?? previous.eventId,
@@ -64,6 +66,17 @@ function mergeAiEvent(previous: AiEvent, incoming: AiEvent): AiEvent {
     clipPath: incoming.clipPath ?? previous.clipPath,
     sequence: incoming.sequence ?? previous.sequence,
   };
+  // Preserve earliest timestamp when merging legacy dual-id (unrecovered)
+  if (previous.capturedAtMs && incoming.capturedAtMs) {
+    (merged as any).capturedAtMs = Math.min(previous.capturedAtMs, incoming.capturedAtMs);
+  }
+  // Keep higher confidence if available
+  if (typeof (incoming as any).confidence === 'number' && typeof (previous as any).confidence === 'number') {
+    (merged as any).confidence = Math.max((previous as any).confidence, (incoming as any).confidence);
+  }
+  // Update scenario when unrecovered arrives for same incident
+  if (incoming.scenarioType) (merged as any).scenarioType = incoming.scenarioType;
+  return merged;
 }
 
 // ---------------------------------------------------------------------------

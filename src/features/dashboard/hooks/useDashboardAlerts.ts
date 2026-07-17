@@ -24,28 +24,43 @@ export function useDashboardAlerts({
   const mergeRecentAlerts = useCallback((recentAlerts: readonly IncidentAlert[]) => {
     if (recentAlerts.length === 0) return;
     setAlerts((prev) => {
-      const merged = new Map(prev.map((alert) => [alert.id, alert]));
+      const byId = new Map(prev.map((alert) => [alert.id, alert]));
+      const bySource = new Map(
+        prev
+          .filter((alert) => alert.sourceEventId)
+          .map((alert) => [String(alert.sourceEventId), alert]),
+      );
       let changed = false;
 
       for (const alert of recentAlerts) {
-        const existing = merged.get(alert.id);
+        const existing =
+          byId.get(alert.id) ||
+          (alert.sourceEventId ? bySource.get(String(alert.sourceEventId)) : undefined);
         if (!existing) {
-          merged.set(alert.id, alert);
+          byId.set(alert.id, alert);
+          if (alert.sourceEventId) bySource.set(String(alert.sourceEventId), alert);
           changed = true;
-        } else if ((alert.primarySnapshotUrl || alert.snapshotUrl || alert.clipUrl) && !(existing.primarySnapshotUrl || existing.snapshotUrl || existing.clipUrl)) {
-          // 실시간 WS로 먼저 들어온 항목엔 스냅샷이 없는데, 재조회 결과엔 이제 붙어있는 경우 갱신
-          merged.set(alert.id, {
-            ...existing,
-            snapshotUrl: alert.snapshotUrl,
-            primarySnapshotUrl: alert.primarySnapshotUrl ?? alert.snapshotUrl,
-            clipUrl: alert.clipUrl,
-          });
-          changed = true;
+          continue;
         }
+        const merged: IncidentAlert = {
+          ...existing,
+          ...alert,
+          id: existing.id,
+          status: existing.status,
+          clipUrl: alert.clipUrl ?? existing.clipUrl,
+          primarySnapshotUrl: alert.primarySnapshotUrl ?? existing.primarySnapshotUrl,
+          snapshotUrl: alert.snapshotUrl ?? existing.snapshotUrl,
+          clipPath: alert.clipPath ?? existing.clipPath,
+          sourceEventId: alert.sourceEventId ?? existing.sourceEventId,
+        };
+        if (existing.id !== merged.id) byId.delete(existing.id);
+        byId.set(merged.id, merged);
+        if (merged.sourceEventId) bySource.set(String(merged.sourceEventId), merged);
+        changed = true;
       }
 
       if (!changed) return prev;
-      return [...merged.values()].sort((a, b) => b.timestamp - a.timestamp);
+      return [...byId.values()].sort((a, b) => b.timestamp - a.timestamp);
     });
   }, []);
 
@@ -84,6 +99,8 @@ function toIncidentAlert(event: AiEvent, liveCameras: readonly LiveCamera[], ack
   const id = aiEventFingerprint(event);
   const camera = findCameraForAiEvent(liveCameras, event);
   const timestamp = event.capturedAtMs ?? (event.timestamp > 1e10 ? event.timestamp : event.timestamp * 1000);
+  // Attach sourceEventId (original or eventId) for REST/WS dedupe alignment
+  const sourceEventId = (event as any).originalEventId || event.eventId || undefined;
   return {
     id,
     time: new Date(timestamp).toTimeString().split(' ')[0],
@@ -95,22 +112,37 @@ function toIncidentAlert(event: AiEvent, liveCameras: readonly LiveCamera[], ack
     status: acknowledgedAiEventIds.has(id) ? 'resolved' : 'new',
     clipUrl: event.clipUrl,
     clipPath: event.clipPath,
+    sourceEventId,
   };
 }
 
 function mergeIncidentAlerts(current: readonly IncidentAlert[], incoming: readonly IncidentAlert[]): IncidentAlert[] {
-  const merged = new Map(current.map((alert) => [alert.id, alert]));
+  const byId = new Map(current.map((alert) => [alert.id, alert]));
+  const bySource = new Map(
+    current
+      .filter((alert) => alert.sourceEventId)
+      .map((alert) => [String(alert.sourceEventId), alert]),
+  );
   for (const alert of incoming) {
-    const previous = merged.get(alert.id);
-    merged.set(alert.id, previous ? {
-      ...previous,
-      ...alert,
-      status: previous.status,
-      clipUrl: alert.clipUrl ?? previous.clipUrl,
-      primarySnapshotUrl: alert.primarySnapshotUrl ?? previous.primarySnapshotUrl,
-      snapshotUrl: alert.snapshotUrl ?? previous.snapshotUrl,
-      clipPath: alert.clipPath ?? previous.clipPath,
-    } : alert);
+    const previous =
+      byId.get(alert.id) ||
+      (alert.sourceEventId ? bySource.get(String(alert.sourceEventId)) : undefined);
+    const merged = previous
+      ? {
+          ...previous,
+          ...alert,
+          id: previous.id,
+          status: previous.status,
+          clipUrl: alert.clipUrl ?? previous.clipUrl,
+          primarySnapshotUrl: alert.primarySnapshotUrl ?? previous.primarySnapshotUrl,
+          snapshotUrl: alert.snapshotUrl ?? previous.snapshotUrl,
+          clipPath: alert.clipPath ?? previous.clipPath,
+          sourceEventId: alert.sourceEventId ?? previous.sourceEventId,
+        }
+      : alert;
+    if (previous && previous.id !== merged.id) byId.delete(previous.id);
+    byId.set(merged.id, merged);
+    if (merged.sourceEventId) bySource.set(String(merged.sourceEventId), merged);
   }
-  return [...merged.values()].sort((left, right) => right.timestamp - left.timestamp);
+  return [...byId.values()].sort((left, right) => right.timestamp - left.timestamp);
 }
