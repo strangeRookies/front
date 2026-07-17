@@ -111,8 +111,11 @@ export function toIncidentAlertFromRecentEvent(
   const clipUrl = readString(event, ['clipUrl', 'clip_url']) || undefined;
   const alertEventId = readNumber(event, ['alertEventId', 'alert_event_id']);
   const eventIdString = readString(event, ['eventId', 'event_id', 'incidentId']);
+  const originalEventIdString = readString(event, ['originalEventId', 'original_event_id', 'sourceEventId', 'source_event_id']);
+  // Prefer originalEventId for stable incident family when present (legacy dual-id case)
+  const sourceEventId = originalEventIdString || eventIdString || undefined;
   return {
-    id: alertEventId != null ? String(alertEventId) : eventIdString || `${cameraKey || cameraName || 'unknown'}:${scenarioType}:${timestamp}`,
+    id: alertEventId != null ? String(alertEventId) : (eventIdString || `${cameraKey || cameraName || 'unknown'}:${scenarioType}:${timestamp}`),
     time: new Date(timestamp).toTimeString().split(' ')[0],
     timestamp,
     camera: matchedCamera?.name || cameraName || cameraKey || '-',
@@ -124,7 +127,7 @@ export function toIncidentAlertFromRecentEvent(
     primarySnapshotUrl: snapshotUrl,
     clipUrl,
     clipPath: readString(event, ['clipPath', 'clip_path']) || undefined,
-    sourceEventId: eventIdString || undefined,
+    sourceEventId,
   };
 }
 export async function fetchAlertEventDetail(alertEventId: number): Promise<{ vlmDescription: string | null }> {

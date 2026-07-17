@@ -14,6 +14,7 @@ const aiEventSequenceSchema = z.object({
 
 const aiEventSchema = z.object({
   eventId: z.string().optional(),
+  originalEventId: z.string().optional(),
   camera_id: z.string(),
   camera_login_id: z.string().nullable().optional(),
   frame_idx: z.number().default(0),
@@ -66,6 +67,7 @@ export function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
       camera_id: parsed.camera_id,
       camera_login_id: parsed.camera_login_id ?? undefined,
       frame_idx: parsed.frame_idx,
+      originalEventId: readString(raw.originalEventId ?? raw.original_event_id ?? raw.sourceEventId ?? raw.source_event_id),
       frameId: parsed.frameId,
       frameWidth: parsed.frameWidth,
       frameHeight: parsed.frameHeight,

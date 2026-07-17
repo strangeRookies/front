@@ -11,6 +11,7 @@ export type AiScenarioType = typeof AI_SCENARIO_TYPES[number];
 
 export interface AiEvent {
   readonly eventId?: string;
+  readonly originalEventId?: string;
   readonly camera_id: string;
   readonly camera_login_id?: string;
   readonly frame_idx: number;
