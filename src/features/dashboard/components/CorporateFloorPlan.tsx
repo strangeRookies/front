@@ -68,7 +68,7 @@ export function CorporateFloorPlan({
   const hasActiveAlert = cameras.some((cam) => isAlert(cam.connectionStatus));
 
   return (
-    <div className="relative w-full h-full bg-white border border-[#e5e7eb] rounded-xl overflow-hidden flex flex-col">
+    <div className="relative w-full h-full bg-white border border-[#2a3244] rounded-xl overflow-hidden flex flex-col">
       <style>{`
         @keyframes floorplan-camera-pulse {
           0% { transform: scale(1); opacity: 1; }
@@ -82,8 +82,8 @@ export function CorporateFloorPlan({
       `}</style>
 
       {/* 헤더 */}
-      <div className="flex items-center justify-between px-4 py-3 bg-[#fafafa] border-b border-[#e5e7eb] flex-shrink-0">
-        <h3 className="text-sm font-semibold text-gray-700">기업 공간 도면 — 카메라 배치도</h3>
+      <div className="flex items-center justify-between px-4 py-3 bg-[#151a23] border-b border-slate-800 flex-shrink-0">
+        <h3 className="text-sm font-semibold text-[#e8e9ec]">기업 공간 도면 — 카메라 배치도</h3>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#1d9e75]/10 text-[#127a5a] border border-[#1d9e75]/20 text-xs">
             <span className="w-1.5 h-1.5 rounded-full bg-[#1d9e75]" />연결됨
