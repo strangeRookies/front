@@ -29,7 +29,7 @@ const validResult = {
 const facilityPath = contract.buildSemanticSearchPath(
   { type: 'facility', id: 7 },
   '  노란 안전모 & 낙상  ',
-  { cameraId: 34, dateFrom: '2026-07-01T00:00:00Z', dateTo: '2026-07-15T00:00:00Z', excludeMock: true },
+  { cameraId: 34, dateFrom: '2026-07-01T00:00:00Z', dateTo: '2026-07-15T00:00:00Z' },
 );
 const facilityUrl = new URL(facilityPath, 'https://frontend.test');
 assert.equal(facilityUrl.pathname, '/api/facilities/7/search/semantic');
@@ -106,12 +106,13 @@ const sourceChecks = [
   ['server state is handled', panelSource.includes('error.status >= 500')],
   ['backend-not-ready state is handled', panelSource.includes('error.status === 404 || error.status === 501')],
   ['mock is development-only', apiSource.includes("import.meta.env.DEV && import.meta.env.VITE_VLM_MOCK_SEARCH === 'true'")],
-  ['production excludes mock data', panelSource.includes('import.meta.env.PROD ? true : undefined')],
+  ['panel always defaults excludeMock true (not PROD-only)', panelSource.includes('excludeMock: includeTestData ? false : true')],
   ['dashboard passes date filter', historySource.includes('datePeriod={searchDate}')],
   ['dashboard passes incident flow', historySource.includes('onOpenIncident={onOpenIncident}')],
   ['dashboard builds explicit scope', dashboardSource.includes("type: userType === 'corporate' ? 'company' : 'facility'")],
   ['full VLM JSON is not rendered', !panelSource.includes('{result.vlmJson}')],
-  ['original CCTV fallback is absent', !panelSource.includes('snapshotUrl: result.') && !panelSource.includes('clipUrl: result.')],
+  ['snapshot preview is passed without original clip fallback', panelSource.includes('snapshotUrl: result.snapshotUrl') && !panelSource.includes('clipUrl: result.')],
+  ['panel passes primarySnapshotUrl (not clip) to openIncident', panelSource.includes('primarySnapshotUrl: result.snapshotUrl') && !panelSource.includes('clipUrl: result.')],
 ];
 
 for (const [name, passed] of sourceChecks) {

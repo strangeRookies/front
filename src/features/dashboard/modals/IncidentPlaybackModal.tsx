@@ -41,26 +41,28 @@ export function IncidentPlaybackModal({
   cameraLoginId,
 }: IncidentPlaybackModalProps) {
   const [duration, setDuration] = useState(10);
-  const [vlmSummary, setVlmSummary] = useState<string | null>(null);
+  const [clipVlmSummary, setClipVlmSummary] = useState<string | null>(incident.vlmDescription ?? null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
   useEffect(() => {
     const numericId = Number(incident.id);
-    if (!Number.isSafeInteger(numericId) || numericId <= 0) {
-      setVlmSummary(null);
-      return;
-    }
     let cancelled = false;
-    void fetchAlertEventDetail(numericId).then(({ vlmDescription }) => {
-      if (!cancelled) {
-        setVlmSummary(vlmDescription);
-      }
-    });
+
+    setClipVlmSummary(incident.vlmDescription ?? null);
+
+    if (Number.isSafeInteger(numericId) && numericId > 0) {
+      void fetchAlertEventDetail(numericId)
+        .then(({ vlmDescription }) => {
+          if (!cancelled && vlmDescription) setClipVlmSummary(vlmDescription);
+        })
+        .catch(() => undefined);
+    }
+
     return () => {
       cancelled = true;
     };
-  }, [incident.id]);
+  }, [incident.id, incident.vlmDescription]);
   // 상대 시간(MM:SS) 포맷팅 헬퍼
   const formatRelativeTime = (secs: number): string => {
     const m = Math.floor(secs / 60);
@@ -157,6 +159,9 @@ export function IncidentPlaybackModal({
     onPlaybackProgressChange(val);
   };
 
+  // Primary snapshot URL only; never fall back to live stream or clip for the snapshot image
+  const primarySnapshot = incident.primarySnapshotUrl ?? incident.snapshotUrl;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
       <div className="flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-[#071329] shadow-2xl">
@@ -173,7 +178,7 @@ export function IncidentPlaybackModal({
           </div>
         </div>
         <div className="relative aspect-video overflow-hidden bg-black flex items-center justify-center">
-          {incident.snapshotUrl || incident.clipUrl ? (
+          {incident.clipUrl ? (
             <video
               ref={videoRef}
               onTimeUpdate={handleTimeUpdate}
@@ -183,14 +188,16 @@ export function IncidentPlaybackModal({
               playsInline
               autoPlay
             />
-          ) : (
-            <CameraStreamFrame
-              streamUrl={playbackStreamUrl}
-              streamKind={playbackStreamKind}
-              title="incident playback stream"
-              className="h-full w-full object-cover contrast-125 brightness-75"
-              cameraLoginId={cameraLoginId}
+          ) : primarySnapshot ? (
+            <img
+              src={primarySnapshot}
+              alt="이벤트 스냅샷"
+              className="h-full w-full object-contain"
             />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-slate-950 text-slate-500 text-sm">
+              스냅샷 없음
+            </div>
           )}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 py-3 pointer-events-none">
             <span className="text-sm font-bold text-white">{getDetectionReasonLabel(incident.type, incident.label)}</span>
@@ -200,8 +207,8 @@ export function IncidentPlaybackModal({
         <div className="border-t border-slate-800 bg-[#061224] px-4 py-3">
           <p className="text-[10px] font-bold tracking-wide text-blue-400">AI 장면 분석 (VLM)</p>
           <p className="mt-1.5 text-xs leading-relaxed text-slate-200">
-            {vlmSummary
-              ?? `규칙 기반 감지: ${getDetectionReasonLabel(incident.type, incident.label)}. 클립 VLM 분석이 완료되면 여기에 요약이 표시됩니다.`}
+            {clipVlmSummary
+              ?? `클립 VLM 분석: ${getDetectionReasonLabel(incident.type, incident.label)}`}
           </p>
         </div>
         <div className="space-y-3 bg-[#061224] p-4">

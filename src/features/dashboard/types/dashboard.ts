@@ -11,9 +11,12 @@ export interface IncidentAlert {
   label: string;
   severity: 'critical' | 'warning' | 'info';
   status: 'new' | 'resolved';
-  snapshotUrl?: string; // S3 Presigned URL
+  snapshotUrl?: string; // S3 Presigned URL (compat)
+  primarySnapshotUrl?: string; // representative JPEG snapshot for primary UI display
   clipUrl?: string; // Recorded video clip URL
   clipPath?: string;
+  sourceEventId?: string;
+  vlmDescription?: string;
 }
 
 export interface RegisteredCamera {

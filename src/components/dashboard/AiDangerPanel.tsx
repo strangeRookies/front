@@ -4,6 +4,7 @@ import { aiEventFingerprint } from '../../shared/utils/aiAlerts';
 import type { AiEvent } from '../../hooks/useAiEvents';
 import { AiAlertCard } from './AiAlertCard';
 import type { FeedbackType } from './AiAlertCard';
+import type { VlmSnapshotAssistResult } from '../../features/dashboard/types/vlmSnapshotAssist';
 
 interface AiDangerPanelProps {
   readonly events: readonly AiEvent[];
@@ -12,9 +13,10 @@ interface AiDangerPanelProps {
   readonly onConfirm: (event: AiEvent) => void;
   readonly onFeedback?: (event: AiEvent, feedback: FeedbackType) => void;
   readonly fallback?: ReactNode;
+  readonly getVlmAssist?: (eventId: string | null | undefined) => VlmSnapshotAssistResult | undefined;
 }
 
-export function AiDangerPanel({ events, acknowledgedEventIds, onFocus, onConfirm, onFeedback, fallback }: AiDangerPanelProps) {
+export function AiDangerPanel({ events, acknowledgedEventIds, onFocus, onConfirm, onFeedback, fallback, getVlmAssist }: AiDangerPanelProps) {
   if (events.length === 0) {
     if (fallback) return <>{fallback}</>;
 
@@ -39,6 +41,7 @@ export function AiDangerPanel({ events, acknowledgedEventIds, onFocus, onConfirm
           onFocus={onFocus}
           onConfirm={onConfirm}
           onFeedback={onFeedback}
+          vlmAssist={getVlmAssist?.(event.eventId)}
         />
       ))}
     </>
