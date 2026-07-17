@@ -97,6 +97,8 @@ function mergeRealtimeHistory(current: readonly IncidentAlert[], events: readonl
       status: acknowledgedIds.has(id) ? 'resolved' : 'new',
       clipUrl: event.clipUrl,
       clipPath: event.clipPath,
+      snapshotUrl: event.snapshotUrl ?? event.primarySnapshotUrl,
+      primarySnapshotUrl: event.primarySnapshotUrl ?? event.snapshotUrl,
       sourceEventId: (event as any).originalEventId || event.eventId,
     };
     const previous = merged.get(id);
@@ -105,8 +107,8 @@ function mergeRealtimeHistory(current: readonly IncidentAlert[], events: readonl
       ...next,
       status: previous.status,
       clipUrl: next.clipUrl ?? previous.clipUrl,
-      primarySnapshotUrl: previous.primarySnapshotUrl,
-      snapshotUrl: previous.snapshotUrl,
+      primarySnapshotUrl: next.primarySnapshotUrl ?? previous.primarySnapshotUrl,
+      snapshotUrl: next.snapshotUrl ?? previous.snapshotUrl,
       clipPath: next.clipPath ?? previous.clipPath,
     } : next);
   }
