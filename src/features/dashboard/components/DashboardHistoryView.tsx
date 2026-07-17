@@ -132,33 +132,44 @@ export function DashboardHistoryView({
               <p className="text-xs text-slate-500">조건에 맞는 이벤트 기록이 없습니다.</p>
             </div>
           ) : (
-            historyAlerts.map((log) => (
-              <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-800/10">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400">
-                    <Video className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">{log.label}</h4>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-1 font-mono">
-                      <span>위치: {log.camera}</span>
-                      <span>/</span>
-                      <span>{new Date(log.timestamp).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.\s/g, '-').replace(/\./g, '')} {log.time}</span>
+            historyAlerts.map((log) => {
+              const thumb = log.primarySnapshotUrl ?? log.snapshotUrl;
+              return (
+                <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-800/10">
+                  <div className="flex items-center gap-3">
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt="스냅샷"
+                        className="w-9 h-9 rounded-lg object-cover border border-slate-800"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-[10px] text-slate-500">
+                        스냅샷 없음
+                      </div>
+                    )}
+                    <div>
+                      <h4 className="text-xs font-bold text-white">{log.label}</h4>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-1 font-mono">
+                        <span>위치: {log.camera}</span>
+                        <span>/</span>
+                        <span>{new Date(log.timestamp).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.\s/g, '-').replace(/\./g, '')} {log.time}</span>
+                      </div>
                     </div>
                   </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onOpenIncident(log)}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-[10px] cursor-pointer"
+                    >
+                      열기
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onOpenIncident(log)}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-[10px] cursor-pointer"
-                  >
-                    열기
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
-          
+
           {totalPages > 1 && (
             <div className="p-4 flex justify-center items-center gap-2 border-t border-slate-800 bg-[#071329]">
               <button
@@ -168,14 +179,14 @@ export function DashboardHistoryView({
               >
                 &lt;
               </button>
-              
+
               {visiblePages.map(page => (
                 <button
                   key={page}
                   onClick={() => onGoToPage(page)}
                   className={`w-8 h-8 flex items-center justify-center rounded-lg border text-xs font-bold transition-colors ${
-                    currentPage === page 
-                      ? 'bg-blue-600 border-blue-500 text-white' 
+                    currentPage === page
+                      ? 'bg-blue-600 border-blue-500 text-white'
                       : 'border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`}
                 >

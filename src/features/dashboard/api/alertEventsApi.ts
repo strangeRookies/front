@@ -80,7 +80,7 @@ export async function fetchSemanticAlertEvents(
 ): Promise<SemanticSearchResult[]> {
   const effectiveFilters = {
     ...filters,
-    excludeMock: filters.excludeMock ?? import.meta.env.PROD,
+    excludeMock: filters.excludeMock ?? true,
   };
 
   if (import.meta.env.DEV && import.meta.env.VITE_VLM_MOCK_SEARCH === 'true') {
@@ -106,7 +106,9 @@ export function toIncidentAlertFromRecentEvent(
   const acknowledged = readBoolean(event, ['acknowledged', 'acknowledgedYn', 'resolved']) || ['ACKNOWLEDGED', 'RESOLVED', 'COMPLETED', 'CONFIRMED'].includes(status);
   const presentation = getScenarioPresentation(scenarioType);
   const snapshotUrl = readString(event, ['snapshotUrl', 'snapshot_url']) || undefined;
-  const clipUrl = readString(event, ['clipUrl', 'clip_url']) || (snapshotUrl?.includes('.mp4') || snapshotUrl?.includes('/clips/') ? snapshotUrl : undefined);
+  // Map snapshotUrl to both snapshotUrl (compat) and primarySnapshotUrl (representative JPEG).
+  // Never promote mp4/clips into clipUrl.
+  const clipUrl = readString(event, ['clipUrl', 'clip_url']) || undefined;
   const alertEventId = readNumber(event, ['alertEventId', 'alert_event_id']);
   const eventIdString = readString(event, ['eventId', 'event_id', 'incidentId']);
   return {
@@ -119,6 +121,7 @@ export function toIncidentAlertFromRecentEvent(
     severity: presentation.tone,
     status: acknowledged ? 'resolved' : 'new',
     snapshotUrl,
+    primarySnapshotUrl: snapshotUrl,
     clipUrl,
     clipPath: readString(event, ['clipPath', 'clip_path']) || undefined,
     sourceEventId: eventIdString || undefined,
@@ -140,10 +143,14 @@ export async function fetchVlmSnapshotAssist(eventId: string): Promise<import('.
     const data = await apiRequest<unknown>(`/api/vlm/snapshot-assist/${encodeURIComponent(eventId)}`, { method: 'GET' });
     return isVlmSnapshotAssistResult(data) ? data : null;
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
+    if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 404)) {
+      console.debug('[fetchVlmSnapshotAssist] suppressed', error.status);
       return null;
     }
-    throw error;
+    if (error instanceof ApiError) {
+      console.warn('[fetchVlmSnapshotAssist] error', error.status);
+    }
+    return null;
   }
 }
 
