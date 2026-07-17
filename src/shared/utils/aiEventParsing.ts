@@ -46,6 +46,8 @@ const aiEventSchema = z.object({
   severity: z.string().default('HIGH'),
   clipUrl: z.string().optional(),
   clipPath: z.string().optional(),
+  snapshotUrl: z.string().optional(),
+  primarySnapshotUrl: z.string().optional(),
   sequence: aiEventSequenceSchema.optional(),
 });
 
@@ -96,6 +98,8 @@ export function parseToAiEvent(raw: Record<string, unknown>): AiEvent | null {
       severity: parsed.severity,
       clipUrl: parsed.clipUrl,
       clipPath: parsed.clipPath,
+      snapshotUrl: parsed.snapshotUrl,
+      primarySnapshotUrl: parsed.primarySnapshotUrl ?? parsed.snapshotUrl,
       sequence: parsed.sequence,
     };
   } catch (error) {
@@ -139,6 +143,8 @@ function normalizeRawPayload(raw: Record<string, unknown>) {
     track_id: raw.track_id ?? raw.trackingId ?? null,
     clipUrl: readString(raw.clipUrl ?? raw.clip_url),
     clipPath: readString(raw.clipPath ?? raw.clip_path),
+    snapshotUrl: readString(raw.snapshotUrl ?? raw.snapshot_url ?? raw.primarySnapshotUrl ?? raw.primary_snapshot_url),
+    primarySnapshotUrl: readString(raw.primarySnapshotUrl ?? raw.primary_snapshot_url ?? raw.snapshotUrl ?? raw.snapshot_url),
     sequence: normalizeSequence(raw.sequence),
   };
 }

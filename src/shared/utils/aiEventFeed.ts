@@ -64,6 +64,8 @@ function mergeAiEvent(previous: AiEvent, incoming: AiEvent): AiEvent {
     overlaySyncWarning: incoming.overlaySyncWarning ?? previous.overlaySyncWarning,
     clipUrl: incoming.clipUrl ?? previous.clipUrl,
     clipPath: incoming.clipPath ?? previous.clipPath,
+    snapshotUrl: incoming.snapshotUrl ?? previous.snapshotUrl,
+    primarySnapshotUrl: incoming.primarySnapshotUrl ?? previous.primarySnapshotUrl ?? incoming.snapshotUrl ?? previous.snapshotUrl,
     sequence: incoming.sequence ?? previous.sequence,
   };
   // Preserve earliest timestamp when merging legacy dual-id (unrecovered)

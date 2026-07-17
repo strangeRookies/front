@@ -112,6 +112,8 @@ function toIncidentAlert(event: AiEvent, liveCameras: readonly LiveCamera[], ack
     status: acknowledgedAiEventIds.has(id) ? 'resolved' : 'new',
     clipUrl: event.clipUrl,
     clipPath: event.clipPath,
+    snapshotUrl: event.snapshotUrl ?? event.primarySnapshotUrl,
+    primarySnapshotUrl: event.primarySnapshotUrl ?? event.snapshotUrl,
     sourceEventId,
   };
 }

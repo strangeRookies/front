@@ -44,6 +44,8 @@ export interface AiEvent {
   readonly severity: string;
   readonly clipUrl?: string;
   readonly clipPath?: string;
+  readonly snapshotUrl?: string;
+  readonly primarySnapshotUrl?: string;
   readonly sequence?: AiEventSequence;
 }
 
