@@ -86,7 +86,7 @@ export function buildSemanticSearchPath(
     query: trimmedQuery,
     topK: String(topK),
     minSimilarity: String(minSimilarity),
-    excludeMock: String(filters.excludeMock ?? false),
+    excludeMock: String(filters.excludeMock ?? true),
   });
   appendIsoDate(params, 'dateFrom', filters.dateFrom);
   appendIsoDate(params, 'dateTo', filters.dateTo);
@@ -164,7 +164,10 @@ function isSemanticSearchResult(value: unknown): value is SemanticSearchResult {
     && isNonEmptyString(value.detectedAt) && Number.isFinite(Date.parse(value.detectedAt as string))
     && typeof value.vlmDescription === 'string'
     && typeof value.vlmJson === 'string'
-    && typeof value.similarityScore === 'number' && Number.isFinite(value.similarityScore)
+    && typeof value.similarityScore === 'number'
+    && Number.isFinite(value.similarityScore)
+    && value.similarityScore >= 0
+    && value.similarityScore <= 1
     && Array.isArray(value.keyframeUrls)
     && value.keyframeUrls.every(isAllowedSemanticPreviewUrl)
     && (value.snapshotUrl === undefined || value.snapshotUrl === null || isAllowedSemanticPreviewUrl(value.snapshotUrl));

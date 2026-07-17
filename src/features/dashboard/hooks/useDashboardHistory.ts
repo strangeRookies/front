@@ -68,6 +68,17 @@ export function useDashboardHistory({ facilityIds, liveCameras, dangerAiEvents, 
   }, [facilityIds, fetchHistoryPage]);
 
   useEffect(() => {
+    if (facilityIds.length === 0) return;
+    // 백엔드가 클립 첨부(2차 MQTT 재발행) 시 WebSocket 재알림을 스킵하므로, 이
+    // 탭에 계속 머물러 있으면 클립이 준비돼도 자동으로는 안 보임(이벤트 알림
+    // 탭은 이미 같은 방식의 폴링으로 이 문제를 보완하고 있음). 주기적 재조회로 보완.
+    const intervalId = setInterval(() => {
+      void fetchHistoryPage(page);
+    }, 15000);
+    return () => clearInterval(intervalId);
+  }, [facilityIds, fetchHistoryPage, page]);
+
+  useEffect(() => {
     if (dangerAiEvents.length === 0) return;
     setHistoryAlerts((previous) => mergeRealtimeHistory(previous, dangerAiEvents, liveCameras, acknowledgedAiEventIds));
   }, [acknowledgedAiEventIds, dangerAiEvents, liveCameras]);
@@ -97,6 +108,7 @@ function mergeRealtimeHistory(current: readonly IncidentAlert[], events: readonl
       status: acknowledgedIds.has(id) ? 'resolved' : 'new',
       clipUrl: event.clipUrl,
       clipPath: event.clipPath,
+      sourceEventId: event.eventId,
     };
     const previous = merged.get(id);
     merged.set(id, previous ? {
@@ -104,6 +116,8 @@ function mergeRealtimeHistory(current: readonly IncidentAlert[], events: readonl
       ...next,
       status: previous.status,
       clipUrl: next.clipUrl ?? previous.clipUrl,
+      primarySnapshotUrl: previous.primarySnapshotUrl,
+      snapshotUrl: previous.snapshotUrl,
       clipPath: next.clipPath ?? previous.clipPath,
     } : next);
   }

@@ -40,6 +40,7 @@ import { IncidentPlaybackModal } from '../modals/IncidentPlaybackModal';
 import { NewInquiryModal } from '../modals/NewInquiryModal';
 import { useCameraStatusWebSocket } from '../hooks/useCameraStatusWebSocket';
 import { useCameraOverlays } from '../overlays/useCameraOverlays';
+import { useVlmSnapshotAssist } from '../hooks/useVlmSnapshotAssist';
 
 
 interface NurseDashboardProps {
@@ -272,6 +273,7 @@ export function NurseDashboard({
     liveCameras,
     onAcknowledgeAiEventOnly: handleAcknowledgeAiEventOnly,
   });
+  const { getAssist: getVlmAssist } = useVlmSnapshotAssist(true);
 
   const realtimeUnresolvedCount = useMemo(() => {
     return dangerAiEvents.filter((event) => !acknowledgedAiEventIds.has(aiEventFingerprint(event))).length;
@@ -443,8 +445,8 @@ export function NurseDashboard({
     ? liveCameras.find((camera) => camera.name === selectedIncident.camera || camera.location === selectedIncident.camera)
     : null;
 
-  const playbackStreamUrl = selectedIncident?.snapshotUrl || selectedIncident?.clipUrl || selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
-  const playbackStreamKind = (selectedIncident?.snapshotUrl || selectedIncident?.clipUrl) ? 'hls' : (selectedCameraObj?.streamKind || liveCameras[0]?.streamKind);
+  const playbackStreamUrl = selectedIncident?.clipUrl || selectedCameraObj?.streamUrl || liveCameras[0]?.streamUrl;
+  const playbackStreamKind = selectedIncident?.clipUrl ? 'hls' : (selectedCameraObj?.streamKind || liveCameras[0]?.streamKind);
 
   // --- Loading View ---
   if (isLoading) {
@@ -587,6 +589,7 @@ export function NurseDashboard({
               onEmergency={handleTriggerEmergency}
               onFocusAiEvent={focusAiEventCamera}
               cameraStatusMap={cameraStatusMap}
+              getVlmAssist={getVlmAssist}
             />
           )}
           {activeMenu === 'alerts' && (

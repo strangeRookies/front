@@ -1,4 +1,4 @@
-import { apiRequest } from '../../../shared/api/client';
+import { ApiError, apiRequest } from '../../../shared/api/client';
 import { getScenarioPresentation } from '../../../shared/utils/aiAlerts';
 import { AI_SCENARIO_TYPES, type AiScenarioType } from '../../../shared/utils/aiEventTypes';
 import type { LiveCamera } from '../data/cameras';
@@ -80,7 +80,7 @@ export async function fetchSemanticAlertEvents(
 ): Promise<SemanticSearchResult[]> {
   const effectiveFilters = {
     ...filters,
-    excludeMock: filters.excludeMock ?? import.meta.env.PROD,
+    excludeMock: filters.excludeMock ?? true,
   };
 
   if (import.meta.env.DEV && import.meta.env.VITE_VLM_MOCK_SEARCH === 'true') {
@@ -102,26 +102,29 @@ export function toIncidentAlertFromRecentEvent(
   const cameraKey = readString(event, ['cameraLoginId', 'camera_login_id', 'cameraId', 'camera_id']);
   const cameraName = readString(event, ['cameraName', 'camera_name', 'camera', 'location']);
   const matchedCamera = findLiveCamera(liveCameras, cameraKey, cameraName);
-  if (!matchedCamera) return null;
   const status = readString(event, ['status', 'state']).toUpperCase();
   const acknowledged = readBoolean(event, ['acknowledged', 'acknowledgedYn', 'resolved']) || ['ACKNOWLEDGED', 'RESOLVED', 'COMPLETED', 'CONFIRMED'].includes(status);
   const presentation = getScenarioPresentation(scenarioType);
   const snapshotUrl = readString(event, ['snapshotUrl', 'snapshot_url']) || undefined;
-  const clipUrl = readString(event, ['clipUrl', 'clip_url']) || (snapshotUrl?.includes('.mp4') || snapshotUrl?.includes('/clips/') ? snapshotUrl : undefined);
+  // Map snapshotUrl to both snapshotUrl (compat) and primarySnapshotUrl (representative JPEG).
+  // Never promote mp4/clips into clipUrl.
+  const clipUrl = readString(event, ['clipUrl', 'clip_url']) || undefined;
   const alertEventId = readNumber(event, ['alertEventId', 'alert_event_id']);
-  const eventIdString = readString(event, ['eventId', 'event_id', 'incidentId', 'id']);
+  const eventIdString = readString(event, ['eventId', 'event_id', 'incidentId']);
   return {
     id: alertEventId != null ? String(alertEventId) : eventIdString || `${cameraKey || cameraName || 'unknown'}:${scenarioType}:${timestamp}`,
     time: new Date(timestamp).toTimeString().split(' ')[0],
     timestamp,
-    camera: matchedCamera.name || cameraName || cameraKey || '-',
+    camera: matchedCamera?.name || cameraName || cameraKey || '-',
     type: scenarioType,
     label: presentation.label,
     severity: presentation.tone,
     status: acknowledged ? 'resolved' : 'new',
     snapshotUrl,
+    primarySnapshotUrl: snapshotUrl,
     clipUrl,
     clipPath: readString(event, ['clipPath', 'clip_path']) || undefined,
+    sourceEventId: eventIdString || undefined,
   };
 }
 export async function fetchAlertEventDetail(alertEventId: number): Promise<{ vlmDescription: string | null }> {
@@ -133,6 +136,22 @@ export async function fetchAlertEventDetail(alertEventId: number): Promise<{ vlm
   return {
     vlmDescription: typeof text === 'string' && text.trim().length > 0 ? text.trim() : null,
   };
+}
+
+export async function fetchVlmSnapshotAssist(eventId: string): Promise<import('../types/vlmSnapshotAssist').VlmSnapshotAssistResult | null> {
+  try {
+    const data = await apiRequest<unknown>(`/api/vlm/snapshot-assist/${encodeURIComponent(eventId)}`, { method: 'GET' });
+    return isVlmSnapshotAssistResult(data) ? data : null;
+  } catch (error) {
+    if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 404)) {
+      console.debug('[fetchVlmSnapshotAssist] suppressed', error.status);
+      return null;
+    }
+    if (error instanceof ApiError) {
+      console.warn('[fetchVlmSnapshotAssist] error', error.status);
+    }
+    return null;
+  }
 }
 
 export async function acknowledgeAlertEvent(alertEventId: string | number): Promise<void> {
@@ -187,6 +206,16 @@ function createSemanticMockCandidates(now = Date.now()): SemanticSearchResult[] 
       keyframeUrls: [],
     },
   ];
+}
+
+function isVlmSnapshotAssistResult(value: unknown): value is import('../types/vlmSnapshotAssist').VlmSnapshotAssistResult {
+  if (!isRecord(value)) return false;
+  return typeof value.eventId === 'string'
+    && typeof value.cameraLoginId === 'string'
+    && ['PENDING', 'SUCCESS', 'FAILED'].includes(String(value.status))
+    && typeof value.summaryKo === 'string'
+    && typeof value.errorMessage === 'string'
+    && typeof value.updatedAt === 'string';
 }
 
 function readString(record: RecentAlertEventResponse, keys: readonly string[]): string {

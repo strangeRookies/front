@@ -4,6 +4,7 @@ export const AI_SCENARIO_TYPES = [
   'FALL_BED',
   'EXIT',
   'HAZARD_ZONE',
+  'ASSAULT',
 ] as const;
 
 export type AiScenarioType = typeof AI_SCENARIO_TYPES[number];

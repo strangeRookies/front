@@ -5,6 +5,7 @@ import type { LiveCamera } from '../data/cameras';
 import { LiveCameraGrid } from './LiveCameraGrid';
 import type { CameraStatusMap } from '../hooks/useCameraStatusWebSocket';
 import { aiEventFingerprint } from '../../../shared/utils/aiAlerts';
+import type { VlmSnapshotAssistResult } from '../types/vlmSnapshotAssist';
 
 interface DashboardHomeViewProps {
   acknowledgedAiEventIds: ReadonlySet<string>;
@@ -17,6 +18,7 @@ interface DashboardHomeViewProps {
   onFocusAiEvent: (event: AiEvent) => void;
   /** 실시간 카메라 연결 상태 맵 (MQTT → Backend → WebSocket) */
   cameraStatusMap?: CameraStatusMap;
+  getVlmAssist?: (eventId: string | null | undefined) => VlmSnapshotAssistResult | undefined;
 }
 
 export function DashboardHomeView({
@@ -29,6 +31,7 @@ export function DashboardHomeView({
   onEmergency,
   onFocusAiEvent,
   cameraStatusMap,
+  getVlmAssist,
 }: DashboardHomeViewProps) {
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -62,6 +65,7 @@ export function DashboardHomeView({
               acknowledgedEventIds={acknowledgedAiEventIds}
               onFocus={onFocusAiEvent}
               onConfirm={onConfirmAiEvent}
+              getVlmAssist={getVlmAssist}
             />
           </div>
         </div>
