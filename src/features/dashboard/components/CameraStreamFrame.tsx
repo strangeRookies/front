@@ -5,6 +5,7 @@ import type { AiEvent } from '../../../hooks/useAiEvents';
 import { CameraAiOverlay } from './CameraAiOverlay';
 import { WebRtcCameraPlayer } from './WebRtcCameraPlayer';
 import {
+  MJPEG_STALE_FRAME_AGE_MS,
   MJPEG_STALE_POLL_THRESHOLD,
   classifyHealthFetchError,
   reconnectCooldownMs,
@@ -262,6 +263,10 @@ function MjpegStream({
         const isStaleNow = staleReasons.length === 3;
         previousHealthRef.current = { processedFrames: processed, mjpegFrames: mjpeg };
         consecutivePayloadStaleRef.current = isStaleNow ? consecutivePayloadStaleRef.current + 1 : 0;
+        if (frameAge >= 0 && frameAge < MJPEG_STALE_FRAME_AGE_MS && mjpeg > 0 && streamClients > 0) {
+          // multipart MJPEG streams may never finish, so img.onload is not a reliable readiness signal.
+          setLoaded(true);
+        }
 
         setDiagInfo(prev => ({
           ...prev,
