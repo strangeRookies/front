@@ -30,8 +30,8 @@ export function DashboardCameraManagementView({
   readOnly = false,
 }: DashboardCameraManagementViewProps) {
   return (
-    <div className="flex-1 space-y-6 overflow-y-auto p-6">
-      <div className="flex items-center justify-between">
+    <div className="min-w-0 flex-1 space-y-6 overflow-y-auto p-3 sm:p-6">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-base font-extrabold text-white">
             카메라 등록 및 관리
@@ -55,7 +55,7 @@ export function DashboardCameraManagementView({
 
       <div className="rounded-2xl border border-slate-800 bg-[#071329] p-5">
         <h3 className="mb-4 text-sm font-bold text-white">등록된 카메라</h3>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {registeredCameras.map((camera) => {
             const liveFeed = liveFeedFor(camera, liveCameras);
             return (

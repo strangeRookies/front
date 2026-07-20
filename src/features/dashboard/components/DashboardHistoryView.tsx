@@ -53,7 +53,7 @@ export function DashboardHistoryView({
   const visiblePages = Array.from({ length: endPage - startPage }, (_, i) => startPage + i);
 
   return (
-    <div className="flex-1 p-6 space-y-6 overflow-y-auto max-w-5xl flex flex-col">
+    <div className="min-w-0 flex-1 space-y-6 overflow-y-auto p-3 sm:p-6 max-w-5xl flex flex-col">
       <div>
         <h2 className="text-base font-extrabold text-white">이벤트 기록</h2>
         <p className="text-xs text-slate-400 mt-1">

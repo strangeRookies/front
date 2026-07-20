@@ -34,14 +34,14 @@ export function DashboardHomeView({
   getVlmAssist,
 }: DashboardHomeViewProps) {
   return (
-    <div className="flex-1 flex overflow-hidden">
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
+    <div className="min-w-0 flex-1 flex flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
+      <div className="min-w-0 flex-1 p-3 sm:p-4 lg:overflow-y-auto space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
             <Video className="w-4 h-4 text-blue-400" />
             실시간 CCTV 모니터링
           </h2>
-          <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">
+          <span className="hidden text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20 sm:inline">
             실시간 모니터링 중입니다.
           </span>
         </div>
@@ -54,7 +54,7 @@ export function DashboardHomeView({
         />
       </div>
 
-      <div className="w-72 bg-[#020817] border-l border-slate-800/50 flex flex-col flex-shrink-0">
+      <div className="flex min-h-80 w-full flex-shrink-0 flex-col border-t border-slate-800/50 bg-[#020817] lg:min-h-0 lg:w-72 lg:border-l lg:border-t-0">
         <div className="flex-1 bg-[#071329] m-3 mb-0 rounded-xl flex flex-col overflow-hidden">
           <div className="p-4 border-b border-slate-800/50">
             <h3 className="text-base font-bold text-white">실시간 AI 이벤트</h3>

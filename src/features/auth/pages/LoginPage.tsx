@@ -65,6 +65,29 @@ export function LoginPage({ onLogin, onNavigateToSignUp, onNavigateToForgotPassw
       const displayName = loginResponse.user.name || loginResponse.user.email || username.trim();
       onLogin(role, displayName);
     } catch (err) {
+      if (err instanceof ApiError) {
+        console.error('[LOGIN_ERROR]', {
+          type: 'api',
+          status: err.status,
+          code: err.code ?? 'UNKNOWN',
+          message: err.message,
+        });
+      } else {
+        console.error('[LOGIN_ERROR]', {
+          type: 'network-or-client',
+          name: err instanceof Error ? err.name : 'UnknownError',
+          message: err instanceof Error ? err.message : String(err),
+        });
+
+        alert('로그인 서버에 연결할 수 없습니다. 네트워크와 서버 실행 상태를 확인해주세요.');
+        return;
+      }
+
+      if (err.status >= 500) {
+        alert(`로그인 서버 오류가 발생했습니다. (${err.status})`);
+        return;
+      }
+
       if (err instanceof ApiError && err.code === 'AUTH_ACCOUNT_SUSPENDED') {
         alert('비활성화된 계정입니다. 계정 정보를 확인하세요.');
       } else {

@@ -23,7 +23,7 @@ export function DashboardAlertsView({
   }, []);
 
   return (
-    <div className="flex-1 p-6 space-y-6 overflow-y-auto max-w-4xl">
+    <div className="min-w-0 flex-1 space-y-6 overflow-y-auto p-3 sm:p-6 max-w-4xl">
       <div className="flex justify-between items-center border-b border-slate-800 pb-4">
         <div>
           <h2 className="text-base font-extrabold text-white">이벤트 알림</h2>

@@ -135,8 +135,8 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
   const pwStrength = getPasswordStrength(newPw);
 
   return (
-    <div className="flex-1 flex overflow-hidden">
-      <div className="w-52 bg-[#020817] border-r border-slate-800/50 flex flex-col flex-shrink-0 p-4">
+    <div className="min-w-0 flex-1 flex flex-col overflow-hidden md:flex-row">
+      <div className="w-full flex-shrink-0 border-b border-slate-800/50 bg-[#020817] p-3 md:w-52 md:border-b-0 md:border-r md:p-4">
         <div className="flex items-center gap-2 mb-5 px-2">
           <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-sm font-extrabold text-blue-400">
             {(profileName || '사용자').charAt(0).toUpperCase()}
@@ -146,7 +146,7 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
             <p className="text-[10px] text-slate-500">{userType === 'individual' ? '개인용 대시보드' : '기업용 대시보드'}</p>
           </div>
         </div>
-        <nav className="space-y-0.5">
+        <nav className="flex gap-1 overflow-x-auto md:block md:space-y-0.5">
           {([
             { id: 'profile', label: '프로필', icon: User },
             { id: 'password', label: '비밀번호 변경', icon: Lock },
@@ -154,7 +154,7 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
             <button
               key={id}
               onClick={() => setMypageTab(id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex min-w-fit items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-bold transition-all cursor-pointer md:w-full ${
                 mypageTab === id ? 'bg-[#0758D6] text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
               }`}
             >
@@ -165,7 +165,7 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
         </nav>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
         {mypageTab === 'profile' && (
           <div className="max-w-xl space-y-6">
             <div>
@@ -185,7 +185,7 @@ export function DashboardMyPageView(props: DashboardMyPageViewProps) {
                 <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"><Phone className="w-3 h-3" />연락처</label>
                 <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} className="w-full px-3 py-2.5 bg-[#020817] border border-slate-800 focus:border-blue-500 rounded-xl text-xs text-white outline-none" />
               </div>
-              <div className="pt-1 grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400">계정 유형</label>
                   <div className="px-3 py-2.5 bg-slate-900/50 border border-slate-800 rounded-xl text-xs text-slate-400">{userType === 'individual' ? '개인 안전담당자' : '기업 안전담당자'}</div>

@@ -461,23 +461,23 @@ export function NurseDashboard({
 
   // --- Main Layout Render ---
   return (
-    <div className="min-h-screen bg-[#020817] text-slate-100 flex flex-col font-sans">
-      <header className="h-14 bg-[#061224] border-b border-slate-800/60 px-6 flex items-center justify-between z-10 flex-shrink-0">
-        <div className="flex items-center gap-3">
+    <div className="h-[100dvh] bg-[#020817] text-slate-100 flex flex-col font-sans overflow-hidden">
+      <header className="min-h-14 bg-[#061224] border-b border-slate-800/60 px-3 sm:px-6 flex items-center justify-between gap-2 z-10 flex-shrink-0">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3 overflow-hidden">
           <Shield className="w-5 h-5 text-blue-400 fill-blue-400/20" />
-          <h1 className="text-sm font-extrabold tracking-wider text-white">스마트 안전 관제 시스템</h1>
-          <span className="h-4 w-px bg-slate-700" />
-          <span className="text-xs font-bold text-slate-400">
+          <h1 className="truncate text-xs sm:text-sm font-extrabold tracking-wider text-white">스마트 안전 관제 시스템</h1>
+          <span className="hidden sm:block h-4 w-px bg-slate-700" />
+          <span className="hidden sm:inline text-xs font-bold text-slate-400">
             {userType === 'individual' ? '개인용 대시보드' : '기업용 대시보드'}
           </span>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 px-3 py-1 rounded-full">
+        <div className="flex flex-shrink-0 items-center gap-1 sm:gap-4">
+          <div className="hidden lg:flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 px-3 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
             <span className="text-[10px] font-bold text-rose-400">확인 대기 이벤트 {realtimeUnresolvedCount}건</span>
           </div>
           <div
-            className="flex items-center gap-2 ml-2 px-2 py-0.5 rounded text-[10px] font-bold"
+            className="hidden sm:flex items-center gap-2 ml-2 px-2 py-0.5 rounded text-[10px] font-bold"
             style={{
               color: connectionState === 'connected' ? '#34d399' : connectionState === 'connecting' ? '#fbbf24' : '#94a3b8',
             }}
@@ -491,7 +491,7 @@ export function NurseDashboard({
             {connectionState === 'connected' ? '연결됨' : connectionState === 'connecting' ? '연결 중' : '연결 끊김'}
           </div>
           <div className="flex items-center gap-2.5">
-            <div className="text-right">
+            <div className="hidden sm:block text-right">
               <span className="text-xs font-bold text-slate-200 block">{username || '사용자'}</span>
               <span className="text-[10px] text-slate-500 font-semibold">
                 {userType === 'individual' ? '개인' : '기업'}
@@ -504,8 +504,8 @@ export function NurseDashboard({
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        <aside className="w-56 bg-[#071329] border-r border-slate-800/50 flex flex-col flex-shrink-0">
+      <div className="min-h-0 flex-1 flex overflow-hidden">
+        <aside className="hidden w-56 bg-[#071329] border-r border-slate-800/50 flex-col flex-shrink-0 md:flex">
           <div className="p-4 space-y-1 flex-1">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-3">메뉴</h3>
             <nav className="space-y-0.5">
@@ -578,7 +578,7 @@ export function NurseDashboard({
           </div>
         </aside>
 
-        <main className="flex-1 flex overflow-hidden">
+        <main className="min-w-0 flex-1 flex overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
           {activeMenu === 'home' && (
             <DashboardHomeView
               acknowledgedAiEventIds={acknowledgedAiEventIds}
@@ -663,6 +663,25 @@ export function NurseDashboard({
           )}
         </main>
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex h-[calc(4rem+env(safe-area-inset-bottom))] items-start overflow-x-auto border-t border-slate-800 bg-[#061224]/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+        {ALL_MENU_ITEMS.filter((item) => !item.individualOnly || userType === 'individual').map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              setFocusedCameraId(null);
+              setActiveMenu(id);
+            }}
+            className={`flex h-16 min-w-[3.5rem] flex-1 flex-col items-center justify-center gap-1 px-1 text-[9px] font-bold ${
+              activeMenu === id ? 'text-blue-400' : 'text-slate-500'
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="whitespace-nowrap">{label}</span>
+          </button>
+        ))}
+      </nav>
 
       {showAddCamera && (
         <AddCameraModal
