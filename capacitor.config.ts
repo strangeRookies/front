@@ -9,6 +9,11 @@ const config: CapacitorConfig = {
     // Remove this once every API and media endpoint is served over HTTPS/WSS.
     allowMixedContent: true,
   },
+  plugins: {
+    PushNotifications: {
+      presentationOptions: ['alert', 'sound'],
+    },
+  },
 };
 
 export default config;

@@ -45,7 +45,14 @@ and media endpoints through HTTPS/WSS and remove `allowMixedContent` from
 
 ## Push notifications
 
-The Capacitor push plugin is installed, but FCM remains inactive until
-`android/app/google-services.json` is supplied and the frontend and backend
-device-token flows are implemented. The Firebase file is intentionally ignored
-by Git.
+The Capacitor push plugin, Android notification channel, permission request,
+backend device registration, token refresh handling, and logout unlink flow are
+implemented. Foreground notifications use the native Android alert and sound
+presentation. Tapping an `AI_DANGER_EVENT` notification opens a shared detail
+dialog backed by `GET /api/alert-events/{eventId}`; `FCM_TEST` taps only show a
+connection confirmation.
+
+`android/app/google-services.json` is intentionally ignored by Git. The local
+file must target package `com.strange.safety` and Firebase project
+`smart-safety-f4d91`. The backend Firebase Admin private key must also remain
+outside Git and be referenced through `GOOGLE_APPLICATION_CREDENTIALS`.

@@ -6,6 +6,7 @@ import { PersonalSignUp } from '../features/signup/pages/PersonalSignUp';
 import { CorporateSignUp } from '../features/signup/pages/CorporateSignUp';
 import { NurseDashboard } from '../features/dashboard/pages/UserDashboard';
 import { IntegratedDashboard } from '../features/dashboard/pages/IntegratedDashboard';
+import { PushAlertEventDetailDialog } from '../features/dashboard/modals/PushAlertEventDetailDialog';
 import {
   clearAuthSession,
   logout,
@@ -13,6 +14,8 @@ import {
   roleToFrontendAccountType,
   saveAuthSession,
 } from '../features/auth/api/authApi';
+import { releasePushDeviceBeforeLogout } from '../shared/push/pushNotificationService';
+import { usePushNotifications } from '../shared/push/usePushNotifications';
 
 type ViewType = 'login' | 'personalSignUp' | 'corporateSignUp' | 'forgotPassword' | 'userDashboard' | 'adminDashboard';
 type UserType = 'individual' | 'corporate';
@@ -22,6 +25,25 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState('');
   const [userType, setUserType] = useState<UserType>('individual');
   const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [pushAlertEventId, setPushAlertEventId] = useState<number | null>(null);
+  const isAuthenticatedView = currentView === 'userDashboard' || currentView === 'adminDashboard';
+
+  usePushNotifications(!isRestoringSession && isAuthenticatedView, {
+    onAction: ({ data }) => {
+      if (data.type === 'FCM_TEST') {
+        toast.success('FCM 테스트 알림 연결이 정상입니다.');
+        return;
+      }
+
+      const eventId = Number(data.eventId);
+      if (data.type === 'AI_DANGER_EVENT' && Number.isSafeInteger(eventId) && eventId > 0) {
+        setPushAlertEventId(eventId);
+        return;
+      }
+
+      toast.error('알림의 이벤트 정보를 확인할 수 없습니다.');
+    },
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +98,12 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    try {
+      await releasePushDeviceBeforeLogout();
+    } catch {
+      // Device unlinking is best-effort and must not prevent logout.
+    }
+
     try {
       await logout();
     } catch {
@@ -166,6 +194,11 @@ export default function App() {
       {currentView === 'adminDashboard' && (
         <IntegratedDashboard onLogout={handleLogout} />
       )}
+
+      <PushAlertEventDetailDialog
+        eventId={pushAlertEventId}
+        onClose={() => setPushAlertEventId(null)}
+      />
     </div>
   );
 }

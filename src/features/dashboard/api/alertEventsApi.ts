@@ -130,15 +130,28 @@ export function toIncidentAlertFromRecentEvent(
     sourceEventId,
   };
 }
-export async function fetchAlertEventDetail(alertEventId: number): Promise<{ vlmDescription: string | null }> {
-  const data = await apiRequest<unknown>(`/api/alert-events/${alertEventId}`, { method: 'GET' });
-  if (!isRecord(data)) {
-    return { vlmDescription: null };
-  }
-  const text = data.vlmDescription;
-  return {
-    vlmDescription: typeof text === 'string' && text.trim().length > 0 ? text.trim() : null,
-  };
+export interface AlertEventDetailResponse {
+  alertEventId: number;
+  cameraId: number | null;
+  scenarioId: number | null;
+  scenarioType: string;
+  confidenceScore: number | null;
+  severity: string;
+  status: string;
+  clipUrl: string | null;
+  detectedAt: string;
+  resolvedAt: string | null;
+  acknowledgedAt: string | null;
+  vlmDescription: string | null;
+  snapshots: Array<{
+    snapshotId: number;
+    snapshotUrl: string;
+    createdAt: string;
+  }>;
+}
+
+export async function fetchAlertEventDetail(alertEventId: number): Promise<AlertEventDetailResponse> {
+  return apiRequest<AlertEventDetailResponse>(`/api/alert-events/${alertEventId}`, { method: 'GET' });
 }
 
 export async function fetchVlmSnapshotAssist(eventId: string): Promise<import('../types/vlmSnapshotAssist').VlmSnapshotAssistResult | null> {
