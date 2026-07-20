@@ -239,9 +239,10 @@ function readTimestamp(record: RecentAlertEventResponse, keys: readonly string[]
     const value = record[key];
     if (typeof value === 'number' && Number.isFinite(value)) return value > 1e12 ? value : value * 1000;
     if (typeof value === 'string' && value.trim()) {
-      const source = value.trim();
-      const dateString = /T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(source) ? `${source}Z` : source;
-      const parsed = Date.parse(dateString);
+      // Backend sends zone-less LocalDateTime strings that already represent
+      // server-local wall-clock time; parse as-is (JS treats no-zone ISO strings
+      // as local time), do not assume UTC.
+      const parsed = Date.parse(value.trim());
       if (Number.isFinite(parsed)) return parsed;
     }
   }
