@@ -33,10 +33,19 @@ export interface AlertEventFilters {
 
 export type SemanticSearchFilters = SemanticSearchQueryFilters;
 
-export async function fetchRecentAlertEvents(facilityId: number | string, userType: 'individual' | 'corporate' = 'individual'): Promise<RecentAlertEventResponse[]> {
+/**
+ * `admin: true`면 관리자 전용(`/api/admin/**`) 엔드포인트를 쓴다 — 소유권 검증이 없어
+ * ADMIN이 임의의 facility/company를 미리보기(테스트 모드)할 때 사용.
+ */
+export async function fetchRecentAlertEvents(
+  facilityId: number | string,
+  userType: 'individual' | 'corporate' = 'individual',
+  options?: { admin?: boolean },
+): Promise<RecentAlertEventResponse[]> {
+  const base = options?.admin ? '/api/admin' : '/api';
   const url = userType === 'corporate'
-    ? `/api/companies/${facilityId}/alert-events/recent`
-    : `/api/facilities/${facilityId}/alert-events/recent`;
+    ? `${base}/companies/${facilityId}/alert-events/recent`
+    : `${base}/facilities/${facilityId}/alert-events/recent`;
   const data = await apiRequest<unknown>(url, { method: 'GET' });
   if (Array.isArray(data)) return data.filter(isRecord);
   if (isRecord(data) && Array.isArray(data.content)) return data.content.filter(isRecord);
@@ -49,15 +58,17 @@ export async function fetchFullAlertEventsHistory(
   size = 20,
   filters?: AlertEventFilters,
   userType: 'individual' | 'corporate' = 'individual',
+  options?: { admin?: boolean },
 ): Promise<PaginatedAlertEventsResponse> {
   const params = new URLSearchParams({ page: String(page), size: String(size), sort: 'detectedAt,desc' });
   if (filters?.cameraId) params.append('cameraId', String(filters.cameraId));
   if (filters?.keyword) params.append('keyword', filters.keyword);
   if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
   if (filters?.dateTo) params.append('dateTo', filters.dateTo);
+  const base = options?.admin ? '/api/admin' : '/api';
   const url = userType === 'corporate'
-    ? `/api/companies/${facilityId}/alert-events?${params.toString()}`
-    : `/api/facilities/${facilityId}/alert-events?${params.toString()}`;
+    ? `${base}/companies/${facilityId}/alert-events?${params.toString()}`
+    : `${base}/facilities/${facilityId}/alert-events?${params.toString()}`;
   const data = await apiRequest<unknown>(url, { method: 'GET' });
   if (isRecord(data) && Array.isArray(data.content)) {
     const pageData = isRecord(data.page) ? data.page : data;

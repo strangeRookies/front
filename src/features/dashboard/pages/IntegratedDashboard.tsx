@@ -20,10 +20,20 @@ import hospitalHallwayCctv from '../../../assets/hospital_hallway_cctv.png';
 import type { Inquiry, InquiryCategory } from '../../../shared/types/inquiry';
 import { STREAM_MODE, cameraLoginIdFor, resolveCameraStream, type LiveCamera } from '../data/cameras';
 import { fetchAdminUsers, fetchAdminCompanies, fetchAdminIndividualFacilities, fetchAdminCameraStats, fetchAdminTodayAlertCount, fetchAdminFalsePositiveRate, fetchAdminCamerasByCompany, fetchAdminFacilityCameras, updateAdminMember, type AdminUserResponse, type AdminFacilityCameraResponse, type CorporateCameraResponse, type AdminFalsePositiveRateResponse } from '../api/adminApi';
-import { useAiEvents } from '../../../hooks/useAiEvents';
-import { isDangerAiEvent, getScenarioPresentation, aiEventFingerprint } from '../../../shared/utils/aiAlerts';
+import { useAiAlertActions } from '../../../hooks/useAiAlertActions';
 import { fetchAllInquiries, fetchMyInquiries, createInquiry, answerInquiry } from '../api/inquiryApi';
+import { fetchRecentAlertEvents, toIncidentAlertFromRecentEvent } from '../api/alertEventsApi';
 import { logger } from '../../../shared/utils/logger';
+import { useDashboardAlerts } from '../hooks/useDashboardAlerts';
+import { useDashboardHistory } from '../hooks/useDashboardHistory';
+import { useCameraStatusWebSocket } from '../hooks/useCameraStatusWebSocket';
+import { useCameraOverlays } from '../overlays/useCameraOverlays';
+import { useVlmSnapshotAssist } from '../hooks/useVlmSnapshotAssist';
+import { DashboardHomeView } from '../components/DashboardHomeView';
+import { DashboardAlertsView } from '../components/DashboardAlertsView';
+import { DashboardHistoryView } from '../components/DashboardHistoryView';
+import { IncidentPlaybackModal } from '../modals/IncidentPlaybackModal';
+import type { IncidentAlert } from '../types/dashboard';
 
 interface IntegratedDashboardProps {
   onLogout: () => void;
@@ -150,21 +160,6 @@ const CATEGORY_STYLES: Record<InquiryCategory, string> = {
 };
 
 
-const TEST_CCTV_FEEDS = [
-  { id: 'CCTV-01', name: '방 1',     style: 'brightness-90 contrast-100 hue-rotate-15' },
-  { id: 'CCTV-02', name: '복도 A',   style: 'border-2 border-rose-500 animate-pulse', alert: true },
-  { id: 'CCTV-03', name: '방 2',     style: 'brightness-105 contrast-95' },
-  { id: 'CCTV-04', name: '대기실 1', style: 'saturate-50 contrast-110' },
-  { id: 'CCTV-05', name: '대기실 2', style: 'hue-rotate-60' },
-  { id: 'CCTV-06', name: '출입구',   style: 'brightness-75' },
-  { id: 'CCTV-07', name: '후문',     style: 'brightness-110 contrast-105' },
-];
-
-interface TestIncidentAlert {
-  id: string; time: string; timestamp: number;
-  camera: string; type: string; label: string;
-  severity: 'critical' | 'warning' | 'info'; status: 'new' | 'resolved';
-}
 interface TestRegisteredCamera { id: string; name: string; location: string; password?: string; }
 const INITIAL_TEST_CAMERAS: TestRegisteredCamera[] = [
   { id: 'CCTV-01', name: '방 1',   location: '1층', password: 'cam1234'  },
@@ -185,11 +180,6 @@ const CATEGORY_ACTIVE_STYLES: Record<InquiryCategory, string> = {
   '기타':           'bg-slate-600/20 text-slate-300 border-slate-400/50',
 };
 
-function testEventBtnStyle(severity: 'critical'|'warning'|'info') {
-  if (severity === 'critical') return 'bg-[#ef4444] hover:bg-red-400';
-  if (severity === 'warning')  return 'bg-[#f59e0b] hover:bg-amber-400';
-  return 'bg-[#334155] hover:bg-slate-500';
-}
 function getPasswordStrength(pw: string) {
   if (!pw) return { level: 0, label: '', color: '' };
   const score = [pw.length>=8, /[a-z]/.test(pw), /[A-Z]/.test(pw), /[0-9]/.test(pw), /[^a-zA-Z0-9]/.test(pw)].filter(Boolean).length;
@@ -235,15 +225,9 @@ const [isPlaying, setIsPlaying] = useState(true);
   // ── 테스트 모드 state ──────────────────────────────────────────────
   const [testSubMenu, setTestSubMenu]         = useState<TestMenuId>('home');
   // alerts / history
-  const [resolvedTestAlertIds, setResolvedTestAlertIds] = useState<Set<string>>(() => new Set());
   const [tSearchDate, setTSearchDate]         = useState<'today'|'week'|'month'>('month');
   const [tSearchCamera, setTSearchCamera]     = useState('전체');
   const [tSearchKeyword, setTSearchKeyword]   = useState('');
-  const [tSelectedIncident, setTSelectedIncident] = useState<TestIncidentAlert | null>(null);
-  const [tIsPlaying, setTIsPlaying]           = useState(true);
-  const [tPlaybackSpeed, setTPlaybackSpeed]   = useState(1.0);
-  const [tPlaybackProgress, setTPlaybackProgress] = useState(30);
-  const [tPlaybackVolume, setTPlaybackVolume] = useState(80);
   // cameras
   const [tCameras, setTCameras]               = useState<TestRegisteredCamera[]>(INITIAL_TEST_CAMERAS);
   const [tShowAddCamera, setTShowAddCamera]   = useState(false);
@@ -276,41 +260,144 @@ const [isPlaying, setIsPlaying] = useState(true);
   const [tQnaCategory, setTQnaCategory]       = useState<InquiryCategory>('기타');
 
   const isTestMode = activeMenu === 'test';
-  const testAiFeed = useAiEvents({ enabled: activeMenu === 'test' });
 
   const selectedSpace = useMemo(() => spaces.find(s => s.id === selectedSpaceId), [spaces, selectedSpaceId]);
-  const tAlerts: TestIncidentAlert[] = useMemo(() => testAiFeed.events
-    .filter(isDangerAiEvent)
-    .map(event => {
-      const fingerprint = aiEventFingerprint(event);
-      const eventType = event.scenarioType!;
-      const presentation = getScenarioPresentation(eventType);
+
+  // ── 실제 개인용 대시보드와 동일한 알림·스냅샷 파이프라인 (테스트 모드 홈/알림 전용) ──
+  const testUserType: 'individual' | 'corporate' = selectedSpace?.type === 'corporate' ? 'corporate' : 'individual';
+  const testFacilityId = isTestMode && selectedSpaceId ? Number(selectedSpaceId.split('-')[1]) : undefined;
+
+  const testLiveCameras = useMemo<LiveCamera[]>(() => {
+    if (!isTestMode || !selectedSpace) return [];
+    return (spaceViewCameras as (CorporateCameraResponse | AdminFacilityCameraResponse)[]).map(cam => {
+      const cameraLoginId = cameraLoginIdFor(cam.cameraLoginId, cam.cameraId);
+      const resolvedStream = resolveCameraStream(cameraLoginId, cam);
       return {
-        id: fingerprint,
-        time: new Date(event.timestamp * 1000).toTimeString().split(' ')[0],
-        timestamp: event.timestamp * 1000,
-        camera: event.camera_login_id ?? event.camera_id,
-        type: eventType,
-        label: presentation.label,
-        severity: presentation.tone,
-        status: resolvedTestAlertIds.has(fingerprint) ? 'resolved' as const : 'new' as const,
+        id: cameraLoginId,
+        cameraLoginId,
+        cameraDbId: String(cam.cameraId),
+        name: cam.cameraName,
+        location: cam.locationDescription ?? '',
+        streamUrl: resolvedStream.streamUrl,
+        streamMode: STREAM_MODE,
+        streamKind: resolvedStream.streamKind,
+        connectionStatus: cam.connectionStatus === 'CONNECTED' ? 'online' : cam.connectionStatus === 'RECONNECTING' ? 'connecting' : 'offline',
+        eventStatus: 'normal' as const,
+        overlayUrl: cam.overlayUrl,
+        overlayStreamType: cam.overlayStreamType,
+        overlayRenderedInStream: cam.overlayRenderedInStream,
+        isCorporate: selectedSpace.type === 'corporate',
       };
-    }), [testAiFeed.events, resolvedTestAlertIds]);
-  const tActiveTenMin = tAlerts.filter(a => Date.now() - a.timestamp <= 10*60*1000);
-  const tFilteredHistory = tAlerts.filter(a => {
-    if (tSearchKeyword && !a.label.toLowerCase().includes(tSearchKeyword.toLowerCase()) && !a.camera.includes(tSearchKeyword)) return false;
-    if (tSearchCamera !== '전체' && a.camera !== tSearchCamera) return false;
-    const age = Date.now() - a.timestamp;
-    if (tSearchDate === 'today' && age > 86400000) return false;
-    if (tSearchDate === 'week'  && age > 7*86400000) return false;
-    if (tSearchDate === 'month' && age > 30*86400000) return false;
-    return true;
+    });
+  }, [isTestMode, selectedSpace, spaceViewCameras]);
+
+  const focusTestHome = useCallback(() => setTestSubMenu('home'), []);
+
+  const {
+    acknowledgedAiEventIds: testAcknowledgedIds,
+    dangerAiEvents: testDangerEvents,
+    overlayEvents: testOverlayEvents,
+    focusedLiveCameras: testFocusedLiveCameras,
+    focusAiEventCamera: testFocusAiEventCamera,
+    handleConfirmAiEvent: testHandleConfirmAiEvent,
+    handleAcknowledgeAiEventOnly: testHandleAcknowledgeOnly,
+    setFocusedCameraId: setTestFocusedCameraId,
+  } = useAiAlertActions({
+    userType: testUserType,
+    username: 'test-admin',
+    facilityId: testFacilityId,
+    liveCameras: testLiveCameras,
+    focusHome: focusTestHome,
   });
+
+  const {
+    alerts: testAllAlerts,
+    activeTenMinAlerts: testActiveTenMinAlerts,
+    unresolvedTenMinAlertsCount: testUnresolvedCount,
+    mergeRecentAlerts: mergeTestRecentAlerts,
+    resolveAlert: resolveTestAlert,
+  } = useDashboardAlerts({
+    acknowledgedAiEventIds: testAcknowledgedIds,
+    dangerAiEvents: testDangerEvents,
+    liveCameras: testLiveCameras,
+    onAcknowledgeAiEventOnly: testHandleAcknowledgeOnly,
+  });
+
+  const {
+    historyAlerts: testHistoryAlerts,
+    isLoadingHistory: testIsLoadingHistory,
+    currentPage: testHistoryCurrentPage,
+    totalPages: testHistoryTotalPages,
+    goToPage: goToTestHistoryPage,
+    totalHistoryElements: testTotalHistoryElements,
+  } = useDashboardHistory({
+    facilityIds: isTestMode && testFacilityId != null ? [testFacilityId] : [],
+    liveCameras: testLiveCameras,
+    dangerAiEvents: testDangerEvents,
+    acknowledgedAiEventIds: testAcknowledgedIds,
+    filters: { searchDate: tSearchDate, searchCamera: tSearchCamera, searchKeyword: tSearchKeyword },
+    userType: testUserType,
+    admin: true,
+  });
+
+  const testCameraOptions = useMemo(
+    () => testLiveCameras.map(camera => ({ id: camera.cameraDbId ?? camera.id, name: camera.name })),
+    [testLiveCameras],
+  );
+
+  const testCameraStatusMap = useCameraStatusWebSocket(testFacilityId, testUserType);
+  useCameraOverlays(testFacilityId, testUserType);
+  const { getAssist: getTestVlmAssist } = useVlmSnapshotAssist(isTestMode);
+
+  const loadTestRecentAlerts = useCallback(async () => {
+    if (!isTestMode || testFacilityId == null) return;
+    try {
+      const events = await fetchRecentAlertEvents(testFacilityId, testUserType, { admin: true });
+      const recentAlerts = events
+        .map(event => toIncidentAlertFromRecentEvent(event, testLiveCameras))
+        .filter((event): event is IncidentAlert => !!event);
+      mergeTestRecentAlerts(recentAlerts);
+    } catch {
+      logger.error('[TestMode] Failed to load recent alert events.');
+    }
+  }, [isTestMode, testFacilityId, testUserType, testLiveCameras, mergeTestRecentAlerts]);
+
+  useEffect(() => {
+    void loadTestRecentAlerts();
+    const intervalId = setInterval(() => { void loadTestRecentAlerts(); }, 15000);
+    return () => clearInterval(intervalId);
+  }, [loadTestRecentAlerts]);
+
+  const [testSelectedIncident, setTestSelectedIncident] = useState<IncidentAlert | null>(null);
+  const [testIncidentIsPlaying, setTestIncidentIsPlaying] = useState(true);
+  const [testIncidentPlaybackProgress, setTestIncidentPlaybackProgress] = useState(5);
+
+  const handleOpenTestIncident = useCallback((alert: IncidentAlert) => {
+    setTestSelectedIncident(alert);
+    setTestIncidentPlaybackProgress(5);
+    setTestIncidentIsPlaying(true);
+  }, []);
+
+  const handleTestCameraClick = useCallback((camera: LiveCamera) => {
+    setTestFocusedCameraId(camera.id);
+    const matchingAlert = testAllAlerts.find(alert => alert.camera === camera.location || alert.camera === camera.name);
+    if (matchingAlert) handleOpenTestIncident(matchingAlert);
+  }, [testAllAlerts, handleOpenTestIncident, setTestFocusedCameraId]);
+
+  const testSelectedIncidentCamera = testSelectedIncident
+    ? testLiveCameras.find(camera => camera.name === testSelectedIncident.camera || camera.location === testSelectedIncident.camera)
+    : null;
+  const testPlaybackStreamUrl = testSelectedIncident?.clipUrl || testSelectedIncidentCamera?.streamUrl || testLiveCameras[0]?.streamUrl;
+  const testPlaybackStreamKind = testSelectedIncident?.clipUrl ? 'hls' : (testSelectedIncidentCamera?.streamKind || testLiveCameras[0]?.streamKind);
+
+  const handleTestEmergency = () => {
+    const ok = window.confirm('🚨 [긴급] 비상 출동을 발령하시겠습니까?');
+    if (ok) alert('비상 출동 명령이 전달되었습니다.');
+  };
+
   const tSelectedQna = tMyInquiries.find(i => i.id === tSelectedQnaId) ?? null;
   const tPwStrength  = getPasswordStrength(tNewPw);
 
-  const handleTResolveAlert = (id: string) =>
-    setResolvedTestAlertIds(prev => new Set(prev).add(id));
   const handleTAddCamera = () => {
     if (!tNewCamName.trim() || !tNewCamId.trim()) return;
     setTCameras(prev => [...prev, { id: tNewCamId.trim(), name: tNewCamName.trim(), location: tNewCamLocation.trim()||'미지정', password: tNewCamPassword.trim()||undefined }]);
@@ -657,7 +744,7 @@ const handleSubmitReply = async () => {
                 {isTestMode
                   ? TEST_MENU_ITEMS.map(({ id, label, icon: Icon }) => {
                       const isActive = testSubMenu === id;
-                      const badge = id === 'alerts' ? tActiveTenMin.length : undefined;
+                      const badge = id === 'alerts' ? testActiveTenMinAlerts.length : undefined;
                       return (
                         <button
                           key={id}
@@ -896,155 +983,72 @@ const handleSubmitReply = async () => {
           })()}
 
           {/* ===== TEST MODE VIEWS ===== */}
-          {/* TEST HOME */}
+          {/* TEST HOME — 실제 개인용 대시보드와 동일한 컴포넌트/데이터 파이프라인 재사용 */}
           {isTestMode && testSubMenu === 'home' && (
-            <div className="flex-1 flex overflow-hidden">
-              <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
-                    <Video className="w-4 h-4 text-blue-400" />
-                    실시간 CCTV 모니터링
-                  </h2>
-                  <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">전 노드 연결 정상</span>
-                </div>
-                <LiveCameraGrid cameras={liveCameras} onCameraClick={camera => {
-                  const event = tAlerts.find(a => a.camera === camera.location || a.camera === camera.name);
-                  if (event) setTSelectedIncident(event);
-                }} />
+            !selectedSpace ? (
+              <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
+                좌측에서 미리보기할 공간(기업/개인 시설)을 먼저 선택하세요.
               </div>
-              <div className="w-72 bg-[#020817] border-l border-slate-800/50 flex flex-col flex-shrink-0">
-                <div className="flex-1 bg-[#071329] m-3 mb-0 rounded-xl flex flex-col overflow-hidden">
-                  <div className="p-4 border-b border-slate-800/50"><h3 className="text-base font-bold text-white">실시간 AI 위험 탐지</h3></div>
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {tAlerts.slice(0,5).map(evt => (
-                      <div key={evt.id} className={`bg-[#0f172a] rounded-xl p-3 flex items-center gap-3 ${evt.status==='resolved'?'opacity-50':''}`}>
-                        <div className="w-12 h-12 bg-[#374151] rounded-lg flex-shrink-0 overflow-hidden">
-                          <div className="flex h-full w-full items-center justify-center bg-slate-900 text-[9px] font-bold text-slate-500">LIVE</div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white font-bold text-sm leading-tight cursor-pointer hover:underline truncate" onClick={() => setTSelectedIncident(evt)}>{evt.type} 감지</p>
-                          <p className="text-[#cbd5e1] text-xs mt-0.5">{evt.time}</p>
-                        </div>
-                        {evt.status==='new'
-                          ? <button onClick={() => handleTResolveAlert(evt.id)} className={`${testEventBtnStyle(evt.severity)} text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 cursor-pointer`}>확인</button>
-                          : <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <button onClick={() => { const ok=window.confirm('🚨 [긴급] 비상 출동을 발령하시겠습니까?'); if(ok) alert('비상 출동 명령이 전달되었습니다.'); }} className="mx-3 my-3 py-4 bg-[#dc2626] hover:bg-red-500 text-white font-extrabold rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer">
-                  <Flame className="w-4 h-4 fill-white/20" /> 비상 출동
-                </button>
-              </div>
-            </div>
+            ) : (
+              <DashboardHomeView
+                acknowledgedAiEventIds={testAcknowledgedIds}
+                dangerAiEvents={testDangerEvents}
+                overlayEvents={testOverlayEvents}
+                focusedLiveCameras={testFocusedLiveCameras}
+                onCameraSelect={handleTestCameraClick}
+                onConfirmAiEvent={testHandleConfirmAiEvent}
+                onEmergency={handleTestEmergency}
+                onFocusAiEvent={testFocusAiEventCamera}
+                cameraStatusMap={testCameraStatusMap}
+                getVlmAssist={getTestVlmAssist}
+              />
+            )
           )}
 
-          {/* TEST ALERTS */}
+          {/* TEST ALERTS — 실제 개인용 대시보드와 동일한 컴포넌트/데이터 파이프라인 재사용 */}
           {isTestMode && testSubMenu === 'alerts' && (
-            <div className="flex-1 p-6 space-y-6 overflow-y-auto max-w-4xl">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-                <div>
-                  <h2 className="text-base font-extrabold text-white">이벤트 알림 피드 (최근 10분)</h2>
-                  <p className="text-xs text-slate-400 mt-1">골든타임 대응을 위해 최근 10분 내 발생한 위급 이상 행동만 표기합니다.</p>
-                </div>
-                <span className="px-3 py-1 bg-rose-500/10 border border-rose-500/25 text-rose-400 font-extrabold rounded-full text-xs">진행 위험: {tActiveTenMin.length}건</span>
+            !selectedSpace ? (
+              <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
+                좌측에서 미리보기할 공간(기업/개인 시설)을 먼저 선택하세요.
               </div>
-              {tActiveTenMin.length === 0 ? (
-                <div className="py-16 text-center bg-[#071329] border border-dashed border-slate-800 rounded-2xl">
-                  <Bell className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                  <p className="text-xs font-semibold text-slate-500">최근 10분 동안 감지된 활성 위급 경보가 없습니다.</p>
-                </div>
-              ) : tActiveTenMin.map(alert => {
-                const elapsedMs = Date.now()-alert.timestamp;
-                const elapsedMins = Math.floor(elapsedMs/60000), elapsedSecs = Math.floor((elapsedMs%60000)/1000);
-                const remaining = 10*60*1000-elapsedMs;
-                const remMins = Math.floor(remaining/60000), remSecs = Math.floor((remaining%60000)/1000);
-                return (
-                  <div key={alert.id} className={`bg-[#071329] border rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${alert.severity==='critical'?'border-rose-500/80':'border-amber-500/50'}`}>
-                    <div className="flex gap-3">
-                      <AlertTriangle className="w-5 h-5 text-rose-500 animate-pulse mt-0.5 flex-shrink-0" />
-                      <div>
-                        <div className="flex items-center gap-2"><span className="text-xs font-extrabold text-white">{alert.label}</span><span className="text-[9px] text-slate-400 font-mono">[{alert.camera}]</span></div>
-                        <div className="flex items-center gap-3 text-[10px] text-slate-500 mt-1">
-                          <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {alert.time}</span>
-                          <span className="text-rose-400 font-semibold">{elapsedMins}분 {elapsedSecs}초 경과</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] text-slate-500 font-mono">{remMins}분 {remSecs}초 후 소멸</span>
-                      <button onClick={() => setTSelectedIncident(alert)} className="px-3 py-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg text-xs font-bold cursor-pointer">녹화 재생</button>
-                      {alert.status==='new' && <button onClick={() => handleTResolveAlert(alert.id)} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer">조치 해제</button>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            ) : (
+              <DashboardAlertsView
+                alerts={testActiveTenMinAlerts}
+                unresolvedCount={testUnresolvedCount}
+                onOpenIncident={handleOpenTestIncident}
+                onResolveAlert={resolveTestAlert}
+              />
+            )
           )}
 
-          {/* TEST HISTORY */}
+          {/* TEST HISTORY — 실제 개인용 대시보드와 동일한 컴포넌트/데이터 파이프라인 재사용 */}
           {isTestMode && testSubMenu === 'history' && (
-            <div className="flex-1 p-6 space-y-6 overflow-y-auto max-w-5xl flex flex-col">
-              <div>
-                <h2 className="text-base font-extrabold text-white">이벤트 영상 기록 아카이브 (최대 한 달)</h2>
-                <p className="text-xs text-slate-400 mt-1">이벤트 발생 일자, 구역 및 행동 카테고리별로 녹화 영상을 검색 및 다운로드할 수 있습니다.</p>
+            !selectedSpace ? (
+              <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
+                좌측에서 미리보기할 공간(기업/개인 시설)을 먼저 선택하세요.
               </div>
-              <div className="bg-[#071329] border border-slate-800 p-4 rounded-2xl">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 tracking-wider">조회 기간</label>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {[{id:'today',label:'오늘'},{id:'week',label:'1주일'},{id:'month',label:'1개월'}].map(p => (
-                        <button key={p.id} onClick={() => setTSearchDate(p.id as any)} className={`py-2 rounded-lg text-[10px] font-bold border cursor-pointer ${tSearchDate===p.id?'bg-blue-600/10 border-blue-500 text-blue-400':'border-slate-800 text-slate-400 hover:border-slate-700'}`}>{p.label}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 tracking-wider">CCTV 채널</label>
-                    <select value={tSearchCamera} onChange={e => setTSearchCamera(e.target.value)} className="w-full px-3 py-2 bg-[#020817] border border-slate-800 rounded-lg text-xs text-slate-300">
-                      <option value="전체">전체 카메라</option>
-                      {TEST_CCTV_FEEDS.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 tracking-wider">키워드</label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
-                      <input type="text" value={tSearchKeyword} onChange={e => setTSearchKeyword(e.target.value)} placeholder="FALL, 낙상, 복도…" className="w-full pl-9 pr-4 py-2 bg-[#020817] border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="flex-1 bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden flex flex-col">
-                <div className="px-5 py-3 bg-slate-900/30 border-b border-slate-800 flex justify-between text-xs text-slate-400">
-                  <span className="font-semibold">검색 내역 ({tFilteredHistory.length}건)</span>
-                  <span className="text-[10px]">최근 30일 아카이빙 보관 중</span>
-                </div>
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-800">
-                  {tFilteredHistory.length === 0
-                    ? <div className="py-20 text-center"><p className="text-xs text-slate-500">해당 조건의 녹화 기록이 없습니다.</p></div>
-                    : tFilteredHistory.map(log => (
-                      <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-800/10">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400"><Video className="w-4 h-4" /></div>
-                          <div>
-                            <h4 className="text-xs font-bold text-white">{log.label}</h4>
-                            <div className="flex items-center gap-2 text-[9px] text-slate-500 mt-1 font-mono">
-                              <span>위치: {log.camera}</span><span>•</span>
-                              <span>2026-05-{log.timestamp%2===0?'25':'26'} {log.time}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => setTSelectedIncident(log)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-[10px] cursor-pointer">비디오 확인</button>
-                          <button onClick={() => alert('MP4 저장 완료')} className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded border border-slate-800 cursor-pointer"><Download className="w-3.5 h-3.5" /></button>
-                        </div>
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            </div>
+            ) : (
+              <DashboardHistoryView
+                historyAlerts={testHistoryAlerts}
+                totalHistoryElements={testTotalHistoryElements}
+                searchCamera={tSearchCamera}
+                searchDate={tSearchDate}
+                searchKeyword={tSearchKeyword}
+                cameraOptions={testCameraOptions}
+                isLoading={testIsLoadingHistory}
+                currentPage={testHistoryCurrentPage}
+                totalPages={testHistoryTotalPages}
+                onGoToPage={goToTestHistoryPage}
+                onOpenIncident={handleOpenTestIncident}
+                onSearchCameraChange={setTSearchCamera}
+                onSearchDateChange={setTSearchDate}
+                onSearchKeywordChange={setTSearchKeyword}
+                semanticSearchScope={testFacilityId == null ? undefined : {
+                  type: testUserType === 'corporate' ? 'company' : 'facility',
+                  id: testFacilityId,
+                }}
+              />
+            )
           )}
 
           {/* TEST CAMERAS */}
@@ -1780,48 +1784,18 @@ const handleSubmitReply = async () => {
         </div>
       )}
 
-      {tSelectedIncident && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
-          <div className="w-full max-w-3xl bg-[#071329] border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
-            <div className="px-5 py-3.5 bg-[#061224] border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"/>
-                <h3 className="text-sm font-extrabold text-white">이벤트 영상 재생기</h3>
-                <span className="text-[10px] text-slate-400 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded font-mono">{tSelectedIncident.camera} — {tSelectedIncident.time}</span>
-              </div>
-              <button onClick={() => setTSelectedIncident(null)} className="text-xs font-bold text-slate-400 hover:text-white px-2 py-1 rounded bg-[#020817] border border-slate-800 cursor-pointer">닫기</button>
-            </div>
-            <div className="relative aspect-video bg-black overflow-hidden">
-              <img src={liveCameras[0]?.streamUrl} alt="Playback" className="w-full h-full object-cover contrast-125 brightness-75"/>
-              <div className="absolute top-1/3 left-1/3 w-1/3 h-1/3 border-2 border-rose-500 rounded bg-rose-500/5 flex flex-col justify-between p-2">
-                <span className="text-[9px] font-bold text-white bg-rose-600 px-1.5 rounded uppercase self-start">{tSelectedIncident.type}</span>
-                <span className="text-[10px] text-rose-400 font-extrabold text-center animate-pulse">이상 거동 감지 (CRITICAL)</span>
-              </div>
-            </div>
-            <div className="bg-[#061224] p-4 space-y-3">
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-mono text-slate-400">
-                  <span>00:{tPlaybackProgress.toString().padStart(2,'0')}</span>
-                  <span className="text-rose-400 font-bold">감지 타임스탬프 (00:30)</span>
-                  <span>01:00</span>
-                </div>
-                <input type="range" min="0" max="60" value={tPlaybackProgress} onChange={e=>setTPlaybackProgress(Number(e.target.value))} className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"/>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setTIsPlaying(p=>!p)} className="p-2 hover:bg-slate-800 rounded-xl text-slate-300 hover:text-white cursor-pointer">{tIsPlaying?<Pause className="w-5 h-5"/>:<Play className="w-5 h-5"/>}</button>
-                  <div className="flex items-center gap-1.5"><Volume2 className="w-4 h-4 text-slate-400"/><input type="range" min="0" max="100" value={tPlaybackVolume} onChange={e=>setTPlaybackVolume(Number(e.target.value))} className="w-16 h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-blue-500"/></div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <select value={tPlaybackSpeed} onChange={e=>setTPlaybackSpeed(Number(e.target.value))} className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 font-bold cursor-pointer">
-                    <option value="0.5">0.5x</option><option value="1.0">1.0x</option><option value="1.5">1.5x</option><option value="2.0">2.0x</option>
-                  </select>
-                  <button onClick={() => alert('스냅샷 저장 완료')} className="px-3 py-1.5 bg-slate-900 border border-slate-800 text-[10px] font-bold rounded-lg text-slate-300 flex items-center gap-1 cursor-pointer"><Download className="w-3.5 h-3.5"/>스냅샷</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {testSelectedIncident && (
+        <IncidentPlaybackModal
+          incident={testSelectedIncident}
+          isPlaying={testIncidentIsPlaying}
+          playbackProgress={testIncidentPlaybackProgress}
+          playbackStreamUrl={testPlaybackStreamUrl}
+          playbackStreamKind={testPlaybackStreamKind}
+          onClose={() => setTestSelectedIncident(null)}
+          onPlaybackProgressChange={setTestIncidentPlaybackProgress}
+          onTogglePlaying={() => setTestIncidentIsPlaying(prev => !prev)}
+          cameraLoginId={testSelectedIncidentCamera?.cameraLoginId}
+        />
       )}
 
       {/* ===== FLOATING STATS PANEL ===== */}

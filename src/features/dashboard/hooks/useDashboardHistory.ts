@@ -13,9 +13,11 @@ interface UseDashboardHistoryParams {
   acknowledgedAiEventIds: ReadonlySet<string>;
   filters: HistoryFilters;
   userType: 'individual' | 'corporate';
+  /** true면 관리자 전용(`/api/admin/**`) 엔드포인트로 조회 — 소유권 검증 없이 임의의 facility/company 미리보기 */
+  admin?: boolean;
 }
 
-export function useDashboardHistory({ facilityIds, liveCameras, dangerAiEvents, acknowledgedAiEventIds, filters, userType }: UseDashboardHistoryParams) {
+export function useDashboardHistory({ facilityIds, liveCameras, dangerAiEvents, acknowledgedAiEventIds, filters, userType, admin }: UseDashboardHistoryParams) {
   const [historyAlerts, setHistoryAlerts] = useState<IncidentAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [page, setPage] = useState(0);
@@ -45,6 +47,7 @@ export function useDashboardHistory({ facilityIds, liveCameras, dangerAiEvents, 
         facilityIds[0], pageNumber, 50,
         { cameraId, keyword, dateFrom },
         userType,
+        { admin },
       );
       setHistoryAlerts(response.content.map((event) => toIncidentAlertFromRecentEvent(event, liveCameras)).filter((event): event is IncidentAlert => !!event));
       setPage(response.number);
@@ -55,7 +58,7 @@ export function useDashboardHistory({ facilityIds, liveCameras, dangerAiEvents, 
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedKeyword, facilityIds, liveCameras, searchCamera, searchDate, userType]);
+  }, [admin, debouncedKeyword, facilityIds, liveCameras, searchCamera, searchDate, userType]);
 
   useEffect(() => {
     if (facilityIds.length > 0) {
